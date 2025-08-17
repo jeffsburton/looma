@@ -1,0 +1,125 @@
+from datetime import datetime, timedelta, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from app.db.models.app_user import AppUser
+from app.db.models.app_user_session import AppUserSession
+from app.core.security import verify_password
+from typing import Optional
+
+
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[AppUser]:
+    """Authenticate a user by email and password"""
+    stmt = select(AppUser).where(AppUser.email == email)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if user and verify_password(password, user.password_hash):
+        return user
+    return None
+
+
+async def create_user_session(
+        db: AsyncSession,
+        user_id: int,
+        jti: str,
+        expires_minutes: int
+) -> AppUserSession:
+    """Create a new user session"""
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=expires_minutes)
+
+    session = AppUserSession(
+        app_user_id=user_id,
+        jti=jti,
+        expires_at=expires_at,
+        last_used_at=now,
+        is_active=True
+    )
+
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+async def validate_session(db: AsyncSession, jti: str) -> Optional[AppUserSession]:
+    """Validate and update session activity"""
+    stmt = select(AppUserSession).where(
+        AppUserSession.jti == jti,
+        AppUserSession.is_active == True
+    )
+    result = await db.execute(stmt)
+    session = result.scalars().first()
+
+    if not session:
+        return None
+
+    now = datetime.now(timezone.utc)
+
+    # Ensure session.expires_at is timezone-aware for comparison
+    expires_at = session.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    # Check if session expired
+    if expires_at < now:
+        session.is_active = False
+        await db.commit()
+        return None
+
+    # Update last used time
+    session.last_used_at = now
+    await db.commit()
+    return session
+
+
+async def invalidate_session(db: AsyncSession, jti: str) -> bool:
+    """Invalidate a user session"""
+    stmt = select(AppUserSession).where(AppUserSession.jti == jti)
+    result = await db.execute(stmt)
+    session = result.scalars().first()
+
+    if session:
+        session.is_active = False
+        await db.commit()
+        return True
+    return False
+
+
+async def cleanup_expired_sessions(db: AsyncSession, older_than_days: int = 7) -> int:
+    """
+    Delete expired sessions older than specified days.
+    Returns the number of deleted sessions.
+    """
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+
+    stmt = delete(AppUserSession).where(
+        AppUserSession.expires_at < cutoff_date
+    )
+
+    result = await db.execute(stmt)
+    await db.commit()
+
+    return await result.rowcount
+
+
+async def extend_session(db: AsyncSession, jti: str, minutes: int) -> Optional[AppUserSession]:
+    """Extend a session's expiry and update last_used_at. Returns the session if found and active."""
+    stmt = select(AppUserSession).where(
+        AppUserSession.jti == jti,
+        AppUserSession.is_active == True
+    )
+    result = await db.execute(stmt)
+    session = result.scalars().first()
+
+    if not session:
+        return None
+
+    now = datetime.now(timezone.utc)
+    session.expires_at = now + timedelta(minutes=minutes)
+    session.last_used_at = now
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+

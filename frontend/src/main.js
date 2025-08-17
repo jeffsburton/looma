@@ -1,0 +1,47 @@
+import { createApp } from 'vue'
+import App from './App.vue'
+
+import PrimeVue from 'primevue/config'
+import Aura from '@primeuix/themes/aura'
+import 'primeicons/primeicons.css'
+import 'primeflex/primeflex.css'
+import './assets/theme.css'
+
+import ToastService from 'primevue/toastservice'
+import router from './router'
+
+const app = createApp(App)
+
+// Custom darker red theme
+const customAura = {
+    ...Aura,
+    semantic: {
+        ...Aura.semantic,
+        primary: {
+            50: '#F2F7FA',
+            100: '#E6EFF6',
+            200: '#C9DFEE',
+            300: '#A7CBE3',
+            400: '#82B3D5',
+            500: '#39729B',
+            600: '#316285',
+            700: '#274E6B',
+            800: '#1D3B52',
+            900: '#142838',
+            950: '#0D1A25'
+        }
+    }
+}
+
+app.use(PrimeVue, {
+    theme: {
+        preset: customAura,
+        options: {
+            darkModeSelector: false
+        }
+    }
+})
+app.use(ToastService)
+app.use(router)
+
+app.mount('#app')
