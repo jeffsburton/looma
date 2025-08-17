@@ -20,6 +20,7 @@ const routes = [
     { path: '/case', name: 'case', component: () => import('../views/CaseView.vue') },
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },
+    { path: '/tasks', name: 'tasks', component: () => import('../views/TasksView.vue') },
 ]
 
 const router = createRouter({

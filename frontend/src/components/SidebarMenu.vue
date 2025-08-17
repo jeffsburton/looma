@@ -86,11 +86,12 @@ const items = [
         <div
           class="menu-item p-2 border-round flex align-items-center gap-2 cursor-pointer"
           :class="[{ active: item.label === props.active, collapsed }]"
-          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : null"
+          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : item.label === 'Tasks' ? router.push({ name: 'tasks' }) : null"
         >
           <span class="icon-wrap">
             <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
             <span v-if="item.label === 'Messages'" class="badge" aria-label="7 unread messages">7</span>
+            <span v-if="item.label === 'Tasks'" class="badge" aria-label="3 tasks">3</span>
           </span>
           <span v-show="!collapsed" class="label text-800 font-medium">{{ item.label }}</span>
         </div>
