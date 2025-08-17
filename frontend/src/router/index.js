@@ -18,6 +18,7 @@ const routes = [
     { path: '/', redirect: { name: 'cases' } },
     { path: '/cases', name: 'cases', component: CasesView },
     { path: '/case', name: 'case', component: () => import('../views/CaseView.vue') },
+    { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
 ]
 
 const router = createRouter({

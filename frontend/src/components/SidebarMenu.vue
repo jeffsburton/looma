@@ -86,9 +86,12 @@ const items = [
         <div
           class="menu-item p-2 border-round flex align-items-center gap-2 cursor-pointer"
           :class="[{ active: item.label === props.active, collapsed }]"
-          @click="item.label === 'Cases' && router.push({ name: 'cases' })"
+          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : null"
         >
-          <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+          <span class="icon-wrap">
+            <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+            <span v-if="item.label === 'Messages'" class="badge" aria-label="7 unread messages">7</span>
+          </span>
           <span v-show="!collapsed" class="label text-800 font-medium">{{ item.label }}</span>
         </div>
       </li>
@@ -138,4 +141,24 @@ const items = [
 .toggle-btn:hover { background: var(--p-surface-200, #eee); }
 /* Make the middle menu list scrollable so bottom icons remain visible */
 .sidebar > ul { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* Badge on Messages icon */
+.icon-wrap { position: relative; display: inline-flex; }
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--p-primary-500, #ef4444);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--p-surface-0, #fff);
+}
 </style>
