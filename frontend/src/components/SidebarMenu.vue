@@ -56,6 +56,7 @@ async function logout() {
 const items = [
   { icon: 'cases', label: 'Cases' },
   { icon: '3p', label: 'Messages' },
+  { icon: 'patient_list', label: 'Contacts' },
   { icon: 'list_alt_check', label: 'Tasks' },
   { icon: 'groups', label: 'Teams' },
   { icon: 'article', label: 'Reports' },
