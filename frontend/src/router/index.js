@@ -23,6 +23,7 @@ const routes = [
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },
     { path: '/tasks', name: 'tasks', component: () => import('../views/TasksView.vue') },
     { path: '/teams', name: 'teams', component: TeamsView },
+    { path: '/reports', name: 'reports', component: () => import('../views/ReportsView.vue') },
 ]
 
 const router = createRouter({

@@ -74,10 +74,6 @@ const downloadImage = async (item) => {
   <div class="p-3">
     <!-- Top bar with Add button -->
     <div class="flex align-items-center justify-content-between mb-3">
-      <div class="text-lg font-semibold flex align-items-center">
-        <span class="material-symbols-outlined mr-1">imagesmode</span>
-        <span>Files • Images</span>
-      </div>
       <button class="p-2 border-round flex align-items-center gap-2 add-btn" @click="onAdd">
         <span class="material-symbols-outlined">add</span>
         <span>Add</span>

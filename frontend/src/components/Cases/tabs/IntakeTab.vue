@@ -1,13 +1,15 @@
 <script setup>
 import { ref } from 'vue'
 import CoreTab from './intake/CoreTab.vue'
+import StatusTab from './intake/StatusTab.vue'
 import ContactsTab from './intake/ContactsTab.vue'
 import VictomologyTab from './intake/VictomologyTab.vue'
 import SearchUrgencyTab from './intake/SearchUrgencyTab.vue'
 import SocialMediaTab from './intake/SocialMediaTab.vue'
 
 const tabs = [
-  { key: 'core', label: 'Core', icon: 'article' },
+  { key: 'core', label: 'Intake', icon: 'arrows_input' },
+  { key: 'status', label: 'Status', icon: 'check' },
   { key: 'contacts', label: 'Contacts', icon: 'patient_list' },
   { key: 'victomology', label: 'Victomology', icon: 'heart_broken' },
   { key: 'social', label: 'Social Media', icon: 'share' },
@@ -35,6 +37,7 @@ const active = ref('core')
 
     <div>
       <CoreTab v-if="active==='core'" />
+      <StatusTab v-else-if="active==='status'" />
       <ContactsTab v-else-if="active==='contacts'" />
       <VictomologyTab v-else-if="active==='victomology'" />
       <SocialMediaTab v-else-if="active==='social'" />

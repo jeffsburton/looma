@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
+import Button from 'primevue/button'
 
 // Temporary local data. In future, replace with props or API data.
 const contacts = ref([
@@ -12,6 +13,12 @@ const contacts = ref([
 ])
 
 const search = ref('')
+
+function add() {
+  // Placeholder for future add-contact behavior (e.g., open dialog)
+  // Kept minimal per issue request to add the button to the toolbar.
+  console.debug('[ContactsTab] Add Contact clicked')
+}
 
 const filteredContacts = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -32,14 +39,13 @@ const filteredContacts = computed(() => {
 </script>
 <template>
   <div class="p-3">
-    <div class="text-lg font-semibold mb-3 flex align-items-center gap-2">
-      <span class="material-symbols-outlined">patient_list</span>
-      <span>Intake • Contacts</span>
-    </div>
 
-    <div class="flex align-items-center gap-2 mb-3">
-      <span class="material-symbols-outlined text-600">search</span>
-      <InputText v-model="search" placeholder="Search contacts..." class="w-20rem max-w-full" />
+    <div class="flex justify-content-between align-items-center mb-3">
+      <div class="flex align-items-center gap-2">
+        <span class="material-symbols-outlined text-600">search</span>
+        <InputText v-model="search" placeholder="Search contacts..." class="w-20rem max-w-full" />
+      </div>
+      <Button label="Add Contact" icon="pi pi-plus" size="small" @click="add" />
     </div>
 
     <DataTable :value="filteredContacts" dataKey="email" stripedRows size="small" class="shadow-1 border-round surface-card">

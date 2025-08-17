@@ -66,12 +66,17 @@ const items = [
 
 <template>
   <nav class="sidebar surface-card border-round p-2 flex flex-column">
-    <!-- Top logo -->
-    <img
-      src="/images/shepherds-bug.png"
-      alt="Shepherd's bug logo"
-      class="sidebar-logo block mx-auto mb-2"
-    />
+    <!-- Top logo and brand -->
+    <div class="logo-row flex align-items-center gap-2 mb-2">
+      <img
+        src="/images/shepherds-bug.png"
+        alt="Shepherd's bug logo"
+        class="sidebar-logo block"
+      />
+      <span v-show="!collapsed" class="brand text-900 font-semibold" aria-label="CALLED 2 RESCUE">
+        <span class="brand-text">CALLED</span><span class="brand-digit">2</span><span class="brand-text">RESCUE</span>
+      </span>
+    </div>
 
     <!-- Top toggle -->
     <div class="toggle-btn p-2 border-round cursor-pointer mb-1 flex align-items-center justify-content-center"
@@ -86,7 +91,7 @@ const items = [
         <div
           class="menu-item p-2 border-round flex align-items-center gap-2 cursor-pointer"
           :class="[{ active: item.label === props.active, collapsed }]"
-          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : item.label === 'Tasks' ? router.push({ name: 'tasks' }) : item.label === 'Teams' ? router.push({ name: 'teams' }) : null"
+          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : item.label === 'Tasks' ? router.push({ name: 'tasks' }) : item.label === 'Teams' ? router.push({ name: 'teams' }) : item.label === 'Reports' ? router.push({ name: 'reports' }) : null"
         >
           <span class="icon-wrap">
             <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
@@ -162,4 +167,8 @@ const items = [
   justify-content: center;
   border: 1px solid var(--p-surface-0, #fff);
 }
+/* Brand styling */
+.logo-row .brand { text-transform: uppercase; font-size: 0.8rem; }
+.logo-row .brand-text { color: #6b7280; }
+.logo-row .brand-digit { color: var(--p-primary-800, #1D3B52); }
 </style>

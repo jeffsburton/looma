@@ -37,10 +37,6 @@ function removeRow(rowId) {
 
 <template>
   <div class="p-3">
-    <div class="text-lg font-semibold mb-3 flex align-items-center gap-2">
-      <span class="material-symbols-outlined">share</span>
-      <span>Intake • Social Media</span>
-    </div>
 
     <div class="flex justify-content-end mb-2">
       <Button label="Add Account" icon="pi pi-plus" @click="addRow" size="small" />

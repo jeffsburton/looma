@@ -90,10 +90,6 @@ const advisory = computed(() => {
 </script>
 <template>
   <div class="p-3">
-    <div class="text-lg font-semibold mb-3 flex align-items-center gap-2">
-      <span class="material-symbols-outlined">zone_person_urgent</span>
-      <span>Intake • Search Urgency</span>
-    </div>
 
     <div class="surface-card border-round p-3">
       <div class="grid formgrid p-fluid">

@@ -67,10 +67,6 @@ const form = ref({
 </script>
 <template>
   <div class="p-3">
-    <div class="text-lg font-semibold mb-3 flex align-items-center gap-2">
-      <span class="material-symbols-outlined">heart_broken</span>
-      <span>Intake • Victomology</span>
-    </div>
 
     <!-- Narrative Top Questions -->
     <div class="grid formgrid p-fluid mb-4">
