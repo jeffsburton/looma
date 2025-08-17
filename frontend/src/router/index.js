@@ -5,6 +5,7 @@ import PasswordResetRequestView from '../views/PasswordResetRequestView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
 import CasesView from '../views/CasesView.vue'
 import RegistrationPendingView from '../views/RegistrationPendingView.vue'
+import TeamsView from '../views/TeamsView.vue'
 
 const routes = [
     // Public routes (no authentication required)
@@ -21,6 +22,7 @@ const routes = [
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },
     { path: '/tasks', name: 'tasks', component: () => import('../views/TasksView.vue') },
+    { path: '/teams', name: 'teams', component: TeamsView },
 ]
 
 const router = createRouter({

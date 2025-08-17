@@ -86,7 +86,7 @@ const items = [
         <div
           class="menu-item p-2 border-round flex align-items-center gap-2 cursor-pointer"
           :class="[{ active: item.label === props.active, collapsed }]"
-          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : item.label === 'Tasks' ? router.push({ name: 'tasks' }) : null"
+          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : item.label === 'Tasks' ? router.push({ name: 'tasks' }) : item.label === 'Teams' ? router.push({ name: 'teams' }) : null"
         >
           <span class="icon-wrap">
             <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
