@@ -4,6 +4,7 @@ import ImagesTab from './files/ImagesTab.vue'
 import OpsPlansTab from './files/OpsPlansTab.vue'
 import IntelSummariesTab from './files/IntelSummariesTab.vue'
 import EODReportsTab from './files/EODReportsTab.vue'
+import MissingFlyerTab from './files/MissingFlyerTab.vue'
 import OtherTab from './files/OtherTab.vue'
 
 const tabs = [
@@ -11,6 +12,7 @@ const tabs = [
   { key: 'ops', label: 'Ops Plans', icon: 'map_pin_review' },
   { key: 'intel', label: 'Intel Summaries', icon: 'network_intelligence_update' },
   { key: 'eod', label: 'EOD Reports', icon: 'bedtime' },
+  { key: 'missing', label: 'Missing Flyer', icon: 'contact_phone' },
   { key: 'other', label: 'Other', icon: 'picture_as_pdf' }
 ]
 const active = ref('images')
@@ -38,6 +40,7 @@ const active = ref('images')
       <OpsPlansTab v-else-if="active==='ops'" />
       <IntelSummariesTab v-else-if="active==='intel'" />
       <EODReportsTab v-else-if="active==='eod'" />
+      <MissingFlyerTab v-else-if="active==='missing'" />
       <OtherTab v-else />
     </div>
   </div>
