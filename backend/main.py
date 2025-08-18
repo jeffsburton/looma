@@ -7,6 +7,10 @@ from app.api.v1.router import api_router
 import traceback
 import uuid
 import logging
+import os
+import socket
+import subprocess
+from typing import Optional
 
 app = FastAPI(title=settings.project_name)
 
@@ -43,6 +47,75 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         },
         headers={"X-Error-ID": error_id},
     )
+
+
+# ---- Dev: Auto-start Vite on backend start (optional via env FRONTEND_AUTOSTART=true) ----
+VITE_DEFAULT_PORT = int(os.getenv("VITE_PORT", "5173"))
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+# If project structure is backend/ and frontend/ at repo root, adjust path accordingly
+if not os.path.isdir(FRONTEND_DIR):
+    # Try repo-root/frontend from backend/main.py location
+    FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+
+
+def _port_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.3)
+        try:
+            return s.connect_ex((host, port)) == 0
+        except OSError:
+            return False
+
+
+@app.on_event("startup")
+async def maybe_start_vite() -> None:
+    # Opt-in via environment variable
+    autostart = os.getenv("FRONTEND_AUTOSTART", "false").lower() in {"1", "true", "yes", "y"}
+    if not autostart:
+        logger.info("Vite autostart disabled. Set FRONTEND_AUTOSTART=true to enable.")
+        return
+
+    if _port_open("127.0.0.1", VITE_DEFAULT_PORT) or _port_open("localhost", VITE_DEFAULT_PORT):
+        logger.info("Vite appears to be already running on port %s; skipping autostart.", VITE_DEFAULT_PORT)
+        return
+
+    if not os.path.isdir(FRONTEND_DIR):
+        logger.warning("Cannot autostart Vite: frontend directory not found at %s", FRONTEND_DIR)
+        return
+
+    # Build command for Windows PowerShell/cmd
+    vite_cmd = os.getenv("VITE_START_CMD") or f"npm run dev -- --port {VITE_DEFAULT_PORT}"
+    try:
+        logger.info("Starting Vite in %s with: %s", FRONTEND_DIR, vite_cmd)
+        # shell=True to resolve npm on PATH on Windows; run detached but keep handle
+        proc = subprocess.Popen(
+            vite_cmd,
+            cwd=FRONTEND_DIR,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        )
+        app.state.vite_process = proc
+    except Exception as e:
+        logger.exception("Failed to start Vite: %s", e)
+
+
+@app.on_event("shutdown")
+async def stop_vite() -> None:
+    proc: Optional[subprocess.Popen] = getattr(app.state, "vite_process", None)
+    if not proc:
+        return
+    try:
+        logger.info("Stopping Vite (pid=%s)", proc.pid)
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+    except Exception as e:
+        logger.warning("Error while stopping Vite: %s", e)
+
 
 app.include_router(api_router, prefix="/api/v1")
 
