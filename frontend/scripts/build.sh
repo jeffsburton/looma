@@ -61,8 +61,9 @@ if [[ -z "$PROXY_TARGET" ]]; then
   PROXY_TARGET="$DEFAULT_PROXY"
 fi
 
-echo "Using proxy target (LOOMA_API_URL): $PROXY_TARGET"
-LOOMA_API_URL="$PROXY_TARGET" npm run build
+echo "Using API base/proxy target: $PROXY_TARGET"
+# Expose to Vite config (dev proxy) via LOOMA_API_URL and to client build via VITE_API_BASE
+LOOMA_API_URL="$PROXY_TARGET" VITE_API_BASE="$PROXY_TARGET" npm run build
 
 if [[ -d "dist" ]]; then
   echo "Build complete. Output: $FRONTEND_DIR/dist"

@@ -18,9 +18,18 @@ app = FastAPI(title=settings.project_name)
 # Configure a basic logger if not already configured
 logger = logging.getLogger("uvicorn.error")
 
+# Compute allowed CORS origins from settings + local dev
+_cors_origins = {"http://localhost:5173", "http://127.0.0.1:5173"}
+try:
+    _cors_origins.add(settings.frontend_base_url)
+    _cors_origins.add(settings.training_frontend_base_url)
+    _cors_origins.add(settings.production_frontend_base_url)
+except Exception:
+    pass
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=sorted(_cors_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -137,18 +146,25 @@ else:
     async def root():
         return {"message": f"Welcome to {settings.project_name}"}
 
-# Optional: enable `python main.py` to run a dev server directly
+# Optional: enable `python main.py` to run a server directly (dev by default)
 if __name__ == "__main__":
     try:
         import uvicorn
-        host = os.getenv("LOOMA_HOST") or "127.0.0.1"
-        port_str = os.getenv("LOOMA_PORT") or "8000"
+        # Prefer LOOMA_HOST if provided; otherwise, if PORT is set (e.g., on Render), default to 0.0.0.0
+        # Fall back to 127.0.0.1 for local development.
+        port_env = os.getenv("LOOMA_PORT") or os.getenv("PORT") or "8000"
         try:
-            port = int(port_str)
+            port = int(port_env)
         except ValueError:
-            logger.warning("Invalid LOOMA_PORT=%s; defaulting to 8000", port_str)
+            logger.warning("Invalid port env (LOOMA_PORT/PORT)=%s; defaulting to 8000", port_env)
             port = 8000
-        uvicorn.run("main:app", host=host, port=port, reload=True)
+        # If a platform PORT is provided and LOOMA_HOST not explicitly set, bind to all interfaces
+        host = os.getenv("LOOMA_HOST") or ("0.0.0.0" if os.getenv("PORT") else "127.0.0.1")
+        # Reload is useful in dev, but should be disabled in production by default
+        reload_flag = (os.getenv("UVICORN_RELOAD") or os.getenv("RELOAD") or "").lower() in {"1", "true", "yes", "y"}
+        if os.getenv("PORT") and not os.getenv("LOOMA_HOST") and not (os.getenv("UVICORN_RELOAD") or os.getenv("RELOAD")):
+            reload_flag = False
+        uvicorn.run("main:app", host=host, port=port, reload=reload_flag)
     except Exception as e:
         # Avoid crashing if uvicorn not installed in some environments
         raise SystemExit(f"Failed to start uvicorn: {e}")

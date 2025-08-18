@@ -2,8 +2,21 @@ import axios from 'axios'
 import { getCookie } from './cookies'
 import { showServerError } from './serverErrorStore'
 
+// Resolve API base URL:
+// Priority:
+// 1) Runtime global (window.__LOOMA_API_URL or window.__APP_CONFIG__.apiBaseUrl) for static hosts without rebuilds
+// 2) Build-time env (VITE_API_BASE or VITE_LOOMA_API_URL)
+// 3) Fallback to same-origin ('/') which works with dev proxy or when backend serves under the same host
+const runtimeApiBase = (typeof window !== 'undefined')
+  ? (window.__LOOMA_API_URL || (window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl))
+  : undefined
+
+const buildEnvApiBase = import.meta.env?.VITE_API_BASE || import.meta.env?.VITE_LOOMA_API_URL
+
+const apiBase = (runtimeApiBase || buildEnvApiBase || '').toString().trim()
+
 const api = axios.create({
-    baseURL: '/', // Vite proxy sends /api to FastAPI
+    baseURL: apiBase || '/', // if not configured, default to same-origin; dev proxy will handle /api
     withCredentials: true, // send and receive cookies (required for HttpOnly session cookies)
 })
 
