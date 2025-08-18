@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request
 from app.core.config import settings
 from app.api.v1.router import api_router
@@ -56,6 +57,11 @@ FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fr
 if not os.path.isdir(FRONTEND_DIR):
     # Try repo-root/frontend from backend/main.py location
     FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+
+
+# Path to built frontend assets
+FRONTEND_DIST = os.path.join(FRONTEND_DIR, "dist")
+SERVE_FRONTEND = os.getenv("SERVE_FRONTEND", "false").lower() in {"1", "true", "yes", "y"}
 
 
 def _port_open(host: str, port: int) -> bool:
@@ -117,11 +123,19 @@ async def stop_vite() -> None:
         logger.warning("Error while stopping Vite: %s", e)
 
 
+# API routes
 app.include_router(api_router, prefix="/api/v1")
 
-@app.get("/")
-async def root():
-    return {"message": f"Welcome to {settings.project_name}"}
+# Optionally serve built frontend
+if SERVE_FRONTEND and os.path.isdir(FRONTEND_DIST):
+    logger.info("Serving frontend from %s", FRONTEND_DIST)
+    # Mount at root; html=True enables SPA fallback to index.html
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+else:
+    # Fallback simple root endpoint when not serving the SPA
+    @app.get("/")
+    async def root():
+        return {"message": f"Welcome to {settings.project_name}"}
 
 # Optional: enable `python main.py` to run a dev server directly
 if __name__ == "__main__":
