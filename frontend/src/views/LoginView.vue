@@ -24,6 +24,7 @@ const form = ref({
 })
 
 const errors = ref({})
+const loginError = ref('')
 
 const validateForm = () => {
   errors.value = {}
@@ -40,6 +41,7 @@ const validateForm = () => {
 }
 
 const handleLogin = async () => {
+  loginError.value = ''
   if (!validateForm()) return
 
   loading.value = true
@@ -86,6 +88,7 @@ const handleLogin = async () => {
         detail = msg
       }
     }
+    loginError.value = detail
     toast.add({
       severity: 'error',
       summary: 'Login Failed',
@@ -164,6 +167,8 @@ onMounted(() => {
           </template>
 
           <template #content>
+            <!-- Inline error for login failures -->
+            <div v-if="loginError" class="p-error text-center mb-3">{{ loginError }}</div>
             <!-- Form with proper spacing -->
             <form @submit.prevent="handleLogin" class="flex flex-column gap-5">
 
