@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
-from app.db.base import Base, TimestampMixin
+from app.db import Base, TimestampMixin
 
 class AppUser(Base, TimestampMixin):
     __tablename__ = "app_user"

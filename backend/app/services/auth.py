@@ -123,3 +123,40 @@ async def extend_session(db: AsyncSession, jti: str, minutes: int) -> Optional[A
     return session
 
 
+
+
+from sqlalchemy import select
+from app.db.models.app_user_role import AppUserRole
+from app.db.models.role_permission import RolePermission
+from app.db.models.permission import Permission
+
+
+async def user_has_permission(db: AsyncSession, user_id: int, permission_code: str) -> bool:
+    """
+    Return True if the given user has the permission identified by `permission_code`.
+
+    This uses a single small query across the join tables for performance:
+      app_user_role (user -> role) -> role_permission (role -> permission) -> permission (code)
+
+    Args:
+        db: Async SQLAlchemy session
+        user_id: AppUser.id of the current user
+        permission_code: Permission.code slug to check
+
+    Returns:
+        bool: True if user has the permission, False otherwise
+    """
+    stmt = (
+        select(1)
+        .select_from(AppUserRole)
+        .join(RolePermission, RolePermission.role_id == AppUserRole.role_id)
+        .join(Permission, Permission.id == RolePermission.permission_id)
+        .where(
+            AppUserRole.app_user_id == user_id,
+            Permission.code == permission_code,
+        )
+        .limit(1)
+    )
+
+    result = await db.execute(stmt)
+    return result.first() is not None

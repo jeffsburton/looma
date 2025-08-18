@@ -12,8 +12,18 @@ import os
 import socket
 import subprocess
 from typing import Optional
+from contextlib import asynccontextmanager
 
-app = FastAPI(title=settings.project_name)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Use new FastAPI lifespan events instead of deprecated on_event
+    await maybe_start_vite()
+    try:
+        yield
+    finally:
+        await stop_vite()
+
+app = FastAPI(title=settings.project_name, lifespan=lifespan)
 
 # Configure a basic logger if not already configured
 logger = logging.getLogger("uvicorn.error")
@@ -82,7 +92,6 @@ def _port_open(host: str, port: int) -> bool:
             return False
 
 
-@app.on_event("startup")
 async def maybe_start_vite() -> None:
     # Opt-in via environment variable
     autostart = os.getenv("FRONTEND_AUTOSTART", "false").lower() in {"1", "true", "yes", "y"}
@@ -116,7 +125,6 @@ async def maybe_start_vite() -> None:
         logger.exception("Failed to start Vite: %s", e)
 
 
-@app.on_event("shutdown")
 async def stop_vite() -> None:
     proc: Optional[subprocess.Popen] = getattr(app.state, "vite_process", None)
     if not proc:

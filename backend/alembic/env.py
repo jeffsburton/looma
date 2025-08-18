@@ -19,7 +19,7 @@ logger = logging.getLogger("alembic.env")
 
 # Import the Base your models inherit from, then set target_metadata
 try:
-    from app.db.base import Base  # preferred if you have app/db/base.py exporting Base
+    from app.db import Base  # preferred: app/db/__init__.py re-exports Base
 except ModuleNotFoundError:
     from app.db import Base       # fallback if Base is in app/db/__init__.py
 
@@ -103,3 +103,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
