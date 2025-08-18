@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build script for Vite/Vue frontend
-# Usage examples:
-#   ./scripts/build.sh                    # build with default target from vite.config.js
-#   ./scripts/build.sh es2020             # build with target=es2020
-#   ./scripts/build.sh -t es2020          # same as above
-#   ./scripts/build.sh --install -t es2020 # install deps then build
+# Usage:
+#   ./scripts/build.sh                              # build with default targets
+#   BUILD_TARGET=es2020 ./scripts/build.sh          # override JS build target via env
+#   ./scripts/build.sh --install                    # install deps then build
+#   ./scripts/build.sh -p http://localhost:8000     # set proxy target (LOOMA_API_URL)
+#   ./scripts/build.sh http://localhost:9000        # positional proxy target
 
 set -euo pipefail
 
@@ -12,7 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 INSTALL=0
-TARGET=""
+PROXY_TARGET=""
+DEFAULT_PROXY="http://127.0.0.1:8000"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -21,10 +23,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL=1
       shift
       ;;
-    -t|--target)
-      TARGET="${2:-}"
-      if [[ -z "$TARGET" ]]; then
-        echo "Error: --target requires a value" >&2
+    -p|--proxy)
+      PROXY_TARGET="${2:-}"
+      if [[ -z "$PROXY_TARGET" ]]; then
+        echo "Error: --proxy requires a value" >&2
         exit 1
       fi
       shift 2
@@ -34,8 +36,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      # positional: target value
-      TARGET="$1"
+      # treat as positional proxy target
+      PROXY_TARGET="$1"
       shift
       ;;
   esac
@@ -48,13 +50,19 @@ if [[ $INSTALL -eq 1 ]]; then
   npm ci
 fi
 
-if [[ -n "$TARGET" ]]; then
-  echo "Building with Vite build.target=$TARGET"
-  BUILD_TARGET="$TARGET" npm run build
+if [[ -n "${BUILD_TARGET:-}" ]]; then
+  echo "Building with BUILD_TARGET=$BUILD_TARGET (from environment)"
 else
-  echo "Building with default target (vite.config.js)"
-  npm run build
+  echo "Building with default target (vite.config.js default)"
 fi
+
+# Determine proxy target to export for the build step (for parity/workflows)
+if [[ -z "$PROXY_TARGET" ]]; then
+  PROXY_TARGET="$DEFAULT_PROXY"
+fi
+
+echo "Using proxy target (LOOMA_API_URL): $PROXY_TARGET"
+LOOMA_API_URL="$PROXY_TARGET" npm run build
 
 if [[ -d "dist" ]]; then
   echo "Build complete. Output: $FRONTEND_DIR/dist"

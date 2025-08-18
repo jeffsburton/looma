@@ -12,6 +12,10 @@ Install dependencies
 
 Build for production
 - npm run build
+- Or use the helper script (macOS/Linux):
+  - ./scripts/build.sh                         # installs optional flags below
+  - ./scripts/build.sh --install               # install deps then build
+  - ./scripts/build.sh -p http://localhost:8000 # pass a proxy target (sets LOOMA_API_URL)
 - Output: frontend/dist
 
 Preview the production build locally (optional)
@@ -54,3 +58,33 @@ Troubleshooting
 
 Notes
 - Dev proxy in vite.config.js only affects development (npm run dev). In production, calls go directly to the URLs you program in the frontend code.
+
+Configure dev API proxy target (server.proxy.target)
+- Preferred workflow: use the helper bash script parameter.
+  - macOS/Linux:
+    - ./scripts/dev.sh                        # uses default http://127.0.0.1:8000
+    - ./scripts/dev.sh http://localhost:9000  # set a specific backend URL
+    - ./scripts/dev.sh -t https://api.example.com
+- Alternative: environment variables (works without the script too)
+  - Preferred: LOOMA_API_URL. Fallbacks: VITE_PROXY_TARGET, PROXY_TARGET. Default: http://127.0.0.1:8000.
+  - Examples:
+    - macOS/Linux:
+      - LOOMA_API_URL=http://localhost:8000 npm run dev
+      - VITE_PROXY_TARGET=https://api.example.com npm run dev
+    - Windows PowerShell:
+      - $env:LOOMA_API_URL = 'http://localhost:8000'; npm run dev
+      - $env:VITE_PROXY_TARGET = 'https://api.example.com'; npm run dev
+- This only affects development. For production, configure your frontend code to call the correct backend URL and ensure CORS on the server if serving from different origins.
+
+Build target via environment variable
+- You can control the JavaScript compilation target that Vite/Rollup outputs by setting an environment variable before building.
+- Vite config reads LOOMA_BUILD_TARGET (preferred) or BUILD_TARGET (fallback). Defaults to 'es2019' if neither is set.
+- Examples:
+  - macOS/Linux: LOOMA_BUILD_TARGET=es2020 npm run build
+  - macOS/Linux (fallback): BUILD_TARGET=es2020 npm run build
+  - Windows PowerShell: $env:LOOMA_BUILD_TARGET = 'es2020'; npm run build
+  - Windows PowerShell (fallback): $env:BUILD_TARGET = 'es2020'; npm run build
+- If you use the helper script:
+  - macOS/Linux: LOOMA_BUILD_TARGET=es2020 ./scripts/build.sh
+  - Windows PowerShell: $env:LOOMA_BUILD_TARGET = 'es2020'; .\scripts\build.ps1
+- If BUILD_TARGET is unset, the default target from vite.config.js is used.
