@@ -9,6 +9,11 @@ psycopg==3.2.3
 psycopg-binary==3.2.3
 aiosqlite==0.20.0
 
+# Async support helper required by SQLAlchemy
+# SQLAlchemy's async engine uses greenlet under the hood; without it, you'll see
+# "ValueError: the greenlet library is required to use this function. No module named 'greenlet'"
+greenlet>=3.0.3
+
 # Validation and settings
 pydantic==2.11.7
 pydantic-settings==2.4.0
