@@ -141,7 +141,8 @@ else:
 if __name__ == "__main__":
     try:
         import uvicorn
-        uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+        host = os.getenv("LOOMA_HOST") or "127.0.0.1"
+        uvicorn.run("main:app", host=host, port=8000, reload=True)
     except Exception as e:
         # Avoid crashing if uvicorn not installed in some environments
         raise SystemExit(f"Failed to start uvicorn: {e}")
