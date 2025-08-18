@@ -142,7 +142,13 @@ if __name__ == "__main__":
     try:
         import uvicorn
         host = os.getenv("LOOMA_HOST") or "127.0.0.1"
-        uvicorn.run("main:app", host=host, port=8000, reload=True)
+        port_str = os.getenv("LOOMA_PORT") or "8000"
+        try:
+            port = int(port_str)
+        except ValueError:
+            logger.warning("Invalid LOOMA_PORT=%s; defaulting to 8000", port_str)
+            port = 8000
+        uvicorn.run("main:app", host=host, port=port, reload=True)
     except Exception as e:
         # Avoid crashing if uvicorn not installed in some environments
         raise SystemExit(f"Failed to start uvicorn: {e}")
