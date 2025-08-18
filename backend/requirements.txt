@@ -5,7 +5,8 @@ SQLAlchemy==2.0.34
 alembic==1.13.2
 
 # Database drivers
-asyncpg==0.29.0
+psycopg==3.2.3
+psycopg-binary==3.2.3
 aiosqlite==0.20.0
 
 # Validation and settings

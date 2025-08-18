@@ -69,15 +69,18 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        # Normalize to async driver for application runtime while leaving Alembic to use DATABASE_URL directly.
-        # Handle common Postgres URL variants and coerce to asyncpg.
+        # Normalize to psycopg3 driver for application runtime while leaving Alembic to use DATABASE_URL directly.
+        # Handle common Postgres URL variants and coerce to psycopg.
         if v.startswith("postgres://"):
             # Old-style URLs sometimes used by cloud providers
             v = v.replace("postgres://", "postgresql://", 1)
         if v.startswith("postgresql+psycopg2://"):
-            v = v.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
         elif v.startswith("postgresql://"):
-            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgresql://", "postgresql+psycopg://", 1)
+        # If asyncpg was specified, prefer psycopg for Python 3.13 compatibility on Render
+        elif v.startswith("postgresql+asyncpg://"):
+            v = v.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
         # leave sqlite+aiosqlite and already-async URLs unchanged
         return v
 
