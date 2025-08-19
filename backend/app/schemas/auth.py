@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
+from app.schemas.mixins import OpaqueIdMixin
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -28,7 +29,8 @@ class TokenResponse(BaseModel):
         }
     )
 
-class UserInfo(BaseModel):
+class UserInfo(OpaqueIdMixin):
+    OPAQUE_MODEL = "app_user"
     id: int
     email: EmailStr
     first_name: str
@@ -38,7 +40,7 @@ class UserInfo(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "id": 123,
+                "id": "1.gAAAAABl...",  # opaque id example
                 "email": "user@example.com",
                 "first_name": "Jane",
                 "last_name": "Doe",

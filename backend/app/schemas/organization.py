@@ -1,9 +1,11 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
+from app.schemas.mixins import OpaqueIdMixin
 
 
-class OrganizationRead(BaseModel):
+class OrganizationRead(OpaqueIdMixin):
+    OPAQUE_MODEL = "organization"
     id: int
     name: str
     main_contact_id: Optional[int] = None

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional
 from datetime import datetime
+from app.schemas.mixins import OpaqueIdMixin
 
 
 class UserCreate(BaseModel):
@@ -23,7 +24,8 @@ class UserUpdate(BaseModel):
     referred_by: Optional[str] = None
 
 
-class UserRead(BaseModel):
+class UserRead(OpaqueIdMixin):
+    OPAQUE_MODEL = "app_user"
     model_config = ConfigDict(from_attributes=True)
 
     id: int

@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Opaque ID codec (Option B)
+    # 32-byte base64 key recommended; if not provided, derived from jwt_secret_key
+    id_secret_key: Optional[str] = None
+    id_codec_version: int = 1
+
     # Password reset
     password_reset_token_expire_minutes: int = 60
 

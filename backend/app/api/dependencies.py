@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.db.models.app_user import AppUser
 from app.services.auth import validate_session
+from app.core.id_codec import decode_id, OpaqueIdError
+from fastapi import Path
+from typing import Callable
 
 # Keep HTTPBearer for backward compatibility, but don't auto-error so we can fall back to cookie
 security = HTTPBearer(auto_error=False)
@@ -106,3 +109,24 @@ async def get_current_user(
         raise credentials_exception
 
     return user
+
+
+# --- Opaque ID decoding dependency (Option B) ---
+
+def decode_path_id(model: str) -> Callable[[str], int]:
+    """
+    Returns a dependency function to decode a URL-safe opaque ID into an integer PK.
+
+    Example:
+        @router.get("/users/{user_id}")
+        async def get_user(user_id: int = Depends(decode_path_id("app_user"))):
+            ...
+    """
+    async def _dep(eid: str = Path(..., description="Opaque ID")) -> int:
+        try:
+            return decode_id(model, eid)
+        except OpaqueIdError:
+            # Hide whether the ID exists
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    return _dep

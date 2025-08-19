@@ -1,7 +1,9 @@
 from pydantic import BaseModel, ConfigDict
+from app.schemas.mixins import OpaqueIdMixin
 
 
-class StateRead(BaseModel):
+class StateRead(OpaqueIdMixin):
+    OPAQUE_MODEL = "ref_state"
     id: int
     name: str
     code: str
