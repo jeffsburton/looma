@@ -89,3 +89,56 @@ def seed(table_name: str, rows) -> int | list[int]:
         return int(lastrowid)
 
     raise RuntimeError("Could not determine inserted id for table '%s'" % table_name)
+
+def get_record_by_code(table_name: str, code: str) -> int:
+    """Fetch the primary key (id) for the row in `table_name` with the given `code`.
+
+    Uses the current Alembic migration connection (op.get_bind()) and table
+    reflection, similar to `seed`.
+
+    Args:
+        table_name: Name of the table to query.
+        code: The value to match against the table's `code` column.
+
+    Returns:
+        int: The primary key value (id or single-column primary key) of the
+        matching row.
+
+    Raises:
+        KeyError: If the table has no `code` column.
+        LookupError: If no row with the given code is found.
+        RuntimeError: If multiple rows are found for the given code, or if a
+            unique primary key column cannot be determined.
+    """
+    bind = op.get_bind()
+
+    # Reflect table structure on the current migration connection
+    metadata = sa.MetaData()
+    table = sa.Table(table_name, metadata, autoload_with=bind)
+
+    # Ensure there is a `code` column
+    if 'code' not in table.c:
+        raise KeyError(f"Table '{table_name}' does not have a 'code' column")
+
+    # Determine which column to return as the identifier
+    if 'id' in table.c:
+        id_col = table.c['id']
+    else:
+        pk_cols = list(table.primary_key.columns)
+        if len(pk_cols) != 1:
+            raise RuntimeError(
+                f"Table '{table_name}' must have a single-column primary key or an 'id' column"
+            )
+        id_col = pk_cols[0]
+
+    # Build and execute select query
+    stmt = sa.select(id_col).where(table.c['code'] == code)
+    result = bind.execute(stmt)
+    ids = list(result.scalars())
+
+    if len(ids) == 0:
+        raise LookupError(f"No record found in '{table_name}' with code='{code}'")
+    if len(ids) > 1:
+        raise RuntimeError(f"Multiple records found in '{table_name}' with code='{code}'")
+
+    return int(ids[0])

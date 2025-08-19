@@ -10,7 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from app.db.base import seed
+from app.db.base import seed, get_record_by_code
 
 # revision identifiers, used by Alembic.
 revision: str = '0003'
@@ -142,6 +142,27 @@ def upgrade() -> None:
 
     # Seed organization entry (name, ref_state_id=9)
     seed('organization', {"name": "Called2Rescue", "ref_state_id": 9})
+
+    # see qualifications
+    seed(
+        'qualification',
+        [
+            {"name": "Fundamentals", "code": "FUND"},
+            {"name": "Leadership", "code": "LEAD"},
+            {"name": "Case Advocay", "code": "CADV"},
+            {"name": "Intel Analyst", "code": "INTEL"},
+            {"name": "Operations", "code": "OPS"},
+            {"name": "FBI Background Check", "code": "BACK"},
+            {"name": "Concealed Carry Permit", "code": "CCP"},
+            {"name": "Stop The Bleed", "code": "STB"},
+            {"name": "FEMA IS-100", "code": "F100"},
+            {"name": "FEMA IS-200", "code": "F200"}
+        ]
+    )
+
+    perm_id: int = seed("permission", {"name": "Edit Organizations", "code": "ADMIN.ORGS", "description": "Edit the list of organizations in admin."})
+    role_id: int = get_record_by_code("role", "ADMIN")
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
 
 
 def downgrade() -> None:
