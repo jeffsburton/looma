@@ -1,13 +1,17 @@
-from pydantic import field_validator
+import os
+from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
 class Settings(BaseSettings):
+    # Load from .env if present; still honor real environment variables first
     model_config = SettingsConfigDict(env_file=".env")
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///./app.db"
+    # Read DATABASE_URL directly from environment when constructing settings,
+    # falling back to the default sqlite URL.
+    database_url: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./app.db"))
 
     # JWT
     jwt_secret_key: str = "your-super-secret-key-change-this-in-production"

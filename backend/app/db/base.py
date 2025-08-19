@@ -11,15 +11,24 @@ class TimestampMixin:
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-def seed(table_name: str, row: dict) -> int:
-    """Insert a row into the given table using the current Alembic bind and return the new id.
+def seed(table_name: str, rows) -> int | list[int]:
+    """Insert one or many rows into the given table using the current Alembic bind.
 
     Args:
         table_name: Name of the target table.
-        row: Mapping of column -> value to insert.
+        rows: Either a single mapping (dict) of column -> value to insert,
+              or a list/tuple of such mappings for bulk insert.
 
     Returns:
-        The primary key value of the inserted row (assumes a single-column PK).
+        - If a single row (dict) is provided: the primary key value (int) of the inserted row
+          (assumes a single-column PK).
+        - If a list/tuple of rows is provided:
+            * On PostgreSQL (supports RETURNING): list[int] of inserted primary keys.
+            * On other dialects: an empty list (IDs not available for bulk insert without RETURNING).
+
+    Notes:
+        - If an empty list is provided, returns an empty list immediately.
+        - Primary key detection assumes a single-column PK; falls back to 'id' if present.
     """
     bind = op.get_bind()
 
@@ -37,6 +46,26 @@ def seed(table_name: str, row: dict) -> int:
     elif pk_cols:
         pk_col = pk_cols[0]
 
+    is_sequence = isinstance(rows, (list, tuple))
+
+    # Handle bulk insert
+    if is_sequence:
+        if len(rows) == 0:
+            return []
+        insert_stmt = sa.insert(table).values(list(rows))
+        if pk_col is not None and bind.dialect.name in {"postgresql", "postgres"}:
+            insert_stmt = insert_stmt.returning(pk_col)
+            result = bind.execute(insert_stmt)
+            # When returning a single column, scalars() is available
+            inserted_ids = list(result.scalars())
+            return [int(x) for x in inserted_ids]
+        else:
+            # Execute without RETURNING; cannot reliably fetch PKs for bulk insert on many dialects
+            bind.execute(insert_stmt)
+            return []
+
+    # Single-row insert (backward compatible)
+    row = rows
     insert_stmt = sa.insert(table).values(**row)
 
     # If dialect supports RETURNING and we know the PK column, use it.

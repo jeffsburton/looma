@@ -1,5 +1,10 @@
 <script setup>
 import { ref } from 'vue'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 import ImagesTab from './files/ImagesTab.vue'
 import OpsPlansTab from './files/OpsPlansTab.vue'
 import IntelSummariesTab from './files/IntelSummariesTab.vue'
@@ -8,52 +13,70 @@ import EODReportsTab from './files/EODReportsTab.vue'
 import MissingFlyerTab from './files/MissingFlyerTab.vue'
 import OtherTab from './files/OtherTab.vue'
 
-const tabs = [
-  { key: 'images', label: 'Images', icon: 'imagesmode' },
-  { key: 'ops', label: 'Ops Plans', icon: 'map_pin_review' },
-  { key: 'intel', label: 'Intel Summaries', icon: 'network_intelligence_update' },
-  { key: 'rfi', label: "RFI's", icon: 'quiz' },
-  { key: 'eod', label: 'EOD Reports', icon: 'bedtime' },
-  { key: 'missing', label: 'Missing Flyer', icon: 'contact_phone' },
-  { key: 'other', label: 'Other', icon: 'picture_as_pdf' }
-]
 const active = ref('images')
 </script>
 
 <template>
   <div class="files">
-    <div class="subtabs surface-card border-round p-1 mb-2">
-      <div class="flex gap-1 wrap">
-        <button
-          v-for="t in tabs"
-          :key="t.key"
-          class="p-2 border-round flex align-items-center gap-2 cursor-pointer tab-btn"
-          :class="{ active: t.key === active, inactive: t.key !== active }"
-          @click="active = t.key"
-        >
-          <span class="material-symbols-outlined">{{ t.icon }}</span>
-          <span class="label">{{ t.label }}</span>
-        </button>
-      </div>
-    </div>
+    <Tabs :value="active" @update:value="(v) => (active = v)">
+      <TabList class="mb-2">
+        <Tab value="images">
+          <span class="material-symbols-outlined">imagesmode</span>
+          <span class="ml-1">Images</span>
+        </Tab>
+        <Tab value="ops">
+          <span class="material-symbols-outlined">map_pin_review</span>
+          <span class="ml-1">Ops Plans</span>
+        </Tab>
+        <Tab value="intel">
+          <span class="material-symbols-outlined">network_intelligence_update</span>
+          <span class="ml-1">Intel Summaries</span>
+        </Tab>
+        <Tab value="rfi">
+          <span class="material-symbols-outlined">quiz</span>
+          <span class="ml-1">RFI's</span>
+        </Tab>
+        <Tab value="eod">
+          <span class="material-symbols-outlined">bedtime</span>
+          <span class="ml-1">EOD Reports</span>
+        </Tab>
+        <Tab value="missing">
+          <span class="material-symbols-outlined">contact_phone</span>
+          <span class="ml-1">Missing Flyer</span>
+        </Tab>
+        <Tab value="other">
+          <span class="material-symbols-outlined">picture_as_pdf</span>
+          <span class="ml-1">Other</span>
+        </Tab>
+      </TabList>
 
-    <div>
-      <ImagesTab v-if="active==='images'" />
-      <OpsPlansTab v-else-if="active==='ops'" />
-      <IntelSummariesTab v-else-if="active==='intel'" />
-      <RFIsTab v-else-if="active==='rfi'" />
-      <EODReportsTab v-else-if="active==='eod'" />
-      <MissingFlyerTab v-else-if="active==='missing'" />
-      <OtherTab v-else />
-    </div>
+      <TabPanels>
+        <TabPanel value="images">
+          <ImagesTab />
+        </TabPanel>
+        <TabPanel value="ops">
+          <OpsPlansTab />
+        </TabPanel>
+        <TabPanel value="intel">
+          <IntelSummariesTab />
+        </TabPanel>
+        <TabPanel value="rfi">
+          <RFIsTab />
+        </TabPanel>
+        <TabPanel value="eod">
+          <EODReportsTab />
+        </TabPanel>
+        <TabPanel value="missing">
+          <MissingFlyerTab />
+        </TabPanel>
+        <TabPanel value="other">
+          <OtherTab />
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
   </div>
 </template>
 
 <style scoped>
-.subtabs { position: sticky; top: 0; z-index: 1; }
-.tab-btn { background: transparent; border: 1px solid transparent; }
-.tab-btn:hover { background: var(--p-surface-100, #f5f5f5); }
-.tab-btn.active { background: var(--p-primary-100, #fbd5d5); color: var(--p-primary-800, #1D3B52); border-color: var(--p-primary-200, #C9DFEE); }
-.tab-btn.inactive { color: var(--p-text-color, inherit); }
-.wrap { flex-wrap: wrap; }
+/* Using PrimeVue Tabs components for subtabs */
 </style>

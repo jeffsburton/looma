@@ -172,7 +172,7 @@ if __name__ == "__main__":
         reload_flag = (os.getenv("UVICORN_RELOAD") or os.getenv("RELOAD") or "").lower() in {"1", "true", "yes", "y"}
         if os.getenv("PORT") and not os.getenv("LOOMA_HOST") and not (os.getenv("UVICORN_RELOAD") or os.getenv("RELOAD")):
             reload_flag = False
-        uvicorn.run("main:app", host=host, port=port, reload=reload_flag)
+        uvicorn.run("main:app", host=host, port=port, reload=reload_flag, env_file=".env")
     except Exception as e:
         # Avoid crashing if uvicorn not installed in some environments
         raise SystemExit(f"Failed to start uvicorn: {e}")

@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import delete
 from app.db.models.app_user import AppUser
 from app.db.models.app_user_session import AppUserSession
 from app.core.security import verify_password
-from typing import Optional
+from typing import Optional, Sequence, List, Union, overload
 
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[AppUser]:
@@ -131,32 +131,96 @@ from app.db.models.role_permission import RolePermission
 from app.db.models.permission import Permission
 
 
-async def user_has_permission(db: AsyncSession, user_id: int, permission_code: str) -> bool:
+async def get_user_permission_codes(db: AsyncSession, user_id: int) -> List[str]:
     """
-    Return True if the given user has the permission identified by `permission_code`.
+    Return a list of all permission codes that the given user has via their roles.
 
-    This uses a single small query across the join tables for performance:
+    Joins across:
       app_user_role (user -> role) -> role_permission (role -> permission) -> permission (code)
-
-    Args:
-        db: Async SQLAlchemy session
-        user_id: AppUser.id of the current user
-        permission_code: Permission.code slug to check
-
-    Returns:
-        bool: True if user has the permission, False otherwise
     """
     stmt = (
-        select(1)
+        select(Permission.code)
+        .select_from(AppUserRole)
+        .join(RolePermission, RolePermission.role_id == AppUserRole.role_id)
+        .join(Permission, Permission.id == RolePermission.permission_id)
+        .where(AppUserRole.app_user_id == user_id)
+        .distinct()
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+@overload
+async def user_has_permission(db: AsyncSession, user_id: int, permission_code: str) -> bool: ...
+
+@overload
+async def user_has_permission(db: AsyncSession, user_id: int, permission_code: Sequence[str]) -> List[str]: ...
+
+async def user_has_permission(
+    db: AsyncSession,
+    user_id: int,
+    permission_code: Union[str, Sequence[str]]
+) -> Union[bool, List[str]]:
+    """
+    Check whether a user has one or more permissions.
+
+    - If `permission_code` is a single string, returns a bool indicating whether the
+      user has that permission.
+    - If `permission_code` is a sequence (list/tuple) of strings, performs a single
+      SQL query using `Permission.code IN (...)` and returns the subset of codes the
+      user actually has, preserving the input order and removing duplicates.
+
+    Joins across:
+      app_user_role (user -> role) -> role_permission (role -> permission) -> permission (code)
+    """
+    # Handle single permission (string)
+    if isinstance(permission_code, str):
+        stmt = (
+            select(1)
+            .select_from(AppUserRole)
+            .join(RolePermission, RolePermission.role_id == AppUserRole.role_id)
+            .join(Permission, Permission.id == RolePermission.permission_id)
+            .where(
+                AppUserRole.app_user_id == user_id,
+                Permission.code == permission_code,
+            )
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        return result.first() is not None
+
+    # Handle multiple permissions (list/tuple of strings)
+    # Protect against sequences that are not list/tuple; we only consider list/tuple as batch.
+    if not isinstance(permission_code, (list, tuple)):
+        # Fallback: treat as no permissions
+        return []
+
+    # Normalize input: remove falsy entries and deduplicate while preserving order
+    seen = set()
+    codes: List[str] = []
+    for c in permission_code:
+        if not c or not isinstance(c, str):
+            continue
+        if c not in seen:
+            seen.add(c)
+            codes.append(c)
+
+    if not codes:
+        return []
+
+    stmt = (
+        select(Permission.code)
         .select_from(AppUserRole)
         .join(RolePermission, RolePermission.role_id == AppUserRole.role_id)
         .join(Permission, Permission.id == RolePermission.permission_id)
         .where(
             AppUserRole.app_user_id == user_id,
-            Permission.code == permission_code,
+            Permission.code.in_(codes),
         )
-        .limit(1)
     )
 
     result = await db.execute(stmt)
-    return result.first() is not None
+    found_codes = set(result.scalars().all())
+
+    # Preserve original order
+    return [c for c in codes if c in found_codes]

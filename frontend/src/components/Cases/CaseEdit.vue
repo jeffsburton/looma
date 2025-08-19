@@ -1,18 +1,12 @@
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue'
-
-// Top-level tabs config
-const tabs = [
-  { key: 'intake', label: 'Core', icon: 'article' },
-  { key: 'social', label: 'Social Media', icon: 'photo_camera' },
-  { key: 'timeline', label: 'Timeline', icon: 'calendar_month' },
-  { key: 'files', label: 'Files', icon: 'folder_open' },
-  { key: 'activity', label: 'Activity', icon: 'skateboarding' },
-  { key: 'messages', label: 'Messages', icon: 'chat_bubble' }
-]
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 
 const active = ref('intake')
-const activeIndex = computed(() => tabs.findIndex(t => t.key === active.value))
 
 // TEMP subject photo (to be wired to actual case subject data)
 const subjectPhotoUrl = ref('/images/sample_faces/1.png')
@@ -71,40 +65,99 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       </div>
     </div>
 
-    <!-- Top Tabs -->
-    <div class="tabs surface-card border-round p-1 mb-2">
-      <div class="flex gap-1 wrap">
-        <button
-          v-for="t in tabs"
-          :key="t.key"
-          class="p-2 border-round flex align-items-center gap-2 cursor-pointer tab-btn"
-          :class="{ active: t.key === active, inactive: t.key !== active }"
-          @click="active = t.key"
-        >
-          <span class="material-symbols-outlined">{{ t.icon }}</span>
-          <span class="label">{{ t.label }}</span>
-        </button>
-      </div>
-    </div>
+    <!-- Tabs -->
+    <Tabs :value="active" @update:value="(v) => (active = v)">
+      <TabList class="mb-1">
+        <Tab value="intake">
+          <span class="material-symbols-outlined">article</span>
+          <span class="ml-1">Core</span>
+        </Tab>
+        <Tab value="social">
+          <span class="material-symbols-outlined">photo_camera</span>
+          <span class="ml-1">Social Media</span>
+        </Tab>
+        <Tab value="timeline">
+          <span class="material-symbols-outlined">calendar_month</span>
+          <span class="ml-1">Timeline</span>
+        </Tab>
+        <Tab value="files">
+          <span class="material-symbols-outlined">folder_open</span>
+          <span class="ml-1">Files</span>
+        </Tab>
+        <Tab value="activity">
+          <span class="material-symbols-outlined">skateboarding</span>
+          <span class="ml-1">Activity</span>
+        </Tab>
+        <Tab value="messages">
+          <span class="material-symbols-outlined">chat_bubble</span>
+          <span class="ml-1">Messages</span>
+        </Tab>
+      </TabList>
 
-    <!-- Active Tab Content -->
-    <div class="surface-card border-round p-2 flex-1 overflow-auto">
-      <KeepAlive>
-        <Suspense>
-          <component
-            :is="active === 'intake' ? IntakeTab
-                  : active === 'social' ? SocialMediaTab
-                  : active === 'timeline' ? TimelineTab
-                  : active === 'files' ? FilesTab
-                  : active === 'activity' ? ActivityTab
-                  : MessagesTab"
-          />
-          <template #fallback>
-            <div class="p-3 text-600">Loading...</div>
-          </template>
-        </Suspense>
-      </KeepAlive>
-    </div>
+    <!-- Tab Panels -->
+    <TabPanels>
+      <TabPanel value="intake">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
+          <Suspense>
+            <IntakeTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="social">
+        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+          <Suspense>
+            <SocialMediaTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="timeline">
+        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+          <Suspense>
+            <TimelineTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="files">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
+          <Suspense>
+            <FilesTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="activity">
+        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+          <Suspense>
+            <ActivityTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="messages">
+        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+          <Suspense>
+            <MessagesTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+    </TabPanels>
+    </Tabs>
   </div>
 </template>
 

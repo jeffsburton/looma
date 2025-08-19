@@ -10,9 +10,6 @@
 # new-migration.ps1
 
 
-# Resolve paths relative to this script's location
-$backendRoot = Split-Path -Path $PSScriptRoot -Parent
-
 # Ensure DATABASE_URL is set using the script located next to this file, regardless of current working directory
 & (Join-Path $PSScriptRoot "set_db_url.ps1")
 

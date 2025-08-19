@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 // Prefer LOOMA_API_URL for proxy target in development.
 // Fallbacks: VITE_PROXY_TARGET, PROXY_TARGET, default 'http://127.0.0.1:8000'
 const proxyTarget = process.env.LOOMA_API_URL || process.env.VITE_PROXY_TARGET || process.env.PROXY_TARGET || 'http://127.0.0.1:8000'
-
+console.log(proxyTarget);
 export default defineConfig({
   plugins: [vue()],
   // Build target can be overridden by environment variable

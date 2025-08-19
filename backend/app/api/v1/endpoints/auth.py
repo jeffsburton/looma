@@ -8,7 +8,7 @@ import uuid
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, TokenResponse, UserInfo, PasswordResetRequest, PasswordResetConfirm, MessageResponse
 from app.schemas.user import UserRead, UserCreate
-from app.services.auth import authenticate_user, create_user_session, invalidate_session, cleanup_expired_sessions, extend_session, validate_session
+from app.services.auth import authenticate_user, create_user_session, invalidate_session, cleanup_expired_sessions, extend_session, validate_session, get_user_permission_codes
 from app.core.security import create_access_token, get_password_hash
 from app.core.config import settings
 from app.api.dependencies import get_current_user, security, get_bearer_or_cookie_token, validate_csrf
@@ -76,7 +76,8 @@ async def register(
                 "application/json": {
                     "example": {
                         "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                        "token_type": "bearer"
+                        "token_type": "bearer",
+                        "codes": ["users.read", "users.write"]
                     }
                 }
             }
@@ -176,7 +177,10 @@ async def login(
                 domain=settings.cookie_domain
             )
 
-    return TokenResponse(access_token=access_token)
+    # Gather user permission codes
+    codes = await get_user_permission_codes(db, user.id)
+
+    return TokenResponse(access_token=access_token, codes=codes)
 
 @router.post("/logout")
 async def logout(

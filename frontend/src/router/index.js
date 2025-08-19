@@ -24,6 +24,7 @@ const routes = [
     { path: '/tasks', name: 'tasks', component: () => import('../views/TasksView.vue') },
     { path: '/teams', name: 'teams', component: TeamsView },
     { path: '/reports', name: 'reports', component: () => import('../views/ReportsView.vue') },
+    { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue') },
 ]
 
 const router = createRouter({
