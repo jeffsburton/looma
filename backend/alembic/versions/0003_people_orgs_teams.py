@@ -149,7 +149,7 @@ def upgrade() -> None:
         [
             {"name": "Fundamentals", "code": "FUND"},
             {"name": "Leadership", "code": "LEAD"},
-            {"name": "Case Advocay", "code": "CADV"},
+            {"name": "Case Advocacy", "code": "CADV"},
             {"name": "Intel Analyst", "code": "INTEL"},
             {"name": "Operations", "code": "OPS"},
             {"name": "FBI Background Check", "code": "BACK"},
