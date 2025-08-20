@@ -10,7 +10,7 @@ class PersonCase(Base):
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
-    relationship_id = Column(Integer, ForeignKey("ref_relation.id"), nullable=True)
+    relationship_id = Column(Integer, ForeignKey("ref_per_relation.id"), nullable=True)
     relationship = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
 

@@ -14,6 +14,7 @@ class CaseRead(OpaqueIdMixin):
     number: Optional[str] = None
     missing_from_state_id: Optional[int] = None
     inactive: bool
+    shepherds_contributed_intel: bool
     created_at: datetime
     updated_at: datetime
 

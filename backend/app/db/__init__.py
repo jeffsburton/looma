@@ -20,7 +20,7 @@ from .models import subject  # noqa: F401
 from .models import case  # noqa: F401
 from .models import team_case  # noqa: F401
 from .models import app_user_case  # noqa: F401
-from .models import ref_relation  # noqa: F401
+from .models import ref_per_relation  # noqa: F401
 from .models import ref_sm_platform  # noqa: F401
 from .models import ref_activity  # noqa: F401
 from .models import ref_file_type  # noqa: F401
@@ -30,9 +30,8 @@ from .models import ref_status  # noqa: F401
 from .models import ref_requested_by  # noqa: F401
 from .models import ref_alive  # noqa: F401
 from .models import ref_ministry  # noqa: F401
-from .models import ref_actions  # noqa: F401
+from .models import ref_action  # noqa: F401
 from .models import ref_found_by  # noqa: F401
-from .models import ref_intel_discover  # noqa: F401
 from .models import ref_exploitation  # noqa: F401
 from .models import ref_sub_relation  # noqa: F401
 from .models import person_case  # noqa: F401

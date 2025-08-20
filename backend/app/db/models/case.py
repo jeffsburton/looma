@@ -14,6 +14,7 @@ class Case(Base):
     number = Column(String(120), nullable=True)
     missing_from_state_id = Column(Integer, ForeignKey("ref_state.id"), nullable=True)
     inactive = Column(Boolean, nullable=False, server_default="false")
+    shepherds_contributed_intel = Column(Boolean, nullable=False, server_default="false")
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

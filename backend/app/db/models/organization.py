@@ -10,7 +10,6 @@ class Organization(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
-    main_contact_id = Column(Integer, ForeignKey("person.id"), nullable=True)
     ref_state_id = Column(Integer, ForeignKey("ref_state.id"), nullable=True)
 
     # Timestamps – keep in sync with migrations
