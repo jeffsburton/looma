@@ -10,8 +10,10 @@ class SocialMediaRead(OpaqueIdMixin):
     id: int
     case_id: int
     person_id: Optional[int] = None
-    account: str
+    url: str
     platform_id: int
+    platform_other: Optional[str] = None
+    status_id: int
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -23,6 +25,8 @@ class SocialMediaUpsert(BaseModel):
     id: Optional[str] = None
     case_id: str
     person_id: Optional[str] = None
-    account: str
+    url: str
     platform_id: str
+    platform_other: Optional[str] = None
+    status_id: str
     notes: Optional[str] = None

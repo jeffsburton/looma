@@ -6,11 +6,10 @@ from app.schemas.mixins import OpaqueIdMixin
 
 
 class FilePersonRead(OpaqueIdMixin):
-    OPAQUE_MODEL = "file_person"
+    OPAQUE_MODEL = "image_person"
     id: int
-    file_id: int
-    person_id: int
-    case_photo: bool
+    image_id: int
+    subject_id: int
     created_at: datetime
     updated_at: datetime
 
@@ -19,6 +18,5 @@ class FilePersonRead(OpaqueIdMixin):
 
 class FilePersonUpsert(BaseModel):
     id: Optional[str] = None
-    file_id: str
-    person_id: str
-    case_photo: Optional[bool] = None
+    image_id: str
+    subject_id: str

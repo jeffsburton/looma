@@ -11,7 +11,8 @@ class SubjectCaseRead(OpaqueIdMixin):
     subject_id: int
     case_id: int
     relationship_id: Optional[int] = None
-    relationship: Optional[str] = None
+    relationship_other: Optional[str] = None
+    legal_guardian: bool
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -24,5 +25,6 @@ class SubjectCaseUpsert(BaseModel):
     subject_id: str
     case_id: str
     relationship_id: Optional[str] = None
-    relationship: Optional[str] = None
+    relationship_other: Optional[str] = None
+    legal_guardian: Optional[bool] = None
     notes: Optional[str] = None
