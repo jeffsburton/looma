@@ -62,6 +62,66 @@ def _get_database_url() -> str:
         return cfg_url
     raise RuntimeError("No database URL found. Set DATABASE_URL or sqlalchemy.url in alembic.ini")
 
+def _auto_seed_on_version_apply(**kwargs) -> None:
+    """Alembic on_version_apply callback to auto-run seed scripts.
+
+    This runs once per migration step, after the migration's operations
+    have been applied but before the transaction is finalized.
+    """
+    try:
+        # Allow opting out via env var
+        if os.getenv("ALEMBIC_AUTO_SEED", "1").lower() in {"0", "false", "no"}:
+            return
+
+        step = kwargs.get("step")  # alembic.runtime.migration.MigrationInfo
+        if step is None:
+            return
+        # Only run for real upgrade migrations
+        if not getattr(step, "is_migration", False) or not getattr(step, "is_upgrade", False):
+            return
+
+        up_rev = getattr(step, "up_revision_id", None)
+        if not up_rev:
+            return
+
+        seeds_dir = Path(__file__).resolve().parent / "seeds"
+        seed_filename = f"{up_rev}_seed.py"
+        seed_path = seeds_dir / seed_filename
+        if not seed_path.exists():
+            logger.info("No seed script found for revision %s at %s", up_rev, seed_path)
+            return
+
+        mod_name = f"alembic_auto_seed_{up_rev}"
+        spec = importlib.util.spec_from_file_location(mod_name, str(seed_path))
+        if spec is None or spec.loader is None:
+            logger.warning("Could not load seed module for revision %s from %s", up_rev, seed_path)
+            return
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Candidate function names in priority order
+        candidates = [f"seed_{up_rev}", "upgrade_seed", "seed", "run"]
+        func = None
+        for name in candidates:
+            func = getattr(module, name, None)
+            if callable(func):
+                break
+        if not callable(func):
+            logger.warning(
+                "Seed module %s does not define any of %s; skipping",
+                seed_path,
+                candidates,
+            )
+            return
+
+        logger.info("Running seed function '%s' from %s", getattr(func, "__name__", "<callable>"), seed_path)
+        func()
+    except Exception as exc:
+        # Fail the migration if seeds fail; adjust here if you want best-effort
+        logger.error("Error running seeds for revision: %s", exc, exc_info=True)
+        raise
+
+
 def run_migrations_offline() -> None:
     _import_models()  # ensure models are loaded before autogenerate
     url = _get_database_url()
@@ -95,6 +155,7 @@ def run_migrations_online() -> None:
             compare_type=True,
             compare_server_default=True,
             include_schemas=True,
+            on_version_apply=(_auto_seed_on_version_apply,),
         )
         with context.begin_transaction():
             context.run_migrations()

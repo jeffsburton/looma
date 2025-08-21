@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, LargeBinary
 from sqlalchemy.sql import func
 
 from app.db import Base
@@ -13,6 +13,8 @@ class Person(Base):
     phone = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)
     organization_id = Column(Integer, ForeignKey("organization.id"), nullable=True)
+    profile_pic = Column(LargeBinary, nullable=True)
+
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -10,7 +10,7 @@ class AppUser(Base, TimestampMixin):
     last_name = Column(String(120), nullable=False)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    is_active = Column(Boolean, nullable=False, server_default="true")
     phone = Column(String(20), nullable=True)
     organization = Column(String(200), nullable=True)
     referred_by = Column(String(100), nullable=True)

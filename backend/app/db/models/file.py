@@ -8,11 +8,13 @@ class File(Base):
     __tablename__ = "file"
 
     id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
     file_name = Column(String(255), nullable=False)
-    created_by_id = Column(Integer, ForeignKey("person.id", ondelete="SET NULL"), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
     source = Column(String(255), nullable=True)
-    where = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
+
+    rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

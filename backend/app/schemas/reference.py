@@ -3,7 +3,7 @@ from app.schemas.mixins import OpaqueIdMixin
 
 
 class StateRead(OpaqueIdMixin):
-    OPAQUE_MODEL = "ref_state"
+    OPAQUE_MODEL = "ref_value"
     id: int
     name: str
     code: str

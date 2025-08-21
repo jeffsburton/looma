@@ -8,7 +8,7 @@ class OrganizationRead(OpaqueIdMixin):
     OPAQUE_MODEL = "organization"
     id: int
     name: str
-    ref_state_id: Optional[int] = None
+    state_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

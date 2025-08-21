@@ -9,12 +9,9 @@ class Case(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subject.id"), nullable=False)
-    date_missing = Column(Date, nullable=True)
-    time_missing = Column(Time, nullable=True)
-    number = Column(String(120), nullable=True)
-    missing_from_state_id = Column(Integer, ForeignKey("ref_state.id"), nullable=True)
+    case_number = Column(String(120), nullable=True)
     inactive = Column(Boolean, nullable=False, server_default="false")
-    shepherds_contributed_intel = Column(Boolean, nullable=False, server_default="false")
+    date_intake = Column(Date, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -13,5 +13,9 @@ class Message(Base):
     message = Column(Text, nullable=False)
     reply_to_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)
 
+    rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
+    intel_summary_id = Column(Integer, ForeignKey("intel_summary.id", ondelete="SET NULL"), nullable=True)
+    ops_plan_id = Column(Integer, ForeignKey("ops_plan.id", ondelete="SET NULL"), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

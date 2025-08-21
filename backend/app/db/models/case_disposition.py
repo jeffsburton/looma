@@ -1,0 +1,21 @@
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Time, Boolean, DateTime
+from sqlalchemy.sql import func
+
+from app.db import Base
+
+
+class CaseDisposition(Base):
+    __tablename__ = "case_disposition"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("case.id"), nullable=False)
+    shepherds_contributed_intel = Column(Boolean, nullable=False, server_default="false")
+    date_found = Column(Date, nullable=True)
+    scope_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+    class_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+    status_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+    living_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+    found_by_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

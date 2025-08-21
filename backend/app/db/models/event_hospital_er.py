@@ -4,13 +4,12 @@ from sqlalchemy.sql import func
 from app.db import Base
 
 
-class PersonQualification(Base):
-    __tablename__ = "person_qualification"
+class EventHospitalEr(Base):
+    __tablename__ = "event_hospital_er"
 
     id = Column(Integer, primary_key=True, index=True)
-    person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
-    qualification_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)
-    date = Column(Date, nullable=True)
+    event_id = Column(Integer, ForeignKey("event.id", ondelete="CASCADE"), nullable=False)
+    hospital_er_id = Column(Integer, ForeignKey("hospital_er.id"), nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

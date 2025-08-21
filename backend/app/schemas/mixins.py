@@ -9,7 +9,6 @@ class OpaqueIdMixin(BaseModel):
     Pydantic v2 mixin that serializes the `id` field as an opaque string during output.
 
     Subclasses must set class attribute OPAQUE_MODEL to a non-empty string
-    identifying the model namespace (e.g., "app_user", "ref_state").
     """
     # Treat as a normal class attribute, not a Pydantic field
     OPAQUE_MODEL: ClassVar[Optional[str]] = None

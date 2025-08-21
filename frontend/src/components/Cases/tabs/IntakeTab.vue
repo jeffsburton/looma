@@ -8,7 +8,7 @@ import TabPanel from 'primevue/tabpanel'
 import CoreTab from './intake/CoreTab.vue'
 import StatusTab from './intake/StatusTab.vue'
 import ContactsTab from './intake/ContactsTab.vue'
-import VictomologyTab from './intake/VictomologyTab.vue'
+import victimologyTab from './intake/victimologyTab.vue'
 import SearchUrgencyTab from './intake/SearchUrgencyTab.vue'
 import SocialMediaTab from './intake/SocialMediaTab.vue'
 
@@ -31,9 +31,9 @@ const active = ref('core')
           <span class="material-symbols-outlined">patient_list</span>
           <span class="ml-1">Contacts</span>
         </Tab>
-        <Tab value="victomology">
+        <Tab value="victimology">
           <span class="material-symbols-outlined">heart_broken</span>
-          <span class="ml-1">Victomology</span>
+          <span class="ml-1">victimology</span>
         </Tab>
         <Tab value="social">
           <span class="material-symbols-outlined">share</span>
@@ -55,8 +55,8 @@ const active = ref('core')
         <TabPanel value="contacts">
           <ContactsTab />
         </TabPanel>
-        <TabPanel value="victomology">
-          <VictomologyTab />
+        <TabPanel value="victimology">
+          <victimologyTab />
         </TabPanel>
         <TabPanel value="social">
           <SocialMediaTab />
