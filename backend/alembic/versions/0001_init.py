@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-08-21 13:40:41.072882
+Create Date: 2025-08-22 06:15:55.420185
 
 """
 from typing import Sequence, Union
@@ -28,9 +28,8 @@ def upgrade() -> None:
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('password_hash', sa.String(length=255), nullable=False),
     sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
-    sa.Column('phone', sa.String(length=20), nullable=True),
-    sa.Column('organization', sa.String(length=200), nullable=True),
-    sa.Column('referred_by', sa.String(length=100), nullable=True),
+    sa.Column('telegram', sa.String(length=50), nullable=True),
+    sa.Column('onboarding_data', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
@@ -87,6 +86,15 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_subject_id'), 'subject', ['id'], unique=False)
+    op.create_table('system_setting',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=50), nullable=False),
+    sa.Column('value', sa.Text(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_system_setting_id'), 'system_setting', ['id'], unique=False)
     op.create_table('victimology',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('victimology_category_id', sa.Integer(), nullable=False),
@@ -150,6 +158,20 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_ref_value_id'), 'ref_value', ['id'], unique=False)
+    op.create_table('rfi_source',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('primary_id', sa.Integer(), nullable=True),
+    sa.Column('backup_id', sa.Integer(), nullable=True),
+    sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['backup_id'], ['app_user.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['primary_id'], ['app_user.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_rfi_source_id'), 'rfi_source', ['id'], unique=False)
     op.create_table('role_permission',
     sa.Column('role_id', sa.Integer(), nullable=False),
     sa.Column('permission_id', sa.Integer(), nullable=False),
@@ -631,20 +653,27 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_person_team_id'), 'person_team', ['id'], unique=False)
-    op.create_table('rfi_source',
+    op.create_table('rfi',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
-    sa.Column('primary_id', sa.Integer(), nullable=False),
-    sa.Column('backup_id', sa.Integer(), nullable=False),
-    sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('created_by', sa.Integer(), nullable=False),
+    sa.Column('rfi_source_id', sa.Integer(), nullable=False),
+    sa.Column('subject_id', sa.Integer(), nullable=False),
+    sa.Column('details', sa.Text(), nullable=True),
+    sa.Column('responded_by_id', sa.Integer(), nullable=True),
+    sa.Column('results', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['backup_id'], ['person.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['primary_id'], ['person.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['created_by'], ['person.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['responded_by_id'], ['person.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['rfi_source_id'], ['rfi_source.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_rfi_source_id'), 'rfi_source', ['id'], unique=False)
+    op.create_index(op.f('ix_rfi_id'), 'rfi', ['id'], unique=False)
     op.create_table('social_media',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
@@ -710,41 +739,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_timeline_id'), 'timeline', ['id'], unique=False)
-    op.create_table('ops_plan_assignment',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('ops_plan_id', sa.Integer(), nullable=False),
-    sa.Column('person_id', sa.Integer(), nullable=False),
-    sa.Column('role_id', sa.Integer(), nullable=False),
-    sa.Column('role_other', sa.String(length=100), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['ops_plan_id'], ['ops_plan.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['person_id'], ['person.id'], ),
-    sa.ForeignKeyConstraint(['role_id'], ['ref_value.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_ops_plan_assignment_id'), 'ops_plan_assignment', ['id'], unique=False)
-    op.create_table('rfi',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=False),
-    sa.Column('created_by', sa.Integer(), nullable=False),
-    sa.Column('rfi_source_id', sa.Integer(), nullable=False),
-    sa.Column('subject_id', sa.Integer(), nullable=False),
-    sa.Column('details', sa.Text(), nullable=True),
-    sa.Column('responded_by_id', sa.Integer(), nullable=True),
-    sa.Column('results', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['created_by'], ['person.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['responded_by_id'], ['person.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['rfi_source_id'], ['rfi_source.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_rfi_id'), 'rfi', ['id'], unique=False)
     op.create_table('file',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
@@ -800,6 +794,20 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_message_id'), 'message', ['id'], unique=False)
+    op.create_table('ops_plan_assignment',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('ops_plan_id', sa.Integer(), nullable=False),
+    sa.Column('person_id', sa.Integer(), nullable=False),
+    sa.Column('role_id', sa.Integer(), nullable=False),
+    sa.Column('role_other', sa.String(length=100), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['ops_plan_id'], ['ops_plan.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['person_id'], ['person.id'], ),
+    sa.ForeignKeyConstraint(['role_id'], ['ref_value.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_ops_plan_assignment_id'), 'ops_plan_assignment', ['id'], unique=False)
     op.create_table('image_person',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('image_id', sa.Integer(), nullable=False),
@@ -819,16 +827,14 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_index(op.f('ix_image_person_id'), table_name='image_person')
     op.drop_table('image_person')
+    op.drop_index(op.f('ix_ops_plan_assignment_id'), table_name='ops_plan_assignment')
+    op.drop_table('ops_plan_assignment')
     op.drop_index(op.f('ix_message_id'), table_name='message')
     op.drop_table('message')
     op.drop_index(op.f('ix_image_id'), table_name='image')
     op.drop_table('image')
     op.drop_index(op.f('ix_file_id'), table_name='file')
     op.drop_table('file')
-    op.drop_index(op.f('ix_rfi_id'), table_name='rfi')
-    op.drop_table('rfi')
-    op.drop_index(op.f('ix_ops_plan_assignment_id'), table_name='ops_plan_assignment')
-    op.drop_table('ops_plan_assignment')
     op.drop_index(op.f('ix_timeline_id'), table_name='timeline')
     op.drop_table('timeline')
     op.drop_index(op.f('ix_team_case_id'), table_name='team_case')
@@ -837,8 +843,8 @@ def downgrade() -> None:
     op.drop_table('social_media_alias')
     op.drop_index(op.f('ix_social_media_id'), table_name='social_media')
     op.drop_table('social_media')
-    op.drop_index(op.f('ix_rfi_source_id'), table_name='rfi_source')
-    op.drop_table('rfi_source')
+    op.drop_index(op.f('ix_rfi_id'), table_name='rfi')
+    op.drop_table('rfi')
     op.drop_index(op.f('ix_person_team_id'), table_name='person_team')
     op.drop_table('person_team')
     op.drop_index(op.f('ix_person_qualification_id'), table_name='person_qualification')
@@ -892,6 +898,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_app_user_case_id'), table_name='app_user_case')
     op.drop_table('app_user_case')
     op.drop_table('role_permission')
+    op.drop_index(op.f('ix_rfi_source_id'), table_name='rfi_source')
+    op.drop_table('rfi_source')
     op.drop_index(op.f('ix_ref_value_id'), table_name='ref_value')
     op.drop_table('ref_value')
     op.drop_index(op.f('ix_case_id'), table_name='case')
@@ -904,6 +912,8 @@ def downgrade() -> None:
     op.drop_table('victimology_category')
     op.drop_index(op.f('ix_victimology_id'), table_name='victimology')
     op.drop_table('victimology')
+    op.drop_index(op.f('ix_system_setting_id'), table_name='system_setting')
+    op.drop_table('system_setting')
     op.drop_index(op.f('ix_subject_id'), table_name='subject')
     op.drop_table('subject')
     op.drop_index(op.f('ix_role_name'), table_name='role')

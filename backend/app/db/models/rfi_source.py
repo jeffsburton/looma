@@ -12,8 +12,8 @@ class RfiSource(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
 
-    primary_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
-    backup_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
+    primary_id = Column(Integer, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True)
+    backup_id = Column(Integer, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True)
 
     inactive = Column(Boolean, nullable=False, server_default="false")
 

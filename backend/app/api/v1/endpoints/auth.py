@@ -13,6 +13,7 @@ from app.core.security import create_access_token, get_password_hash
 from app.core.config import settings
 from app.api.dependencies import get_current_user, security, get_bearer_or_cookie_token, validate_csrf
 from app.db.models.app_user import AppUser
+from app.services.telegram import send_telegram_dm
 from app.services.user import create_user, get_user_by_email, get_user_by_id
 from app.services.email import send_email
 import logging
@@ -46,8 +47,12 @@ async def register(
                 "A new user has registered on the system.\n\n"
                 f"Name: {full_name}\n"
                 f"Email: {user.email}\n"
+                f"Phone: {user.phone}\n"
+                f"Telegram: {user.telegram}\n"
             )
             send_email(to=admin_email, subject=subject, text=text)
+            if user.telegram:
+                send_telegram_dm(to=user.telegram, text=text)
     except Exception as e:
         logging.getLogger(__name__).warning(
             "Failed to send admin registration notification: %s", e

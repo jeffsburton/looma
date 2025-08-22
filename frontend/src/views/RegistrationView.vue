@@ -21,6 +21,7 @@ const form = ref({
   phoneNumber: '',
   organization: '',
   referredBy: '',
+  telegram: '',
   password: '',
   confirmPassword: ''
 })
@@ -109,6 +110,7 @@ const handleRegistration = async () => {
       phone: phoneDigits || form.value.phoneNumber || null,
       organization: form.value.organization.trim(),
       referred_by: form.value.referredBy.trim(),
+      telegram: (form.value.telegram || '').trim() || null,
     }
 
     const response = await api.post('/api/v1/auth/register', payload)
@@ -156,6 +158,8 @@ const handleRegistration = async () => {
               errors.value.organization = msg; break
             case 'referred_by':
               errors.value.referredBy = msg; break
+            case 'telegram':
+              errors.value.telegram = msg; break
             default:
               // Unmapped field; show a general message
               break
@@ -279,6 +283,21 @@ const handleRegistration = async () => {
               <label for="referredBy">Referred By *</label>
             </FloatLabel>
             <small v-if="errors.referredBy" class="p-error">{{ errors.referredBy }}</small>
+          </div>
+
+          <!-- Telegram Handle (optional) -->
+          <div class="flex flex-column gap-2">
+            <FloatLabel>
+              <InputText
+                  id="telegram"
+                  v-model="form.telegram"
+                  class="w-full"
+                  :class="{ 'p-invalid': errors.telegram }"
+                  placeholder="@yourhandle"
+              />
+              <label for="telegram">Telegram Handle</label>
+            </FloatLabel>
+            <small v-if="errors.telegram" class="p-error">{{ errors.telegram }}</small>
           </div>
           <!-- Password Fields Row -->
           <div class="grid">

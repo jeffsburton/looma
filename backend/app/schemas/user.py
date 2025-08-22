@@ -9,9 +9,12 @@ class UserCreate(BaseModel):
     last_name: str
     email: EmailStr
     password: str
+    # collected but stored in onboarding_data JSON
     phone: Optional[str] = None
     organization: Optional[str] = None
     referred_by: Optional[str] = None
+    # new field stored directly
+    telegram: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -19,9 +22,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
-    phone: Optional[str] = None
-    organization: Optional[str] = None
-    referred_by: Optional[str] = None
+    telegram: Optional[str] = None
 
 
 class UserRead(OpaqueIdMixin):
@@ -33,8 +34,6 @@ class UserRead(OpaqueIdMixin):
     last_name: str
     email: EmailStr
     is_active: bool
-    phone: Optional[str] = None
-    organization: Optional[str] = None
-    referred_by: Optional[str] = None
+    telegram: Optional[str] = None
     created_at: datetime
     updated_at: datetime

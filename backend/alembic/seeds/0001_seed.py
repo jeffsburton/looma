@@ -371,7 +371,7 @@ def seed_0001():
 
     vc_id:int = seed("victimology_category", {"category": "General Questions"})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "Do neighbors have cameras?", "follow_up": "Location? Address? Contacts?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "question": "Do neighbors have cameras?", "follow_up": "Location? Address? Contacts?"},
         {"victimology_category_id": vc_id, "question": "Have they run before?", "follow_up": ""},
         {"victimology_category_id": vc_id, "question": "Has there been a note found?", "follow_up": ""},
         {"victimology_category_id": vc_id, "question": "Do they have favorite places they like to go, or eat, hangout at?", "follow_up": ""}])
@@ -436,3 +436,8 @@ def seed_0001():
 
     app_user_id = seed("app_user", {"first_name": "Jeff", "last_name": "Burton", "email": "jsburton@gmail.com", "password_hash": "$pbkdf2-sha256$29000$n1NqLSWEkPJeC4EQYqyVMg$DQ3w24lr3LDKF663lmBO4E1D6lB3x2ZWbdZhDNBjkfA", "is_active": True})
     seed("app_user_role", {"app_user_id": app_user_id, "role_id": role_id})
+
+    seed("system_setting", {"name": "system_email", "value" : "jsburton@gmail.com"})
+    seed("system_setting", {"name": "system_telegram_api_id", "value" : "22078170"})
+    seed("system_setting", {"name": "system_telegram_api_hash", "value" : "ed21b3193c355e1ca5e7e5000ea36fbb"})
+    seed("system_setting", {"name": "system_telegram_session", "value" : "1AZWarzgBu4hkWEoJzKphEIinzYE7Lf7abjok7VYvQaHfgnTTQaynlA-7-ukdYC0Rv9sSKLqLzCPMZjEpcHcFpjpzHVd6gCSw8WKBLvz15MsEdBlnp1CiexzAaM573DOBscOD_YAEjU2X9vydGvjNfN8WYTl8i5D_pRua1q0gLbXjIzE60ZsiNagcMfAt1tf5Dkf9rDI282sKO2ofOvGPNhRrjmoTFwL7aaTjz7k98QoMzk87DLYFY2bdu2Per5ITyD9ipfjZcbl1Xpvy_IgfVMSt1ClKmiNsAbtmaLlHvTtMjEZ8KSWbnRFPIRQgtR_v09kV6WUVvj1yf45z4QLZfQmCjCze9_s="})

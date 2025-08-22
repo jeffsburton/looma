@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, Text
 from sqlalchemy.orm import relationship
 from app.db import Base, TimestampMixin
 
@@ -11,9 +11,9 @@ class AppUser(Base, TimestampMixin):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Boolean, nullable=False, server_default="true")
-    phone = Column(String(20), nullable=True)
-    organization = Column(String(200), nullable=True)
-    referred_by = Column(String(100), nullable=True)
+
+    telegram = Column(String(50), nullable=True)
+    onboarding_data = Column(Text, nullable=True)
 
     sessions = relationship(
         "AppUserSession",

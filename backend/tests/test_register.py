@@ -45,7 +45,7 @@ async def test_register_success(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_with_optional_fields(client: AsyncClient):
-    """Test user registration with optional fields"""
+    """Test user registration with optional fields moved to onboarding JSON and telegram field"""
     user_data = {
         "first_name": "Jane",
         "last_name": "Smith",
@@ -53,16 +53,20 @@ async def test_register_with_optional_fields(client: AsyncClient):
         "password": "securepassword123",
         "phone": "+1234567890",
         "organization": "Test Company",
-        "referred_by": "John Doe"
+        "referred_by": "John Doe",
+        "telegram": "@janesmith"
     }
 
     response = await client.post("/api/v1/auth/register", json=user_data)
 
     assert response.status_code == 201
     data = response.json()
-    assert data["phone"] == "+1234567890"
-    assert data["organization"] == "Test Company"
-    assert data["referred_by"] == "John Doe"
+    # Legacy fields should no longer be present in the response model
+    assert "phone" not in data
+    assert "organization" not in data
+    assert "referred_by" not in data
+    # Telegram should be echoed back if provided
+    assert data.get("telegram") == "@janesmith"
 
 
 @pytest.mark.asyncio
