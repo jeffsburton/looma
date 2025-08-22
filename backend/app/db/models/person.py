@@ -11,9 +11,13 @@ class Person(Base):
     first_name = Column(String(120), nullable=False)
     last_name = Column(String(120), nullable=False)
     phone = Column(String(20), nullable=True)
-    email = Column(String(255), nullable=True)
+    email = Column(String(100), nullable=True)
+    telegram = Column(String(50), nullable=True)
     organization_id = Column(Integer, ForeignKey("organization.id"), nullable=True)
     profile_pic = Column(LargeBinary, nullable=True)
+    app_user_id = Column(Integer, ForeignKey("app_user.id"), nullable=True)
+
+
 
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -1,4 +1,5 @@
 from app.db.base import seed, seed_ref, get_ref_value_id
+from pathlib import Path
 
 
 def seed_0001():
@@ -434,8 +435,26 @@ def seed_0001():
     org_id: int  = seed('organization', {"name": "Called2Rescue", "state_id": get_ref_value_id("STATE", "FL")})
 
 
-    app_user_id = seed("app_user", {"first_name": "Jeff", "last_name": "Burton", "email": "jsburton@gmail.com", "password_hash": "$pbkdf2-sha256$29000$n1NqLSWEkPJeC4EQYqyVMg$DQ3w24lr3LDKF663lmBO4E1D6lB3x2ZWbdZhDNBjkfA", "is_active": True})
+    app_user_id = seed("app_user", {"email": "jsburton@gmail.com", "password_hash": "$pbkdf2-sha256$29000$n1NqLSWEkPJeC4EQYqyVMg$DQ3w24lr3LDKF663lmBO4E1D6lB3x2ZWbdZhDNBjkfA", "is_active": True})
     seed("app_user_role", {"app_user_id": app_user_id, "role_id": role_id})
+
+    # Try to load a local profile picture; if it doesn't exist, seed without it
+    img_path = Path(__file__).parent / "jeff_burton_pfp.jpg"
+    person_payload = {
+        "first_name": "Jeff",
+        "last_name": "Burton",
+        "email": "jsburton@gmail.com",
+        "phone": "7152225655",
+        "telegram": "jeffburton",
+        "organization_id": org_id,
+        "app_user_id": app_user_id,
+    }
+    if img_path.exists():
+        with img_path.open("rb") as f:
+            person_payload["profile_pic"] = f.read()
+    seed("person", person_payload);
+
+
 
     seed("system_setting", {"name": "system_email", "value" : "jsburton@gmail.com"})
     seed("system_setting", {"name": "system_telegram_api_id", "value" : "22078170"})
