@@ -92,6 +92,7 @@ async function fetchStates() {
   const resp = await fetch('/api/v1/states')
   if (!resp.ok) throw new Error('Failed to load states')
   const data = await resp.json()
+  console.log(data);
   // Map to {label, value}
   states.value = data.map((s) => ({ label: `${s.code} - ${s.name}`, value: s.id }))
 }
@@ -178,12 +179,7 @@ onMounted(async () => {
       <Column field="name" header="Name" sortable></Column>
       <Column field="address" header="Address" sortable></Column>
       <Column field="city" header="City" sortable></Column>
-      <Column header="State" sortable :sortField="'state_id'">
-        <template #body="{ data }">
-          <!-- display selected state's label by matching value (opaque id) -->
-          {{ states.find((s) => s.value === data.state_id)?.label || '—' }}
-        </template>
-      </Column>
+      <Column field="state_code" header="State" sortable></Column>
       <Column field="zip_code" header="Zip" sortable style="width:8rem"></Column>
       <Column field="phone" header="Phone" sortable style="width:12rem"></Column>
       <Column header="Active" style="width:6rem" :sortable="true" :sortField="'inactive'">

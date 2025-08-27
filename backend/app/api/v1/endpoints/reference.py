@@ -14,8 +14,13 @@ router = APIRouter()
 
 @router.get("/states", response_model=List[StateRead], summary="List states")
 async def list_states(db: AsyncSession = Depends(get_db)) -> List[StateRead]:
-    # NOTE: This currently returns all RefValue entries; kept as-is to avoid breaking existing UI.
-    result = await db.execute(select(RefValue))
+    # Return only RefValue entries where RefType.code == "STATE"
+    stmt = (
+        select(RefValue)
+        .join(RefType, RefValue.ref_type_id == RefType.id)
+        .where(RefType.code == "STATE")
+    )
+    result = await db.execute(stmt)
     rows = result.scalars().all()
     return rows
 

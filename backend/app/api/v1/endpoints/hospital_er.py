@@ -2,10 +2,11 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, join
 
 from app.db.session import get_db
 from app.db.models.hospital_er import HospitalEr
+from app.db.models.ref_value import RefValue
 from app.schemas.hospital_er import HospitalErRead, HospitalErUpsert
 from app.core.id_codec import decode_id, OpaqueIdError
 
@@ -14,8 +15,17 @@ router = APIRouter()
 
 @router.get("/hospital-ers", response_model=List[HospitalErRead], summary="List ER/Trauma Centers")
 async def list_hospitals(db: AsyncSession = Depends(get_db)) -> List[HospitalErRead]:
-    result = await db.execute(select(HospitalEr))
-    rows = result.scalars().all()
+    # Left join to bring in state code
+    stmt = (
+        select(HospitalEr, RefValue.code)
+        .join(RefValue, HospitalEr.state_id == RefValue.id, isouter=True)
+    )
+    result = await db.execute(stmt)
+    rows = []
+    for er, state_code in result.all():
+        # Attach transient attribute for serialization
+        setattr(er, "state_code", state_code)
+        rows.append(er)
     return rows
 
 
@@ -40,6 +50,9 @@ async def create_hospital(payload: HospitalErUpsert, db: AsyncSession = Depends(
     await db.flush()
     await db.refresh(obj)
     await db.commit()
+    # Fetch state code for response and attach to object
+    code_result = await db.execute(select(RefValue.code).where(RefValue.id == obj.state_id))
+    obj.state_code = code_result.scalar_one_or_none()
     return obj
 
 
@@ -80,4 +93,7 @@ async def update_hospital(
     await db.refresh(obj)
     await db.commit()
 
+    # Fetch state code for response and attach to object
+    code_result = await db.execute(select(RefValue.code).where(RefValue.id == obj.state_id))
+    obj.state_code = code_result.scalar_one_or_none()
     return obj

@@ -13,6 +13,7 @@ class HospitalErRead(OpaqueIdMixin):
     address: str
     city: str
     state_id: int
+    state_code: Optional[str] = None
     zip_code: str
     phone: str
     inactive: bool
