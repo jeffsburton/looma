@@ -421,20 +421,8 @@ def seed_0001():
 
 
     role_id: int = seed("role", {"name": "Administration", "code": "ADMIN", "description": "Admin role."})
-    perm_id :int = seed("permission", {"name": "Admin panel", "code": "ADMIN", "description": "Administration panel."})
-    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
-    perm_id :int = seed("permission", {"name": "Teams", "code": "TEAMS", "description": "Edit teams."})
-    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
-    perm_id :int = seed("permission", {"name": "Organizations", "code": "ORGS", "description": "Edit organizations."})
-    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
-
-    seed("role", {"name": "Leadership", "code": "LEADER", "description": "Can see all cases and organize teams."})
-    seed("role", {"name": "Team Member", "code": "MEMBER", "description": "Member of a team, can see assigned cases."})
-    seed("role", {"name": "Outside", "code": "OUTSIDE", "description": "Outside organization, limited permissions."})
 
     org_id: int  = seed('organization', {"name": "Called2Rescue", "state_id": get_ref_value_id("STATE", "FL")})
-
-
     app_user_id = seed("app_user", {"email": "jsburton@gmail.com", "password_hash": "$pbkdf2-sha256$29000$n1NqLSWEkPJeC4EQYqyVMg$DQ3w24lr3LDKF663lmBO4E1D6lB3x2ZWbdZhDNBjkfA", "is_active": True})
     seed("app_user_role", {"app_user_id": app_user_id, "role_id": role_id})
 
@@ -460,3 +448,22 @@ def seed_0001():
     seed("system_setting", {"name": "system_telegram_api_id", "value" : "22078170"})
     seed("system_setting", {"name": "system_telegram_api_hash", "value" : "ed21b3193c355e1ca5e7e5000ea36fbb"})
     seed("system_setting", {"name": "system_telegram_session", "value" : "1AZWarzgBu4hkWEoJzKphEIinzYE7Lf7abjok7VYvQaHfgnTTQaynlA-7-ukdYC0Rv9sSKLqLzCPMZjEpcHcFpjpzHVd6gCSw8WKBLvz15MsEdBlnp1CiexzAaM573DOBscOD_YAEjU2X9vydGvjNfN8WYTl8i5D_pRua1q0gLbXjIzE60ZsiNagcMfAt1tf5Dkf9rDI282sKO2ofOvGPNhRrjmoTFwL7aaTjz7k98QoMzk87DLYFY2bdu2Per5ITyD9ipfjZcbl1Xpvy_IgfVMSt1ClKmiNsAbtmaLlHvTtMjEZ8KSWbnRFPIRQgtR_v09kV6WUVvj1yf45z4QLZfQmCjCze9_s="})
+
+
+    leader_role_id:int = seed("role", {"name": "Leadership", "code": "LEADER", "description": "Can see all cases and organize teams."})
+    member_role_id: int = seed("role", {"name": "Team Member", "code": "MEMBER", "description": "Member of a team, can see assigned cases."})
+    outside_role_id: int = seed("role", {"name": "Outside", "code": "OUTSIDE", "description": "Outside organization, limited permissions."})
+
+    perm_id :int = seed("permission", {"name": "Admin panel", "code": "ADMIN", "description": "Administration panel."})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Teams", "code": "TEAMS", "description": "Edit teams."})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Organizations", "code": "ORGS", "description": "Edit organizations."})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Qualifications", "code": "QUALIFICATIONS", "description": "Edit qualifications."})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "ER's/Trauma Centers", "code": "HOSPITAL_ER", "description": "Edit hospital ER's/Trauma Centers."})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "RFI Sources", "code": "RFI_SOURCES", "description": "Edit RFI sources"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+

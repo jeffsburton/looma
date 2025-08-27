@@ -6,9 +6,8 @@ import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import SidebarMenu from '../components/SidebarMenu.vue'
-import OrganizationsTab from '../components/admin/OrganizationsTab.vue'
-import TeamsTab from '../components/admin/TeamsTab.vue'
-import QualificationsTab from '../components/admin/QualificationsTab.vue'
+import HospitalsTab from '../components/admin/HospitalsTab.vue'
+import RfiSourcesTab from '../components/admin/RfiSourcesTab.vue'
 
 const activeTab = ref('Organizations')
 </script>
@@ -31,24 +30,18 @@ const activeTab = ref('Organizations')
           <div class="surface-card border-round p-2 flex-1 overflow-auto">
             <Tabs :value="activeTab" @update:value="(v) => (activeTab = v)">
               <TabList class="mb-2">
-                <Tab value="Organizations">Organizations</Tab>
-                <Tab value="Teams">Teams</Tab>
-                <Tab value="Qualifications">Qualifications</Tab>
+                <Tab value="Hospitals">ER's/Trauma Centers</Tab>
+                <Tab value="RfiSources">RFI Sources</Tab>
               </TabList>
               <TabPanels>
-                <TabPanel value="Organizations">
+                <TabPanel value="Hospitals">
                   <div class="p-2 text-700">
-                    <OrganizationsTab />
+                    <HospitalsTab />
                   </div>
                 </TabPanel>
-                <TabPanel value="Teams">
+                <TabPanel value="RfiSources">
                   <div class="p-2 text-700">
-                    <TeamsTab />
-                  </div>
-                </TabPanel>
-                <TabPanel value="Qualifications">
-                  <div class="p-2 text-700">
-                    <QualificationsTab />
+                    <RfiSourcesTab />
                   </div>
                 </TabPanel>
               </TabPanels>
