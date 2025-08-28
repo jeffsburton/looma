@@ -59,9 +59,10 @@ async function logout() {
 const items = [
   { icon: 'cases', label: 'Cases', routeName: 'cases' },
   { icon: '3p', label: 'Messages', routeName: 'messages' },
-  { icon: 'patient_list', label: 'Contacts', routeName: 'contacts' },
   { icon: 'list_alt_check', label: 'Tasks', routeName: 'tasks' },
+  { icon: 'patient_list', label: 'Contacts', routeName: 'contacts' },
   { icon: 'groups', label: 'Teams', routeName: 'teams' },
+  { icon: 'festival', label: 'Events', routeName: 'events', requiredPerm: 'EVENTS' },
   { icon: 'article', label: 'Reports', routeName: 'reports' },
   { icon: 'settings', label: 'Admin', routeName: 'admin', requiredPerm: 'ADMIN' }
 ]

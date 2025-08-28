@@ -466,3 +466,9 @@ def seed_0001():
     perm_id :int = seed("permission", {"name": "RFI Sources", "code": "RFI_SOURCES", "description": "Edit RFI sources"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
 
+    perm_id :int = seed("permission", {"name": "Events", "code": "EVENTS", "description": "Search events"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Events", "code": "EVENTS.MODIFY", "description": "Add/change events"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})

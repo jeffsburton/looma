@@ -10,8 +10,12 @@ class RfiSourceRead(OpaqueIdMixin):
     id: int
     name: str
     description: str
-    primary_id: int
-    backup_id: int
+    # For reads, expose opaque person IDs (or None) for selection widgets
+    primary_id: Optional[str] = None
+    backup_id: Optional[str] = None
+    # Also provide friendly display names joined from Person
+    primary_name: Optional[str] = None
+    backup_name: Optional[str] = None
     inactive: bool
     created_at: datetime
     updated_at: datetime
@@ -23,6 +27,7 @@ class RfiSourceUpsert(BaseModel):
     id: Optional[str] = None
     name: str
     description: str
-    primary_id: str
-    backup_id: str
+    # Accept opaque person IDs
+    primary_id: Optional[str] = None
+    backup_id: Optional[str] = None
     inactive: Optional[bool] = None

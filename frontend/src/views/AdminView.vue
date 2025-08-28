@@ -23,6 +23,12 @@ const allTabs = [
     component: defineAsyncComponent(() => import('../components/admin/RfiSourcesTab.vue'))
   },
   {
+    value: 'Organizations',
+    label: 'Organizations',
+    perm: 'ORGS',
+    component: defineAsyncComponent(() => import('../components/admin/OrganizationsTab.vue'))
+  },
+  {
     value: 'Qualifications',
     label: 'Qualifications',
     perm: 'QUALIFICATIONS',

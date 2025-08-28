@@ -5,10 +5,9 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
-import InputSwitch from 'primevue/inputswitch'
-import PersonSelect from '../PersonSelect.vue'
+import RefSelect from '../RefSelect.vue'
 
-const sources = ref([])
+const orgs = ref([])
 const loading = ref(false)
 const filterText = ref('')
 
@@ -16,18 +15,13 @@ const editDialogVisible = ref(false)
 const editModel = reactive({
   id: null,
   name: '',
-  description: '',
-  primary_id: '',
-  backup_id: '',
-  inactive: false,
+  state_id: '',
+  state_code: '',
 })
 
 // Validation state
 const errors = reactive({
   name: '',
-  description: '',
-  primary_id: '',
-  backup_id: '',
 })
 const validationMessage = ref('')
 
@@ -43,35 +37,31 @@ function validate() {
     errors.name = 'Name is required.'
     ok = false
   }
-  if (!editModel.description || !String(editModel.description).trim()) {
-    errors.description = 'Description is required.'
-    ok = false
+  if (!ok) {
+    validationMessage.value = 'Please correct the highlighted fields.'
   }
-  // primary and backup are optional for now since some persons may not be linked to accounts
   return ok
 }
 
-const filtered = computed(() => {
+const filteredOrgs = computed(() => {
   const q = filterText.value.trim().toLowerCase()
-  if (!q) return sources.value
-  return sources.value.filter((s) =>
-    [s.name, s.description].some((v) => (v || '').toLowerCase().includes(q))
-  )
+  if (!q) return orgs.value
+  return orgs.value.filter((o) => [o.name, o.state_code].some((v) => (v || '').toLowerCase().includes(q)))
 })
 
-async function fetchSources() {
+async function fetchOrganizations() {
   loading.value = true
   try {
-    const resp = await fetch('/api/v1/rfi-sources')
-    if (!resp.ok) throw new Error('Failed to load RFI sources')
-    sources.value = await resp.json()
+    const resp = await fetch('/api/v1/organizations')
+    if (!resp.ok) throw new Error('Failed to load organizations')
+    orgs.value = await resp.json()
   } finally {
     loading.value = false
   }
 }
 
 function openAdd() {
-  Object.assign(editModel, { id: null, name: '', description: '', primary_id: '', backup_id: '', inactive: false })
+  Object.assign(editModel, { id: null, name: '', state_id: '', state_code: '' })
   clearErrors()
   editDialogVisible.value = true
 }
@@ -83,19 +73,14 @@ function openEdit(row) {
 }
 
 async function saveEdit() {
-  if (!validate()) {
-    return
-  }
+  if (!validate()) return
   const payload = {
     id: editModel.id || undefined,
     name: editModel.name,
-    description: editModel.description,
-    primary_id: editModel.primary_id || null,
-    backup_id: editModel.backup_id || null,
-    inactive: !!editModel.inactive,
+    state_id: editModel.state_id || null,
   }
   const isNew = !editModel.id
-  const url = isNew ? '/api/v1/rfi-sources' : `/api/v1/rfi-sources/${encodeURIComponent(editModel.id)}`
+  const url = isNew ? '/api/v1/organizations' : `/api/v1/organizations/${encodeURIComponent(editModel.id)}`
   const method = isNew ? 'POST' : 'PUT'
   const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
   if (!resp.ok) {
@@ -103,18 +88,18 @@ async function saveEdit() {
     throw new Error(err?.detail || 'Save failed')
   }
   editDialogVisible.value = false
-  await fetchSources()
+  await fetchOrganizations()
 }
 
 onMounted(async () => {
-  await fetchSources()
+  await fetchOrganizations()
 })
 </script>
 
 <template>
   <div class="p-2">
     <div class="flex align-items-center justify-content-between mb-2 gap-2">
-      <h3 class="m-0">RFI Sources</h3>
+      <h3 class="m-0">Organizations</h3>
       <div class="flex gap-2">
         <span class="p-input-icon-left">
           <i class="pi pi-search" />
@@ -125,7 +110,7 @@ onMounted(async () => {
     </div>
 
     <DataTable
-      :value="filtered"
+      :value="filteredOrgs"
       dataKey="id"
       :loading="loading"
       paginator
@@ -135,14 +120,7 @@ onMounted(async () => {
       class="p-datatable-sm"
     >
       <Column field="name" header="Name" sortable></Column>
-      <Column field="description" header="Description" sortable></Column>
-      <Column field="primary_name" header="Primary" sortable></Column>
-      <Column field="backup_name" header="Backup" sortable></Column>
-      <Column header="Active" style="width:6rem" :sortable="true" :sortField="'inactive'">
-        <template #body="{ data }">
-          <span :class="data.inactive ? 'text-600' : 'text-green-600'">{{ data.inactive ? 'Inactive' : 'Active' }}</span>
-        </template>
-      </Column>
+      <Column field="state_code" header="State" sortable></Column>
       <Column header="Actions" style="width:8rem">
         <template #body="{ data }">
           <Button icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -150,7 +128,7 @@ onMounted(async () => {
       </Column>
     </DataTable>
 
-    <Dialog v-model:visible="editDialogVisible" modal header="RFI Source" :style="{ width: '600px' }">
+    <Dialog v-model:visible="editDialogVisible" modal header="Organization" :style="{ width: '520px' }">
       <div class="flex flex-column gap-3">
         <div v-if="validationMessage" class="text-red-600 text-sm">{{ validationMessage }}</div>
         <div class="flex gap-2">
@@ -162,26 +140,9 @@ onMounted(async () => {
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Description</label>
-            <InputText v-model="editModel.description" :class="['w-full', errors.description && 'p-invalid']" />
-            <small v-if="errors.description" class="p-error text-red-600">{{ errors.description }}</small>
+            <label class="block mb-1 text-sm">State</label>
+            <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
           </div>
-        </div>
-        <div class="flex gap-2">
-          <div class="flex-1">
-            <label class="block mb-1 text-sm">Primary</label>
-            <PersonSelect v-model="editModel.primary_id" />
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <div class="flex-1">
-            <label class="block mb-1 text-sm">Backup</label>
-            <PersonSelect v-model="editModel.backup_id" />
-          </div>
-        </div>
-        <div class="flex align-items-center gap-2" style="width: 12rem">
-          <label class="mb-0 text-sm">Inactive</label>
-          <InputSwitch v-model="editModel.inactive" />
         </div>
         <div class="flex justify-content-end gap-2">
           <Button label="Cancel" text @click="editDialogVisible = false" />

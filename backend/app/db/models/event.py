@@ -8,7 +8,6 @@ class Event(Base):
     __tablename__ = "event"
 
     id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
 
     name = Column(String(200), nullable=False)
     city = Column(String(200), nullable=False, server_default="")
