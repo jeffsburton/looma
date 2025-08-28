@@ -186,7 +186,7 @@ async def user_has_permission(
             )
             .limit(1)
         )
-        print(stmt.compile(compile_kwargs={"literal_binds": True}))
+        #print(stmt.compile(compile_kwargs={"literal_binds": True}))
 
         result = await db.execute(stmt)
         return result.first() is not None
