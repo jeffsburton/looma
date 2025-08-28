@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, core, reference, organizations, admin, case, hospital_er
+from app.api.v1.endpoints import auth, users, core, reference, organizations, admin, case, hospital_er, qualification
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(organizations.router, tags=["organizations"])  # expos
 api_router.include_router(admin.router, tags=["admin"])  # exposes /admin/*
 api_router.include_router(case.router, tags=["cases"])  # exposes /cases/*
 api_router.include_router(hospital_er.router, tags=["hospital_er"])  # exposes /hospital-ers
+api_router.include_router(qualification.router, tags=["qualifications"])  # exposes /qualifications
