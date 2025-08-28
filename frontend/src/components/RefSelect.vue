@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, computed, nextTick } from 'vue'
 import Dropdown from 'primevue/dropdown'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
@@ -13,11 +13,41 @@ const props = defineProps({
   placeholder: { type: String, default: 'Select...' },
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
+  currentCode: { type: String, default: '' }, // stable code used to reconcile selection across requests
 })
 const emit = defineEmits(['update:modelValue', 'update:otherValue', 'change'])
 
 const allOptions = ref([]) // raw list from API [{id, name, description, code, inactive}]
 const loading = ref(false)
+
+// Dropdown ref to focus the filter input on open
+const ddRef = ref(null)
+
+function focusFilter() {
+  if (!props.filter) return
+
+  const root = ddRef.value?.$el || null
+  if (!root) return
+
+  // Find the parent element with class 'p-select'
+  const selectParent = root.closest('.p-select')
+  if (!selectParent) return
+
+  // Extract the number from the id (e.g., "pv_id_95" -> "95")
+  const id = selectParent.id
+  if (!id) return
+  const match = id.match(/pv_id_(\d+)/)
+  if (!match) return
+  const number = match[1]
+
+  // Find the overlay element using the extracted number
+  const overlay = document.querySelector(`.p-select-overlay[pc${number}]`)
+  if (!overlay) return
+
+  const input = overlay.querySelector('input')
+  if (!input) return
+  input.focus()
+}
 
 const selectedId = ref(props.modelValue)
 watch(() => props.modelValue, (v) => { selectedId.value = v })
@@ -31,9 +61,14 @@ const selectedOption = computed(() => allOptions.value.find(o => o.id === select
 const isOTH = computed(() => (selectedOption.value?.code || '').toUpperCase() === 'OTH')
 
 const visibleOptions = computed(() => {
-  // Hide inactive unless it is the selected option
+  // Hide inactive unless it is the selected option and build a combined label for filtering by name or code
   const sel = selectedId.value
-  return allOptions.value.filter(o => !o.inactive || o.id === sel)
+  return allOptions.value
+    .filter(o => !o.inactive || o.id === sel)
+    .map(o => ({
+      ...o,
+      _filterLabel: [o.name, o.code].filter(Boolean).join(' ')
+    }))
 })
 
 async function loadOptions() {
@@ -44,6 +79,15 @@ async function loadOptions() {
     if (!resp.ok) throw new Error('Failed to load reference values')
     const data = await resp.json()
     allOptions.value = data
+    // Reconcile selection when opaque id tokens don't match across responses
+    const upperCode = (props.currentCode || '').toUpperCase().trim()
+    const hasSelected = allOptions.value.some(o => o.id === selectedId.value)
+    if ((!hasSelected && upperCode) || (!selectedId.value && upperCode)) {
+      const byCode = allOptions.value.find(o => (o.code || '').toUpperCase() === upperCode)
+      if (byCode) {
+        selectedId.value = byCode.id
+      }
+    }
   } finally {
     loading.value = false
   }
@@ -89,26 +133,52 @@ async function saveAdd() {
   // select the newly created option
   selectedId.value = created.id
 }
+
+// Reconcile when currentCode changes and options are already loaded
+watch(
+  () => props.currentCode,
+  (v) => {
+    const upper = (v || '').toUpperCase().trim()
+    if (!upper || !Array.isArray(allOptions.value) || !allOptions.value.length) return
+    const hasSelected = allOptions.value.some(o => o.id === selectedId.value)
+    if (!hasSelected) {
+      const byCode = allOptions.value.find(o => (o.code || '').toUpperCase() === upper)
+      if (byCode) {
+        selectedId.value = byCode.id
+      }
+    }
+  }
+)
 </script>
 
 <template>
   <div class="flex flex-column gap-2">
     <Dropdown
+      ref="ddRef"
       v-model="selectedId"
       :options="visibleOptions"
       :loading="loading"
-      optionLabel="name"
+      optionLabel="_filterLabel"
       optionValue="id"
       :filter="filter"
+      filterBy="name,code"
       :placeholder="placeholder"
       class="w-full"
       :disabled="disabled"
+      @show="focusFilter"
     >
       <template #option="{ option }">
         <div :title="option.description || ''" class="flex align-items-center justify-content-between w-full">
           <span>{{ option.name }}</span>
           <small v-if="option.code" class="text-600 ml-2">{{ option.code }}</small>
         </div>
+      </template>
+      <template #value="{ placeholder }">
+        <div v-if="selectedOption" class="flex align-items-center justify-content-between w-full">
+          <span>{{ selectedOption.name }}</span>
+          <small v-if="selectedOption.code" class="text-600 ml-2">{{ selectedOption.code }}</small>
+        </div>
+        <span v-else>{{ placeholder }}</span>
       </template>
       <template v-if="add" #footer>
         <div class="p-2 border-top-1 surface-border">

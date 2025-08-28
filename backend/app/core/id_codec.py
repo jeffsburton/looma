@@ -136,7 +136,6 @@ def reset_current_session(token: CtxToken) -> None:
 
 
 def encode_id(model: str, pk: int) -> str:
-    print("model: " + model + " pk: " + str(pk))
     if not isinstance(pk, int) or pk < 0:
         raise OpaqueIdError("Primary key must be a non-negative integer")
     model = (model or "").strip()

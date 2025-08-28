@@ -92,7 +92,6 @@ async function fetchStates() {
   const resp = await fetch('/api/v1/states')
   if (!resp.ok) throw new Error('Failed to load states')
   const data = await resp.json()
-  console.log(data);
   // Map to {label, value}
   states.value = data.map((s) => ({ label: `${s.code} - ${s.name}`, value: s.id, code: s.code, name: s.name }))
 }
@@ -103,7 +102,6 @@ async function fetchHospitals() {
     const resp = await fetch('/api/v1/hospital-ers')
     if (!resp.ok) throw new Error('Failed to load hospitals')
     hospitals.value = await resp.json()
-    console.log(hospitals.value);
   } finally {
     loading.value = false
   }
@@ -124,7 +122,6 @@ function openEdit(row) {
     const match = states.value.find((s) => s.code === row.state_code)
     if (match) {
       editModel.state_id = match.value
-      console.log("foudn it!")
     }
   }
   clearErrors()
@@ -228,7 +225,7 @@ onMounted(async () => {
           </div>
           <div class="flex-1">
             <label class="block mb-1 text-sm">State</label>
-            <RefSelect v-model="editModel.state_id" code="STATE" :add="false" placeholder="Select state..." :class="['w-full', errors.state_id && 'p-invalid']" />
+            <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." :class="['w-full', errors.state_id && 'p-invalid']" />
             <small v-if="errors.state_id" class="p-error text-red-600">{{ errors.state_id }}</small>
           </div>
           <div class="flex-1">
