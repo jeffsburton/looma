@@ -181,18 +181,6 @@ def seed_0001():
                            ["OO", "OSINT/Operations"],
                            ["MIN", "Ministry"]])
 
-    ref_type_id: int = seed("ref_type", {"name" : "Qualification", "code": "QUAL", "description": "Shepherds qualification"})
-    seed_ref(ref_type_id, [["FUND", "Fundamentals"],
-                           ["CADV", "Case Advocacy"],
-                           ["OSINT", "OSINT Analyst"],
-                           ["OPS", "Operations"],
-                           ["TOC", "Tactical Operations Center"],
-                           ["BACK", "FBI Background Check"],
-                           ["CCP", "Concealed Carry Permit"],
-                           ["STB", "Stop The Bleed"],
-                           ["F100", "FEMA IS-100"],
-                           ["F200", "FEMA IS-200"]])
-
     ref_type_id: int = seed("ref_type", {"name" : "Yes/No/Unk", "code": "YNU", "description": "Boolean with uncertainty"})
     seed_ref(ref_type_id, [["Y", "Yes"], ["N", "No"], ["U", "Unknown"]])
 
@@ -418,7 +406,18 @@ def seed_0001():
         {"victimology_category_id": vc_id, "question": "Have they ever mentioned places they would like to travel to?", "follow_up": ""}])
 
 
-
+    seed("qualification", [
+        {"name": "Fundamentals"},
+        {"name": "Case Advocacy"},
+        {"name": "OSINT Analyst"},
+        {"name": "Operations"},
+        {"name": "Tactical Operations Center"},
+        {"name": "FBI Background Check"},
+        {"name": "Concealed Carry Permit"},
+        {"name": "Stop The Bleed"},
+        {"name": "FEMA IS-100"},
+        {"name": "FEMA IS-200"}
+    ])
 
     role_id: int = seed("role", {"name": "Administration", "code": "ADMIN", "description": "Admin role."})
 

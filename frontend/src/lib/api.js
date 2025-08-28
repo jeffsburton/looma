@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { getCookie } from './cookies'
 import { showServerError } from './serverErrorStore'
+import { clearPermissions } from './permissions'
 
 // Resolve API base URL:
 // Priority (production):
@@ -58,7 +59,25 @@ api.interceptors.response.use(
                     if (typeof window !== 'undefined') {
                         window.localStorage?.removeItem('is_authenticated')
                     }
+                    clearPermissions()
                 } catch (_) { /* noop */ }
+            }
+
+            if (status === 403) {
+                const data = res.data || {}
+                const detail = data.detail ?? 'Forbidden'
+                // Provide a clearer message for CSRF failures
+                const isCsrf = typeof detail === 'string' && /csrf/i.test(detail)
+                const message = isCsrf
+                    ? 'Security check failed (CSRF). Please refresh the page and try again.'
+                    : 'Access denied. You do not have permission to perform this action.'
+                const details = {
+                    detail,
+                    path: data.path ?? res.config?.url ?? '',
+                    method: data.method ?? res.config?.method?.toUpperCase?.() ?? '',
+                    status: 403
+                }
+                showServerError({ message, details })
             }
 
             if (status === 500) {

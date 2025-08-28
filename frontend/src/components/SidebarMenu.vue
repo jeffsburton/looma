@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import api from '../lib/api'
 import { getCookie, setCookie, deleteCookie } from '../lib/cookies'
+import { hasPermission, clearPermissions } from '../lib/permissions'
 // Sidebar for internal pages: vertical stack with Material icons.
 // Handles logout internally by calling the API and clearing client state.
 
@@ -37,6 +38,8 @@ async function logout() {
       localStorage.removeItem('user_email')
       localStorage.removeItem('user_name')
       localStorage.removeItem('is_authenticated')
+      // Clear cached permissions
+      clearPermissions()
     } catch (_) { /* noop */ }
 
     // Inform the user
@@ -54,14 +57,16 @@ async function logout() {
 
 // Top section items (excluding Account which is pinned to bottom)
 const items = [
-  { icon: 'cases', label: 'Cases' },
-  { icon: '3p', label: 'Messages' },
-  { icon: 'patient_list', label: 'Contacts' },
-  { icon: 'list_alt_check', label: 'Tasks' },
-  { icon: 'groups', label: 'Teams' },
-  { icon: 'article', label: 'Reports' },
-  { icon: 'settings', label: 'Admin' }
+  { icon: 'cases', label: 'Cases', routeName: 'cases' },
+  { icon: '3p', label: 'Messages', routeName: 'messages' },
+  { icon: 'patient_list', label: 'Contacts', routeName: 'contacts' },
+  { icon: 'list_alt_check', label: 'Tasks', routeName: 'tasks' },
+  { icon: 'groups', label: 'Teams', routeName: 'teams' },
+  { icon: 'article', label: 'Reports', routeName: 'reports' },
+  { icon: 'settings', label: 'Admin', routeName: 'admin', requiredPerm: 'ADMIN' }
 ]
+
+const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPermission(i.requiredPerm)))
 </script>
 
 <template>
@@ -87,11 +92,11 @@ const items = [
     </div>
 
     <ul class="list-none m-0 p-0 flex flex-column gap-1">
-      <li v-for="item in items" :key="item.label">
+      <li v-for="item in visibleItems" :key="item.label">
         <div
           class="menu-item p-2 border-round flex align-items-center gap-2 cursor-pointer"
           :class="[{ active: item.label === props.active, collapsed }]"
-          @click="item.label === 'Cases' ? router.push({ name: 'cases' }) : item.label === 'Messages' ? router.push({ name: 'messages' }) : item.label === 'Contacts' ? router.push({ name: 'contacts' }) : item.label === 'Tasks' ? router.push({ name: 'tasks' }) : item.label === 'Teams' ? router.push({ name: 'teams' }) : item.label === 'Reports' ? router.push({ name: 'reports' }) : item.label === 'Admin' ? router.push({ name: 'admin' }) : null"
+          @click="router.push({ name: item.routeName })"
         >
           <span class="icon-wrap">
             <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>

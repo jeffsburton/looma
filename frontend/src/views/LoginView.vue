@@ -10,6 +10,7 @@ import FloatLabel from 'primevue/floatlabel'
 import Checkbox from 'primevue/checkbox'
 import api from '../lib/api'
 import { setCookie } from '../lib/cookies'
+import { setPermissions } from '../lib/permissions'
 
 const router = useRouter()
 const route = useRoute()
@@ -52,7 +53,7 @@ const handleLogin = async () => {
       password: form.value.password,
     })
 
-    const { access_token } = response.data || {}
+    const { access_token, codes } = response.data || {}
     if (!access_token) {
       throw new Error('No access token received')
     }
@@ -65,6 +66,9 @@ const handleLogin = async () => {
     localStorage.setItem('user_email', form.value.email)
     // Mark client as authenticated (fallback for HttpOnly cookie flows)
     localStorage.setItem('is_authenticated', '1')
+
+    // Cache permission codes for UI gating
+    try { setPermissions(Array.isArray(codes) ? codes : []) } catch (_) { /* noop */ }
 
     toast.add({
       severity: 'success',

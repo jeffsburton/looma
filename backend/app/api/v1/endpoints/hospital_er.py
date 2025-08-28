@@ -4,13 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, join
 
+from app.api.dependencies import require_permission
 from app.db.session import get_db
 from app.db.models.hospital_er import HospitalEr
 from app.db.models.ref_value import RefValue
 from app.schemas.hospital_er import HospitalErRead, HospitalErUpsert
 from app.core.id_codec import decode_id, OpaqueIdError
 
-router = APIRouter()
+
+router = APIRouter(dependencies=[Depends(require_permission("HOSPITAL_ER"))])
 
 
 @router.get("/hospital-ers", response_model=List[HospitalErRead], summary="List ER/Trauma Centers")

@@ -1,8 +1,8 @@
-"""init
+"""init!
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-08-22 06:32:37.199417
+Create Date: 2025-08-28 05:44:46.982714
 
 """
 from typing import Sequence, Union
@@ -46,6 +46,16 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_permission_code'), 'permission', ['code'], unique=True)
     op.create_index(op.f('ix_permission_id'), 'permission', ['id'], unique=False)
+    op.create_table('qualification',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=200), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_qualification_id'), 'qualification', ['id'], unique=False)
     op.create_table('ref_type',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=120), nullable=False),
@@ -636,7 +646,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['qualification_id'], ['ref_value.id'], ),
+    sa.ForeignKeyConstraint(['qualification_id'], ['qualification.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_person_qualification_id'), 'person_qualification', ['id'], unique=False)
@@ -922,6 +932,8 @@ def downgrade() -> None:
     op.drop_table('role')
     op.drop_index(op.f('ix_ref_type_id'), table_name='ref_type')
     op.drop_table('ref_type')
+    op.drop_index(op.f('ix_qualification_id'), table_name='qualification')
+    op.drop_table('qualification')
     op.drop_index(op.f('ix_permission_id'), table_name='permission')
     op.drop_index(op.f('ix_permission_code'), table_name='permission')
     op.drop_table('permission')

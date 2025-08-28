@@ -7,7 +7,7 @@ from typing import Optional
 from app.core.config import settings
 from app.db.session import get_db
 from app.db.models.app_user import AppUser
-from app.services.auth import validate_session
+from app.services.auth import validate_session, user_has_permission
 from app.core.id_codec import decode_id, OpaqueIdError
 from fastapi import Path
 from typing import Callable
@@ -128,5 +128,42 @@ def decode_path_id(model: str) -> Callable[[str], int]:
         except OpaqueIdError:
             # Hide whether the ID exists
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    return _dep
+
+
+# --- Permission check dependency factory ---
+from typing import Sequence, Union
+from fastapi import HTTPException, Depends
+
+async def _check_permission(
+    permission_code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> None:
+    has = await user_has_permission(db, current_user.id, permission_code)
+    if not has:
+        # Mirror existing 403 semantics (see hospital_er endpoints)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Insufficient permissions: {permission_code}")
+
+
+def require_permission(code: str):
+    """
+    Factory for a FastAPI dependency that ensures the current user has the given
+    permission code. Usage:
+
+        router = APIRouter(dependencies=[Depends(require_permission("HOSPITAL_ER"))])
+
+    Or per-endpoint:
+
+        @router.post("/items", dependencies=[Depends(require_permission("ITEMS.WRITE"))])
+        async def create_item(...):
+            ...
+    """
+    async def _dep(
+        db: AsyncSession = Depends(get_db),
+        current_user: AppUser = Depends(get_current_user),
+    ) -> None:
+        await _check_permission(code, db=db, current_user=current_user)
 
     return _dep
