@@ -1,15 +1,50 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watchEffect, defineAsyncComponent } from 'vue'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import SidebarMenu from '../components/SidebarMenu.vue'
-import HospitalsTab from '../components/admin/HospitalsTab.vue'
-import RfiSourcesTab from '../components/admin/RfiSourcesTab.vue'
+import { hasPermission } from '../lib/permissions'
 
-const activeTab = ref('Organizations')
+// Define all possible admin tabs with their permission and lazy component
+const allTabs = [
+  {
+    value: 'Hospitals',
+    label: "ER's/Trauma Centers",
+    perm: 'HOSPITAL_ER',
+    component: defineAsyncComponent(() => import('../components/admin/HospitalsTab.vue'))
+  },
+  {
+    value: 'RfiSources',
+    label: 'RFI Sources',
+    perm: 'RFI_SOURCES',
+    component: defineAsyncComponent(() => import('../components/admin/RfiSourcesTab.vue'))
+  },
+  {
+    value: 'Qualifications',
+    label: 'Qualifications',
+    perm: 'QUALIFICATIONS',
+    component: defineAsyncComponent(() => import('../components/admin/QualificationsTab.vue'))
+  }
+]
+
+// Filter by permissions
+const visibleTabs = computed(() => allTabs.filter(t => hasPermission(t.perm)))
+
+// Active tab is the first visible by default
+const activeTab = ref('')
+watchEffect(() => {
+  const first = visibleTabs.value[0]
+  if (!first) {
+    activeTab.value = ''
+    return
+  }
+  // If current active is not in visible list, or empty, set to first
+  const stillVisible = visibleTabs.value.some(t => t.value === activeTab.value)
+  if (!stillVisible) activeTab.value = first.value
+})
 </script>
 
 <template>
@@ -28,20 +63,18 @@ const activeTab = ref('Organizations')
           </div>
 
           <div class="surface-card border-round p-2 flex-1 overflow-auto">
-            <Tabs :value="activeTab" @update:value="(v) => (activeTab = v)">
+            <div v-if="!visibleTabs.length" class="p-3 text-700">
+              You do not have access to any admin tabs.
+            </div>
+            <Tabs v-else :value="activeTab" @update:value="(v) => (activeTab = v)">
               <TabList class="mb-2">
-                <Tab value="Hospitals">ER's/Trauma Centers</Tab>
-                <Tab value="RfiSources">RFI Sources</Tab>
+                <Tab v-for="t in visibleTabs" :key="t.value" :value="t.value">{{ t.label }}</Tab>
               </TabList>
               <TabPanels>
-                <TabPanel value="Hospitals">
+                <TabPanel v-for="t in visibleTabs" :key="t.value" :value="t.value">
                   <div class="p-2 text-700">
-                    <HospitalsTab />
-                  </div>
-                </TabPanel>
-                <TabPanel value="RfiSources">
-                  <div class="p-2 text-700">
-                    <RfiSourcesTab />
+                    <!-- Lazy load component; only render when active to avoid mounting others -->
+                    <component v-if="activeTab === t.value" :is="t.component" />
                   </div>
                 </TabPanel>
               </TabPanels>
