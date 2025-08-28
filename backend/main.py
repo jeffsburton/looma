@@ -25,6 +25,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.project_name, lifespan=lifespan)
 
+# Middleware to set session context for deterministic opaque IDs
+from app.core.id_codec import set_current_session, reset_current_session
+from typing import Optional as _Optional
+
+@app.middleware("http")
+async def opaque_id_session_middleware(request: Request, call_next):
+    # Prefer Bearer token; fall back to common cookie names
+    sid: _Optional[str] = None
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        sid = auth.split(" ", 1)[1].strip()
+    if not sid:
+        sid = request.cookies.get("session") or request.cookies.get("access_token") or None
+
+    token = set_current_session(sid)
+    try:
+        response = await call_next(request)
+    finally:
+        reset_current_session(token)
+    return response
+
 # Configure a basic logger if not already configured
 logger = logging.getLogger("uvicorn.error")
 

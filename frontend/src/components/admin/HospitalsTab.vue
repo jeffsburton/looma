@@ -94,7 +94,7 @@ async function fetchStates() {
   const data = await resp.json()
   console.log(data);
   // Map to {label, value}
-  states.value = data.map((s) => ({ label: `${s.code} - ${s.name}`, value: s.id }))
+  states.value = data.map((s) => ({ label: `${s.code} - ${s.name}`, value: s.id, code: s.code, name: s.name }))
 }
 
 async function fetchHospitals() {
@@ -116,8 +116,17 @@ function openAdd() {
 }
 
 function openEdit(row) {
-  // state_id from API is opaque string thanks to serializer; assign directly
+  // Assign all fields from the row first
   Object.assign(editModel, { ...row })
+  // Because opaque ids are probabilistic (Fernet), remap state_id to the exact
+  // token used by the options list by matching on the stable state_code.
+  if (row?.state_code && Array.isArray(states.value) && states.value.length) {
+    const match = states.value.find((s) => s.code === row.state_code)
+    if (match) {
+      editModel.state_id = match.value
+      console.log("foudn it!")
+    }
+  }
   clearErrors()
   editDialogVisible.value = true
 }
