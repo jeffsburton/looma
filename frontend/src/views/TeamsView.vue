@@ -1,72 +1,80 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import SidebarMenu from '../components/SidebarMenu.vue'
+import SelectButton from 'primevue/selectbutton'
+import InputSwitch from 'primevue/inputswitch'
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import Checkbox from 'primevue/checkbox'
 
-// Static demo data per requirements
-const teams = ref([
-  {
-    name: 'Alpha',
-    mascot: { emoji: '🦅', bg: '#E0F2FE' },
-    members: [
-      { name: 'Ava Stone', photoUrl: '/images/sample_faces/1.png' },
-      { name: 'Ben Carter', photoUrl: '/images/sample_faces/2.png' },
-      { name: 'Clara Ruiz', photoUrl: '/images/sample_faces/3.png' },
-    ],
-    cases: [
-      { name: 'Kendrick Owen', photoUrl: '/images/sample_faces/1.png' },
-      { name: 'Jasmine Jackson', photoUrl: '/images/sample_faces/2.png' },
-    ]
-  },
-  {
-    name: 'Bravo',
-    mascot: { emoji: '🐺', bg: '#ECFDF5' },
-    members: [
-      { name: 'Diego Mendez', photoUrl: '/images/sample_faces/4.png' },
-      { name: 'Ella Harper', photoUrl: '/images/sample_faces/1.png' },
-      { name: 'Finn O’Connor', photoUrl: '/images/sample_faces/2.png' },
-    ],
-    cases: [
-      { name: 'Chaz Hernandez', photoUrl: '/images/sample_faces/3.png' },
-      { name: 'Tanya Rider', photoUrl: '/images/sample_faces/4.png' },
-    ]
-  },
-  {
-    name: 'Charlie',
-    mascot: { emoji: '🐯', bg: '#FEF3C7' },
-    members: [
-      { name: 'Grace Lin', photoUrl: '/images/sample_faces/3.png' },
-      { name: 'Hank Porter', photoUrl: '/images/sample_faces/4.png' },
-      { name: 'Ivy Chen', photoUrl: '/images/sample_faces/1.png' },
-    ],
-    cases: [
-      { name: 'Mara Quinn', photoUrl: '/images/sample_faces/2.png' },
-      { name: 'Dylan Keane', photoUrl: '/images/sample_faces/3.png' },
-    ]
-  },
-  {
-    name: 'Apex',
-    mascot: { emoji: '🦈', bg: '#EDE9FE' },
-    members: [
-      { name: 'Jon Park', photoUrl: '/images/sample_faces/2.png' },
-      { name: 'Kira Novak', photoUrl: '/images/sample_faces/3.png' },
-      { name: 'Liam Ford', photoUrl: '/images/sample_faces/4.png' },
-    ],
-    cases: [
-      { name: 'Renee Holt', photoUrl: '/images/sample_faces/1.png' },
-      { name: 'Noah Ellis', photoUrl: '/images/sample_faces/4.png' },
-    ]
-  },
-])
+import TeamsCardLarge from '../components/teams/TeamsCardLarge.vue'
+import TeamsCardSmall from '../components/teams/TeamsCardSmall.vue'
+import TeamsDataTable from '../components/teams/TeamsDataTable.vue'
+import { hasPermission } from '../lib/permissions'
 
-// Track which teams are expanded
-const open = ref(new Set())
-const toggle = (name) => {
-  const s = new Set(open.value)
-  if (s.has(name)) s.delete(name)
-  else s.add(name)
-  open.value = s
+const COOKIE_KEY = 'ui_teams_view'
+const VALID_VIEWS = ['large','small','list']
+const view = ref('large')
+const viewOptions = [
+  { label: 'crop_landscape', value: 'large' },
+  { label: 'view_cozy', value: 'small' },
+  { label: 'table_rows', value: 'list' }
+]
+
+const showInactive = ref(false)
+
+const teams = ref([])
+const loading = ref(false)
+
+const canModify = computed(() => hasPermission('TEAMS.MODIFY'))
+
+async function fetchTeams() {
+  loading.value = true
+  try {
+    const resp = await fetch('/api/v1/teams')
+    if (!resp.ok) throw new Error('Failed to load teams')
+    teams.value = await resp.json()
+  } finally {
+    loading.value = false
+  }
 }
+
+const visibleTeams = computed(() => {
+  if (showInactive.value) return teams.value
+  return teams.value.filter(t => !t.inactive)
+})
+
+// Edit dialog
+const editDialogVisible = ref(false)
+const editModel = ref({ id: null, name: '', inactive: false })
+
+function openAdd() {
+  editModel.value = { id: null, name: '', inactive: false }
+  editDialogVisible.value = true
+}
+function openEdit(team) {
+  editModel.value = { ...team }
+  editDialogVisible.value = true
+}
+
+async function saveEdit() {
+  const isNew = !editModel.value.id
+  const payload = { id: editModel.value.id || undefined, name: editModel.value.name, inactive: !!editModel.value.inactive }
+  const url = isNew ? '/api/v1/teams' : `/api/v1/teams/${encodeURIComponent(editModel.value.id)}`
+  const method = isNew ? 'POST' : 'PUT'
+  const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err?.detail || 'Save failed')
+  }
+  editDialogVisible.value = false
+  await fetchTeams()
+}
+
+onMounted(async () => {
+  await fetchTeams()
+})
 </script>
 
 <template>
@@ -80,52 +88,52 @@ const toggle = (name) => {
 
         <!-- Main Content -->
         <div class="flex-1 min-w-0 flex flex-column" style="min-height: calc(100vh - 2rem)">
-          <!-- Header -->
+          <!-- Toolbar -->
           <div class="flex align-items-center justify-content-between gap-2 pb-2">
             <div class="text-xl font-semibold">Teams</div>
-            <Button label="Add Team" icon="pi pi-plus" />
+            <div class="flex align-items-center gap-2">
+              <div class="flex align-items-center gap-2">
+                <span class="text-sm text-700">Show inactive</span>
+                <InputSwitch v-model="showInactive" />
+              </div>
+              <SelectButton v-model="view" :options="viewOptions" optionValue="value" optionLabel="label">
+                <template #option="{ option }">
+                  <span class="material-symbols-outlined">{{ option.label }}</span>
+                </template>
+              </SelectButton>
+              <Button v-if="canModify" label="Add Team" icon="pi pi-plus" @click="openAdd" />
+            </div>
           </div>
 
           <!-- Content panel -->
           <div class="surface-card border-round p-2 flex-1 overflow-auto">
-            <ul class="list-none p-0 m-0 flex flex-column gap-2">
-              <li v-for="team in teams" :key="team.name" class="border-1 surface-border border-round">
-                <!-- Team header row -->
-                <button class="w-full p-2 flex align-items-center gap-2 cursor-pointer border-none bg-transparent text-left" @click="toggle(team.name)">
-                  <span class="material-symbols-outlined text-700" aria-hidden="true">{{ open.has(team.name) ? 'expand_less' : 'expand_more' }}</span>
-                  <span class="mascot" :style="{ background: team.mascot.bg }" aria-hidden="true">{{ team.mascot.emoji }}</span>
-                  <span class="font-medium text-900">{{ team.name }}</span>
-                </button>
-
-                <!-- Expanded panel -->
-                <div v-if="open.has(team.name)" class="p-2 pt-0">
-                  <div class="grid" style="gap: 1rem">
-                    <!-- Team Members -->
-                    <section class="col-12 md:col-6">
-                      <div class="text-800 font-semibold mb-2">Team Members</div>
-                      <ul class="list-none p-0 m-0 flex flex-column gap-1">
-                        <li v-for="m in team.members" :key="m.name" class="flex align-items-center gap-2 p-1 border-round hover:surface-100">
-                          <img :src="m.photoUrl" :alt="m.name" class="avatar" />
-                          <span class="text-900">{{ m.name }}</span>
-                        </li>
-                      </ul>
-                    </section>
-
-                    <!-- Cases -->
-                    <section class="col-12 md:col-6">
-                      <div class="text-800 font-semibold mb-2">Cases</div>
-                      <ul class="list-none p-0 m-0 flex flex-column gap-1">
-                        <li v-for="c in team.cases" :key="c.name" class="flex align-items-center gap-2 p-1 border-round hover:surface-100">
-                          <img :src="c.photoUrl" :alt="c.name" class="avatar" />
-                          <span class="text-900">{{ c.name }}</span>
-                        </li>
-                      </ul>
-                    </section>
-                  </div>
-                </div>
-              </li>
-            </ul>
+            <div v-if="view === 'large'" class="cards-grid cards-grid-large">
+              <TeamsCardLarge v-for="t in visibleTeams" :key="t.id" :team="t" :canModify="canModify" @edit="openEdit" />
+            </div>
+            <div v-else-if="view === 'small'" class="cards-grid cards-grid-small">
+              <TeamsCardSmall v-for="t in visibleTeams" :key="t.id" :team="t" :canModify="canModify" @edit="openEdit" />
+            </div>
+            <div v-else>
+              <TeamsDataTable :teams="visibleTeams" :canModify="canModify" @edit="openEdit" />
+            </div>
           </div>
+
+          <Dialog v-model:visible="editDialogVisible" modal header="Team" :style="{ width: '500px' }">
+            <div class="flex flex-column gap-3">
+              <div>
+                <label class="block mb-1 text-sm">Name</label>
+                <InputText v-model="editModel.name" class="w-full" />
+              </div>
+              <div class="flex gap-2 align-items-center">
+                <Checkbox inputId="inactive" v-model="editModel.inactive" :binary="true" />
+                <label for="inactive">Inactive</label>
+              </div>
+              <div class="flex justify-content-end gap-2">
+                <Button label="Cancel" text @click="editDialogVisible = false" />
+                <Button v-if="canModify" label="Save" icon="pi pi-check" @click="saveEdit" />
+              </div>
+            </div>
+          </Dialog>
         </div>
       </div>
     </div>
@@ -133,20 +141,26 @@ const toggle = (name) => {
 </template>
 
 <style scoped>
-.mascot {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
+.cards-grid {
+  display: grid;
+  grid-auto-rows: minmax(0, auto);
+  gap: .5rem;
 }
-.avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  object-fit: cover;
+/* Large view: up to 2 per row */
+.cards-grid-large {
+  grid-template-columns: 1fr;
 }
-button { outline: none; }
+@media (min-width: 768px) {
+  .cards-grid-large { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Small view: up to 4 per row */
+.cards-grid-small {
+  grid-template-columns: 1fr 1fr;
+}
+@media (min-width: 768px) {
+  .cards-grid-small { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+  .cards-grid-small { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 </style>

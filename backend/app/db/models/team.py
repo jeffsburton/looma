@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, LargeBinary
 from sqlalchemy.sql import func
 from sqlalchemy.sql.schema import ForeignKey
 
@@ -12,6 +12,7 @@ class Team(Base):
     name = Column(String(200), nullable=False)
     inactive = Column(Boolean, nullable=False, server_default="false")
     event_id = Column(Integer, ForeignKey("event.id", ondelete="CASCADE"), nullable=True)
+    profile_pic = Column(LargeBinary, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

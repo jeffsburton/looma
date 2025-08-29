@@ -8,6 +8,7 @@ import 'primeflex/primeflex.css'
 import './assets/theme.css'
 
 import ToastService from 'primevue/toastservice'
+import Tooltip from 'primevue/tooltip'
 import router from './router'
 
 const app = createApp(App)
@@ -43,5 +44,6 @@ app.use(PrimeVue, {
 })
 app.use(ToastService)
 app.use(router)
+app.directive('tooltip', Tooltip)
 
 app.mount('#app')
