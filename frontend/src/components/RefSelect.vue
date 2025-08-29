@@ -14,6 +14,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
   currentCode: { type: String, default: '' }, // stable code used to reconcile selection across requests
+  showCode: { type: Boolean, default: true }, // controls whether the code is displayed next to the name
 })
 const emit = defineEmits(['update:modelValue', 'update:otherValue', 'change'])
 
@@ -49,22 +50,25 @@ function focusFilter() {
   input.focus()
 }
 
-const selectedId = ref(props.modelValue)
-watch(() => props.modelValue, (v) => { selectedId.value = v })
+const selectedId = ref(props.modelValue ? String(props.modelValue) : '')
+watch(() => props.modelValue, (v) => { selectedId.value = v ? String(v) : '' })
 watch(selectedId, (v) => { emit('update:modelValue', v); emit('change', v) })
 
 const otherText = ref(props.otherValue)
 watch(() => props.otherValue, (v) => { otherText.value = v })
 watch(otherText, (v) => emit('update:otherValue', v))
 
-const selectedOption = computed(() => allOptions.value.find(o => o.id === selectedId.value))
+const selectedOption = computed(() => {
+  const sel = selectedId.value != null ? String(selectedId.value) : ''
+  return allOptions.value.find(o => String(o.id) === sel)
+})
 const isOTH = computed(() => (selectedOption.value?.code || '').toUpperCase() === 'OTH')
 
 const visibleOptions = computed(() => {
   // Hide inactive unless it is the selected option and build a combined label for filtering by name or code
-  const sel = selectedId.value
+  const sel = selectedId.value != null ? String(selectedId.value) : ''
   return allOptions.value
-    .filter(o => !o.inactive || o.id === sel)
+    .filter(o => !o.inactive || String(o.id) === sel)
     .map(o => ({
       ...o,
       _filterLabel: [o.name, o.code].filter(Boolean).join(' ')
@@ -81,8 +85,9 @@ async function loadOptions() {
     allOptions.value = data
     // Reconcile selection when opaque id tokens don't match across responses
     const upperCode = (props.currentCode || '').toUpperCase().trim()
-    const hasSelected = allOptions.value.some(o => o.id === selectedId.value)
-    if ((!hasSelected && upperCode) || (!selectedId.value && upperCode)) {
+    const sel = selectedId.value != null ? String(selectedId.value) : ''
+    const hasSelected = allOptions.value.some(o => String(o.id) === sel)
+    if ((!hasSelected && upperCode) || (!sel && upperCode)) {
       const byCode = allOptions.value.find(o => (o.code || '').toUpperCase() === upperCode)
       if (byCode) {
         selectedId.value = byCode.id
@@ -140,7 +145,8 @@ watch(
   (v) => {
     const upper = (v || '').toUpperCase().trim()
     if (!upper || !Array.isArray(allOptions.value) || !allOptions.value.length) return
-    const hasSelected = allOptions.value.some(o => o.id === selectedId.value)
+    const sel = selectedId.value != null ? String(selectedId.value) : ''
+    const hasSelected = allOptions.value.some(o => String(o.id) === sel)
     if (!hasSelected) {
       const byCode = allOptions.value.find(o => (o.code || '').toUpperCase() === upper)
       if (byCode) {
@@ -170,13 +176,13 @@ watch(
       <template #option="{ option }">
         <div :title="option.description || ''" class="flex align-items-center justify-content-between w-full">
           <span>{{ option.name }}</span>
-          <small v-if="option.code" class="text-600 ml-2">{{ option.code }}</small>
+          <small v-if="showCode && option.code" class="text-600 ml-2">{{ option.code }}</small>
         </div>
       </template>
       <template #value="{ placeholder }">
         <div v-if="selectedOption" class="flex align-items-center justify-content-between w-full">
           <span>{{ selectedOption.name }}</span>
-          <small v-if="selectedOption.code" class="text-600 ml-2">{{ selectedOption.code }}</small>
+          <small v-if="showCode && selectedOption.code" class="text-600 ml-2">{{ selectedOption.code }}</small>
         </div>
         <span v-else>{{ placeholder }}</span>
       </template>

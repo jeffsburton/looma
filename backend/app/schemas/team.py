@@ -10,6 +10,8 @@ class TeamMemberSummary(BaseModel):
     name: str
     photo_url: Optional[str] = None
     role_name: Optional[str] = None
+    role_id: Optional[str] = None  # opaque ref_value id for TEAM_ROLE
+    role_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

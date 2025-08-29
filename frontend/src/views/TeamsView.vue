@@ -12,6 +12,7 @@ import AvatarEditor from '../components/common/AvatarEditor.vue'
 import TeamsCardLarge from '../components/teams/TeamsCardLarge.vue'
 import TeamsCardSmall from '../components/teams/TeamsCardSmall.vue'
 import TeamsDataTable from '../components/teams/TeamsDataTable.vue'
+import TeamMembersTable from '../components/teams/TeamMembersTable.vue'
 import { hasPermission } from '../lib/permissions'
 
 const route = useRoute()
@@ -62,6 +63,12 @@ const contentRef = ref(null)
 const savedScrollTop = ref(0)
 const suppressAutoSave = ref(false)
 let autoSaveTimer = null
+
+const currentTeam = computed(() => {
+  const id = editModel.value.id
+  if (!id) return null
+  return teams.value.find(x => String(x.id) === String(id)) || null
+})
 
 const isEditMode = computed(() => !!route.query.team)
 
@@ -233,6 +240,17 @@ onMounted(async () => {
                   <label class="block mb-1 text-sm" style="min-width: 100px;">Profile Photo</label>
                   <AvatarEditor kind="team" :id="editModel.id" :size="48" @changed="onAvatarChanged" />
                 </div>
+
+                <div v-if="editModel.id">
+                  <div class="text-800 font-semibold mb-2">Members</div>
+                  <TeamMembersTable
+                    :teamId="editModel.id"
+                    :members="currentTeam?.members || []"
+                    :canModify="canModify"
+                    @changed="fetchTeams"
+                  />
+                </div>
+
                 <div v-if="!editModel.id" class="flex justify-content-end gap-2">
                   <Button label="Cancel" text @click="goToListAndRestore" />
                   <Button v-if="canModify" label="Create" icon="pi pi-check" @click="saveEdit" />

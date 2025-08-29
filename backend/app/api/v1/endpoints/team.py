@@ -1,6 +1,7 @@
 from typing import List, Dict, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select, func, asc
@@ -18,6 +19,10 @@ from app.db.models.event import Event
 from app.db.models.ref_value import RefValue
 from app.schemas.team import TeamRead, TeamUpsert, TeamMemberSummary, TeamCaseSummary
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
+
+
+class MemberRoleUpdate(BaseModel):
+    team_role_id: str
 
 # All teams endpoints require TEAMS permission to view
 router = APIRouter(dependencies=[Depends(require_permission("TEAMS"))])
@@ -51,6 +56,8 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> List[TeamRead]:
             Person.last_name,
             Person.profile_pic.isnot(None).label("has_pic"),
             RefValue.name.label("role_name"),
+            RefValue.id.label("role_id"),
+            RefValue.code.label("role_code"),
         )
         .join(Person, Person.id == PersonTeam.person_id)
         .join(RefValue, RefValue.id == PersonTeam.team_role_id)
@@ -62,13 +69,22 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> List[TeamRead]:
             asc(Person.first_name),
         )
     )
-    for team_id, person_id, first, last, has_pic, role_name in mres.all():
+    for team_id, person_id, first, last, has_pic, role_name, role_id, role_code in mres.all():
         name = f"{first} {last}".strip()
         photo_url = (
             f"/api/v1/media/pfp/person/{encode_id('person', int(person_id))}?s=xs"
             if has_pic else "/images/pfp-generic.png"
         )
-        members_map[int(team_id)].append(TeamMemberSummary(id=int(person_id), name=name, photo_url=photo_url, role_name=role_name))
+        members_map[int(team_id)].append(
+            TeamMemberSummary(
+                id=int(person_id),
+                name=name,
+                photo_url=photo_url,
+                role_name=role_name,
+                role_id=encode_id('ref_value', int(role_id)) if role_id is not None else None,
+                role_code=role_code,
+            )
+        )
 
     # Cases by team
     cases_map: Dict[int, List[TeamCaseSummary]] = {tid: [] for tid in team_ids}
@@ -175,6 +191,95 @@ async def update_team(
     await db.refresh(obj)
     await db.commit()
     return obj
+
+
+@router.put(
+    "/teams/{team_id}/members/{person_id}",
+    summary="Update a team member's role",
+    dependencies=[Depends(require_permission("TEAMS.MODIFY"))],
+)
+async def update_team_member_role(
+    team_id: str = Path(..., description="Opaque team id"),
+    person_id: str = Path(..., description="Opaque person id or numeric id"),
+    payload: MemberRoleUpdate = None,
+    db: AsyncSession = Depends(get_db),
+):
+    # decode team id (opaque)
+    try:
+        team_pk = decode_id("team", team_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # decode person id (allow opaque or raw int)
+    try:
+        person_pk = decode_id("person", person_id)
+    except OpaqueIdError:
+        try:
+            person_pk = int(person_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+    # decode role id
+    try:
+        role_pk = decode_id("ref_value", payload.team_role_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=400, detail="Invalid team_role_id")
+
+    # find PersonTeam
+    result = await db.execute(
+        select(PersonTeam).where(
+            PersonTeam.team_id == team_pk,
+            PersonTeam.person_id == person_pk,
+        )
+    )
+    pt = result.scalar_one_or_none()
+    if not pt:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
+    pt.team_role_id = role_pk
+    await db.flush()
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete(
+    "/teams/{team_id}/members/{person_id}",
+    summary="Remove a person from team",
+    dependencies=[Depends(require_permission("TEAMS.MODIFY"))],
+)
+async def delete_team_member(
+    team_id: str = Path(..., description="Opaque team id"),
+    person_id: str = Path(..., description="Opaque person id or numeric id"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        team_pk = decode_id("team", team_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    try:
+        person_pk = decode_id("person", person_id)
+    except OpaqueIdError:
+        try:
+            person_pk = int(person_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+    result = await db.execute(
+        select(PersonTeam).where(
+            PersonTeam.team_id == team_pk,
+            PersonTeam.person_id == person_pk,
+        )
+    )
+    pt = result.scalar_one_or_none()
+    if not pt:
+        # Treat as idempotent
+        return {"ok": True}
+
+    await db.delete(pt)
+    await db.flush()
+    await db.commit()
+    return {"ok": True}
 
 
 @router.post(
