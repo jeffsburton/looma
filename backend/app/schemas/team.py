@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 from app.schemas.mixins import OpaqueIdMixin
 
@@ -38,6 +38,13 @@ class TeamRead(OpaqueIdMixin):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("event_id")
+    def _serialize_event_id(self, v: Optional[int]) -> Optional[str]:
+        from app.core.id_codec import encode_id
+        if v is None:
+            return None
+        return encode_id("event", int(v))
 
 
 class TeamUpsert(BaseModel):

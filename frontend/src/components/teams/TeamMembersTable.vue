@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import RefSelect from '../RefSelect.vue'
 import Button from 'primevue/button'
+import PersonSelect from '../PersonSelect.vue'
 
 const props = defineProps({
   teamId: { type: String, required: true }, // opaque team id
@@ -12,6 +13,25 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['changed'])
+
+const newMemberId = ref('')
+
+async function addMember(personOpaqueId) {
+  if (!props.canModify) return
+  if (!personOpaqueId || !props.teamId) return
+  const url = `/api/v1/teams/${encodeURIComponent(props.teamId)}/members`
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ person_id: personOpaqueId }) // role defaults to 143 on server
+  })
+  if (!resp.ok) {
+    console.error('Failed to add member')
+    return
+  }
+  newMemberId.value = ''
+  emit('changed')
+}
 
 async function updateRole(personId, newRoleId) {
   if (!props.canModify) return
@@ -72,6 +92,16 @@ async function deleteMember(personId) {
         </template>
       </Column>
     </DataTable>
+
+    <div v-if="canModify" class="mt-2">
+      <PersonSelect
+        v-model="newMemberId"
+        :shepherds="true"
+        :nonShepherds="false"
+        placeholder="Add team member"
+        @change="(v) => v && addMember(v)"
+      />
+    </div>
   </div>
 </template>
 

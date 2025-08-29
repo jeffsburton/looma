@@ -8,11 +8,13 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
 import AvatarEditor from '../components/common/AvatarEditor.vue'
+import EventSelect from '../components/EventSelect.vue'
 
 import TeamsCardLarge from '../components/teams/TeamsCardLarge.vue'
 import TeamsCardSmall from '../components/teams/TeamsCardSmall.vue'
 import TeamsDataTable from '../components/teams/TeamsDataTable.vue'
 import TeamMembersTable from '../components/teams/TeamMembersTable.vue'
+import TeamCasesTable from '../components/teams/TeamCasesTable.vue'
 import { hasPermission } from '../lib/permissions'
 
 const route = useRoute()
@@ -58,7 +60,7 @@ const sortedVisibleTeams = computed(() => {
 })
 
 // Query-driven edit mode
-const editModel = ref({ id: null, name: '', inactive: false })
+const editModel = ref({ id: null, name: '', inactive: false, event_id: '' })
 const contentRef = ref(null)
 const savedScrollTop = ref(0)
 const suppressAutoSave = ref(false)
@@ -87,7 +89,7 @@ function openEdit(team) {
 }
 
 async function updateExisting() {
-  const payload = { id: editModel.value.id, name: editModel.value.name, inactive: !!editModel.value.inactive }
+  const payload = { id: editModel.value.id, name: editModel.value.name, inactive: !!editModel.value.inactive, event_id: (editModel.value.event_id ?? '') }
   const url = `/api/v1/teams/${encodeURIComponent(editModel.value.id)}`
   const resp = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
   if (!resp.ok) {
@@ -98,7 +100,7 @@ async function updateExisting() {
 
 async function saveEdit() {
   const isNew = !editModel.value.id
-  const payload = { id: editModel.value.id || undefined, name: editModel.value.name, inactive: !!editModel.value.inactive }
+  const payload = { id: editModel.value.id || undefined, name: editModel.value.name, inactive: !!editModel.value.inactive, event_id: (editModel.value.event_id ?? '') }
   const url = isNew ? '/api/v1/teams' : `/api/v1/teams/${encodeURIComponent(editModel.value.id)}`
   const method = isNew ? 'POST' : 'PUT'
   const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -123,14 +125,14 @@ watch(
     if (!q) return
     suppressAutoSave.value = true
     if (q === 'new') {
-      editModel.value = { id: null, name: '', inactive: false }
+      editModel.value = { id: null, name: '', inactive: false, event_id: '' }
       await nextTick()
       suppressAutoSave.value = false
       return
     }
     const t = teams.value.find(x => String(x.id) === String(q))
     if (t) {
-      editModel.value = { id: t.id, name: t.name, inactive: !!t.inactive }
+      editModel.value = { id: t.id, name: t.name, inactive: !!t.inactive, event_id: t.event_id || '' }
     }
     await nextTick()
     suppressAutoSave.value = false
@@ -140,7 +142,7 @@ watch(
 
 // Auto-save for existing teams on field changes (debounced)
 watch(
-  () => ({ id: editModel.value.id, name: editModel.value.name, inactive: !!editModel.value.inactive }),
+  () => ({ id: editModel.value.id, name: editModel.value.name, inactive: !!editModel.value.inactive, event_id: editModel.value.event_id || '' }),
   async (val, oldVal) => {
     if (!val.id) return // only when editing existing team
     if (suppressAutoSave.value) return
@@ -232,12 +234,16 @@ onMounted(async () => {
                   <label class="block mb-1 text-sm">Name</label>
                   <InputText v-model="editModel.name" class="w-full" />
                 </div>
+                <div>
+                  <label class="block mb-1 text-sm">Event</label>
+                  <EventSelect v-model="editModel.event_id" :disabled="!canModify" placeholder="Select event" />
+                </div>
                 <div class="flex gap-2 align-items-center">
                   <Checkbox inputId="inactive" v-model="editModel.inactive" :binary="true" />
                   <label for="inactive">Inactive</label>
                 </div>
                 <div v-if="editModel.id && canModify" class="flex align-items-center">
-                  <label class="block mb-1 text-sm" style="min-width: 100px;">Profile Photo</label>
+                  <label class="block mb-1 text-sm" style="min-width: 100px;">Profile Picture</label>
                   <AvatarEditor kind="team" :id="editModel.id" :size="48" @changed="onAvatarChanged" />
                 </div>
 
@@ -246,6 +252,16 @@ onMounted(async () => {
                   <TeamMembersTable
                     :teamId="editModel.id"
                     :members="currentTeam?.members || []"
+                    :canModify="canModify"
+                    @changed="fetchTeams"
+                  />
+                </div>
+
+                <div v-if="editModel.id">
+                  <div class="text-800 font-semibold mb-2 mt-4">Cases</div>
+                  <TeamCasesTable
+                    :teamId="editModel.id"
+                    :cases="currentTeam?.cases || []"
                     :canModify="canModify"
                     @changed="fetchTeams"
                   />

@@ -7,7 +7,7 @@ import Button from 'primevue/button'
 const props = defineProps({
   kind: { type: String, default: 'team' }, // 'team' | 'person' | 'subject'
   id: { type: String, required: true }, // opaque id
-  label: { type: String, default: 'Change Photo' },
+  label: { type: String, default: 'Change' },
   size: { type: Number, default: 48 },
   disabled: { type: Boolean, default: false },
 })

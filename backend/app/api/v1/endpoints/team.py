@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, File
 from pydantic import BaseModel
@@ -277,6 +277,156 @@ async def delete_team_member(
         return {"ok": True}
 
     await db.delete(pt)
+    await db.flush()
+    await db.commit()
+    return {"ok": True}
+
+
+class AddMemberPayload(BaseModel):
+    person_id: str
+    team_role_id: Optional[str] = None
+
+
+@router.post(
+    "/teams/{team_id}/members",
+    summary="Add a person to team",
+    dependencies=[Depends(require_permission("TEAMS.MODIFY"))],
+)
+async def add_team_member(
+    team_id: str = Path(..., description="Opaque team id"),
+    payload: AddMemberPayload = None,
+    db: AsyncSession = Depends(get_db),
+):
+    # decode team id
+    try:
+        team_pk = decode_id("team", team_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # decode person id (allow opaque or raw int)
+    try:
+        person_pk = decode_id("person", payload.person_id)
+    except OpaqueIdError:
+        try:
+            person_pk = int(payload.person_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    # determine role id: default to 143 if not provided
+    role_pk: int
+    if payload.team_role_id:
+        try:
+            role_pk = decode_id("ref_value", payload.team_role_id)
+        except OpaqueIdError:
+            try:
+                role_pk = int(payload.team_role_id)
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid team_role_id")
+    else:
+        role_pk = 143
+
+    # prevent duplicates
+    res = await db.execute(
+        select(PersonTeam).where(
+            PersonTeam.team_id == team_pk,
+            PersonTeam.person_id == person_pk,
+        )
+    )
+    existing = res.scalar_one_or_none()
+    if existing:
+        # Treat as idempotent add
+        return {"ok": True}
+
+    pt = PersonTeam(team_id=team_pk, person_id=person_pk, team_role_id=role_pk)
+    db.add(pt)
+    await db.flush()
+    await db.commit()
+    return {"ok": True}
+
+
+# ---- Team Cases management ----
+class AddCasePayload(BaseModel):
+    case_id: str
+
+
+@router.post(
+    "/teams/{team_id}/cases",
+    summary="Add a case to team",
+    dependencies=[Depends(require_permission("TEAMS.MODIFY"))],
+)
+async def add_team_case(
+    team_id: str = Path(..., description="Opaque team id"),
+    payload: AddCasePayload = None,
+    db: AsyncSession = Depends(get_db),
+):
+    # decode team id
+    try:
+        team_pk = decode_id("team", team_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # decode case id (allow opaque or raw int)
+    try:
+        case_pk = decode_id("case", payload.case_id)
+    except OpaqueIdError:
+        try:
+            case_pk = int(payload.case_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid case_id")
+
+    # prevent duplicates
+    res = await db.execute(
+        select(TeamCase).where(
+            TeamCase.team_id == team_pk,
+            TeamCase.case_id == case_pk,
+        )
+    )
+    existing = res.scalar_one_or_none()
+    if existing:
+        # idempotent
+        return {"ok": True}
+
+    tc = TeamCase(team_id=team_pk, case_id=case_pk)
+    db.add(tc)
+    await db.flush()
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete(
+    "/teams/{team_id}/cases/{case_id}",
+    summary="Remove a case from team",
+    dependencies=[Depends(require_permission("TEAMS.MODIFY"))],
+)
+async def delete_team_case(
+    team_id: str = Path(..., description="Opaque team id"),
+    case_id: str = Path(..., description="Opaque case id or numeric id"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        team_pk = decode_id("team", team_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    try:
+        case_pk = decode_id("case", case_id)
+    except OpaqueIdError:
+        try:
+            case_pk = int(case_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+    result = await db.execute(
+        select(TeamCase).where(
+            TeamCase.team_id == team_pk,
+            TeamCase.case_id == case_pk,
+        )
+    )
+    tc = result.scalar_one_or_none()
+    if not tc:
+        return {"ok": True}
+
+    await db.delete(tc)
     await db.flush()
     await db.commit()
     return {"ok": True}
