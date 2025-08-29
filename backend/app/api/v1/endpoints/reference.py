@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import sqlalchemy as sa
 
 from app.db.session import get_db
 from app.schemas.reference import StateRead, RefValueRead, RefValueCreate
@@ -19,6 +20,11 @@ async def list_states(db: AsyncSession = Depends(get_db)) -> List[StateRead]:
         select(RefValue)
         .join(RefType, RefValue.ref_type_id == RefType.id)
         .where(RefType.code == "STATE")
+        .order_by(
+            sa.case((RefValue.sort_order.is_(None), 1), else_=0).asc(),
+            RefValue.sort_order.asc(),
+            RefValue.name.asc(),
+        )
     )
     result = await db.execute(stmt)
     rows = result.scalars().all()
@@ -35,7 +41,15 @@ async def list_ref_values(
     ref_type = rt_result.scalars().first()
     if not ref_type:
         return []
-    result = await db.execute(select(RefValue).where(RefValue.ref_type_id == ref_type.id))
+    result = await db.execute(
+        select(RefValue)
+        .where(RefValue.ref_type_id == ref_type.id)
+        .order_by(
+            sa.case((RefValue.sort_order.is_(None), 1), else_=0).asc(),
+            RefValue.sort_order.asc(),
+            RefValue.name.asc(),
+        )
+    )
     return result.scalars().all()
 
 
@@ -59,6 +73,7 @@ async def create_ref_value(
         code=payload.code,
         inactive=bool(payload.inactive) if payload.inactive is not None else False,
         num_value=payload.num_value,
+        sort_order=payload.sort_order,
         ref_type_id=ref_type.id,
     )
     db.add(obj)

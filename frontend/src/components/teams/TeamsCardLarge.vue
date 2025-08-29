@@ -43,6 +43,7 @@ const emit = defineEmits(['edit'])
           <div v-for="m in team.members" :key="m.id || m.name" class="flex flex-nowrap align-items-center gap-2 p-1 border-round hover:surface-100 w-full">
             <img v-if="m.photo_url" :src="m.photo_url" :alt="m.name" class="avatar" />
             <span class="text-900 flex-1 min-w-0 name-clip">{{ m.name }}</span>
+            <span v-if="m.role_name" class="text-700 text-sm" style="margin-left:auto; text-align:right;">{{ m.role_name }}</span>
           </div>
         </div>
         <div v-else class="text-600 text-sm">No members</div>

@@ -174,12 +174,12 @@ def seed_0001():
                            ["OTH", "Other"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Team Role", "code": "TEAM_ROLE", "description": "Role of a Shepherds volunteer on a team"})
-    seed_ref(ref_type_id, [["LEAD", "Leader"],
-                           ["ASST", "Assistant Leader"],
-                           ["CADV", "Case Advocate"],
-                           ["INTEL", "Lead Analyst"],
-                           ["OO", "OSINT/Operations"],
-                           ["MIN", "Ministry"]])
+    seed_ref(ref_type_id, [["LEAD", "Leader", "100"],
+                           ["ASST", "Assistant Leader", "200"],
+                           ["CADV", "Case Advocate", "300"],
+                           ["INTEL", "Lead Analyst", "400"],
+                           ["OO", "OSINT/Operations", "500"],
+                           ["MIN", "Ministry", "600"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Yes/No/Unk", "code": "YNU", "description": "Boolean with uncertainty"})
     seed_ref(ref_type_id, [["Y", "Yes"], ["N", "No"], ["U", "Unknown"]])

@@ -1,9 +1,10 @@
 from typing import List, Dict, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, asc
+from sqlalchemy.sql import expression as sql_expr
 
 from app.api.dependencies import require_permission
 from app.db.session import get_db
@@ -14,6 +15,7 @@ from app.db.models.team_case import TeamCase
 from app.db.models.case import Case
 from app.db.models.subject import Subject
 from app.db.models.event import Event
+from app.db.models.ref_value import RefValue
 from app.schemas.team import TeamRead, TeamUpsert, TeamMemberSummary, TeamCaseSummary
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
@@ -48,17 +50,25 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> List[TeamRead]:
             Person.first_name,
             Person.last_name,
             Person.profile_pic.isnot(None).label("has_pic"),
+            RefValue.name.label("role_name"),
         )
         .join(Person, Person.id == PersonTeam.person_id)
+        .join(RefValue, RefValue.id == PersonTeam.team_role_id)
         .where(PersonTeam.team_id.in_(team_ids))
+        .order_by(
+            PersonTeam.team_id,
+            sql_expr.nulls_last(asc(RefValue.sort_order)),
+            asc(Person.last_name),
+            asc(Person.first_name),
+        )
     )
-    for team_id, person_id, first, last, has_pic in mres.all():
+    for team_id, person_id, first, last, has_pic, role_name in mres.all():
         name = f"{first} {last}".strip()
         photo_url = (
             f"/api/v1/media/pfp/person/{encode_id('person', int(person_id))}?s=xs"
             if has_pic else "/images/pfp-generic.png"
         )
-        members_map[int(team_id)].append(TeamMemberSummary(id=int(person_id), name=name, photo_url=photo_url))
+        members_map[int(team_id)].append(TeamMemberSummary(id=int(person_id), name=name, photo_url=photo_url, role_name=role_name))
 
     # Cases by team
     cases_map: Dict[int, List[TeamCaseSummary]] = {tid: [] for tid in team_ids}
@@ -165,3 +175,50 @@ async def update_team(
     await db.refresh(obj)
     await db.commit()
     return obj
+
+
+@router.post(
+    "/teams/{id}/profile_pic",
+    summary="Upload team profile picture",
+    dependencies=[Depends(require_permission("TEAMS.MODIFY"))],
+)
+async def upload_team_profile_pic(
+    id: str = Path(..., description="Opaque team id"),
+    file: UploadFile = File(..., description="Image file for team profile picture"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        pk = decode_id("team", id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    obj = await db.get(Team, pk)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # Read and validate file (basic size/type checks)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    max_bytes = 5 * 1024 * 1024  # 5MB
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail="File too large (max 5MB)")
+
+    # Validate it's an image by magic numbers
+    is_image = (
+        content.startswith(b"\x89PNG\r\n\x1a\n") or
+        content.startswith(b"\xff\xd8\xff") or
+        content.startswith(b"GIF8") or
+        (content[:4] == b"RIFF" and b"WEBP" in content[:32])
+    )
+    if not is_image:
+        raise HTTPException(status_code=400, detail="Unsupported image format")
+
+    obj.profile_pic = content
+
+    await db.flush()
+    await db.refresh(obj)
+    await db.commit()
+
+    return {"ok": True}

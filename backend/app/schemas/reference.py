@@ -8,6 +8,7 @@ class StateRead(OpaqueIdMixin):
     id: int
     name: str
     code: str
+    sort_order: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -19,6 +20,8 @@ class RefValueRead(OpaqueIdMixin):
     description: str
     code: str
     inactive: bool
+    num_value: Optional[int] = None
+    sort_order: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,3 +32,4 @@ class RefValueCreate(BaseModel):
     description: Optional[str] = ""
     inactive: Optional[bool] = False
     num_value: Optional[int] = None
+    sort_order: Optional[int] = None

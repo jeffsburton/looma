@@ -146,6 +146,7 @@ def get_record_by_code(table_name: str, code: str) -> int:
 
     return int(ids[0])
 
+
 def seed_ref(ref_type_id: int, values: list[list[str]]) -> None:
     """Seed the ref table with the given values."""
     for value in values:
@@ -155,7 +156,11 @@ def seed_ref(ref_type_id: int, values: list[list[str]]) -> None:
             'name': value[1],
         }
         if len(value) > 2 and value[2] is not None and len(value[2]) > 0:
-            fields['num_value'] = int(value[2])
+            try:
+                fields['sort_order'] = int(value[2])
+            except (ValueError, TypeError):
+                # Skip sort_order if conversion fails
+                pass
         seed('ref_value', fields)
 
 

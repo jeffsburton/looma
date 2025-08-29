@@ -9,6 +9,7 @@ class TeamMemberSummary(BaseModel):
     id: int
     name: str
     photo_url: Optional[str] = None
+    role_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

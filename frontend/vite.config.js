@@ -7,6 +7,24 @@ const proxyTarget = process.env.LOOMA_API_URL || process.env.VITE_PROXY_TARGET |
 console.log(proxyTarget);
 export default defineConfig({
   plugins: [vue()],
+  // Fine-tune dependency optimization to work around ESM/CJS interop in vue-avatar-cropper deps
+  optimizeDeps: {
+    // Explicitly prebundle vue-avatar-cropper and its transitive helpers so Vite creates proper ESM wrappers
+    include: [
+      'vue-avatar-cropper',
+      'cropperjs',
+      'mime/lite',
+      '@babel/runtime/helpers/asyncToGenerator',
+      '@babel/runtime/helpers/slicedToArray',
+      '@babel/runtime/regenerator'
+    ],
+    force: true
+  },
+  resolve: {
+    alias: {
+      // No alias for regenerator to allow optimized ESM wrapper to be used
+    }
+  },
   // Build target can be overridden by environment variable
   // Preferred: LOOMA_BUILD_TARGET  (project-specific)
   // Fallback:  BUILD_TARGET        (generic)
