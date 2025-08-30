@@ -58,6 +58,9 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> List[TeamRead]:
             RefValue.name.label("role_name"),
             RefValue.id.label("role_id"),
             RefValue.code.label("role_code"),
+            Person.phone,
+            Person.email,
+            Person.telegram,
         )
         .join(Person, Person.id == PersonTeam.person_id)
         .join(RefValue, RefValue.id == PersonTeam.team_role_id)
@@ -69,7 +72,7 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> List[TeamRead]:
             asc(Person.first_name),
         )
     )
-    for team_id, person_id, first, last, has_pic, role_name, role_id, role_code in mres.all():
+    for team_id, person_id, first, last, has_pic, role_name, role_id, role_code, phone, email, telegram in mres.all():
         name = f"{first} {last}".strip()
         photo_url = (
             f"/api/v1/media/pfp/person/{encode_id('person', int(person_id))}?s=xs"
@@ -83,6 +86,9 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> List[TeamRead]:
                 role_name=role_name,
                 role_id=encode_id('ref_value', int(role_id)) if role_id is not None else None,
                 role_code=role_code,
+                phone=phone,
+                email=email,
+                telegram=telegram,
             )
         )
 

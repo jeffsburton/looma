@@ -12,6 +12,10 @@ class TeamMemberSummary(BaseModel):
     role_name: Optional[str] = None
     role_id: Optional[str] = None  # opaque ref_value id for TEAM_ROLE
     role_code: Optional[str] = None
+    # Contact info (optional; included for convenience in team listing)
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    telegram: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
