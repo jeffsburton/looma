@@ -1,13 +1,13 @@
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, asc, func, or_, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.db.models.subject import Subject
-from app.schemas.subject import SubjectRead
+from app.schemas.subject import SubjectRead, SubjectUpsert
 from app.core.id_codec import encode_id
 from app.db.models.subject_case import SubjectCase
 from app.db.models.person import Person
@@ -20,6 +20,37 @@ from app.services.auth import user_has_permission
 
 # Simple authenticated listing for subjects
 router = APIRouter(dependencies=[Depends(get_current_user)])
+
+
+@router.post(
+    "/subjects",
+    response_model=SubjectRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a subject",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def create_subject(payload: SubjectUpsert, db: AsyncSession = Depends(get_db)) -> SubjectRead:
+    first = (payload.first_name or "").strip()
+    last = (payload.last_name or "").strip()
+    if not first or not last:
+        raise HTTPException(status_code=400, detail="First name and last name are required")
+
+    dangerous = bool(payload.dangerous) if payload.dangerous is not None else False
+    danger_text = (payload.danger or None) if dangerous else None
+
+    subj = Subject(
+        first_name=first,
+        last_name=last,
+        nicknames=(payload.nicknames or None),
+        phone=(payload.phone or None),
+        email=(payload.email or None),
+        dangerous=dangerous,
+        danger=danger_text,
+    )
+    db.add(subj)
+    await db.commit()
+    await db.refresh(subj)
+    return subj
 
 
 async def _get_current_person_id(db: AsyncSession, current_user: AppUser) -> int | None:

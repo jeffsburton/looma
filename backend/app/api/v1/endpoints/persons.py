@@ -1,17 +1,17 @@
 from typing import List, Dict
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy import select, and_, or_, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.db.models.person import Person
 from app.db.models.organization import Organization
 from app.db.models.person_team import PersonTeam
 from app.db.models.team import Team
-from app.core.id_codec import encode_id
-from app.schemas.person import PersonRead
+from app.core.id_codec import encode_id, decode_id, OpaqueIdError
+from app.schemas.person import PersonRead, PersonUpsert
 
 # Simple authenticated listing for person selection widgets
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -21,6 +21,41 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 async def list_persons(db: AsyncSession = Depends(get_db)) -> List[PersonRead]:
     result = await db.execute(select(Person))
     return list(result.scalars().all())
+
+
+@router.post(
+    "/persons",
+    response_model=PersonRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a person",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def create_person(payload: PersonUpsert, db: AsyncSession = Depends(get_db)) -> PersonRead:
+    # Normalize organization_id: accept opaque token or raw int or null
+    org_id_int = None
+    if payload.organization_id is not None and payload.organization_id != "":
+        try:
+            if isinstance(payload.organization_id, str):
+                # Try to decode opaque token
+                org_id_int = decode_id("organization", payload.organization_id)
+            else:
+                # Assume int-like
+                org_id_int = int(payload.organization_id)  # type: ignore[arg-type]
+        except (ValueError, OpaqueIdError):
+            raise HTTPException(status_code=400, detail="Invalid organization_id")
+
+    person = Person(
+        first_name=payload.first_name.strip(),
+        last_name=payload.last_name.strip(),
+        phone=(payload.phone or None),
+        email=(payload.email or None),
+        telegram=getattr(payload, "telegram", None),
+        organization_id=org_id_int,
+    )
+    db.add(person)
+    await db.commit()
+    await db.refresh(person)
+    return person
 
 
 @router.get("/persons/select", summary="List people for selection with enriched display")

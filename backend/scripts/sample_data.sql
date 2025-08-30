@@ -56,3 +56,37 @@ INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at
 INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at, updated_at) VALUES (11, 3, 4, 142, '2025-08-28 20:48:38.135995 +00:00', '2025-08-28 20:48:38.135995 +00:00');
 INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at, updated_at) VALUES (12, 4, 4, 143, '2025-08-28 20:48:38.135995 +00:00', '2025-08-28 20:48:38.135995 +00:00');
 INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at, updated_at) VALUES (13, 5, 4, 144, '2025-08-28 20:48:38.135995 +00:00', '2025-08-28 20:48:38.135995 +00:00');
+
+SELECT setval(
+  pg_get_serial_sequence('public.organization', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.organization), 0)
+);
+
+SELECT setval(
+  pg_get_serial_sequence('public.event', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.event), 0)
+);
+
+SELECT setval(
+  pg_get_serial_sequence('public.team', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.team), 0)
+);
+
+SELECT setval(
+  pg_get_serial_sequence('public.subject', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.subject), 0)
+);
+
+SELECT setval(
+  pg_get_serial_sequence('public.team_case', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.team_case), 0)
+);
+
+SELECT setval(
+  pg_get_serial_sequence('public.person', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.person), 0)
+);
+SELECT setval(
+  pg_get_serial_sequence('public.person_team', 'id'),
+  COALESCE((SELECT MAX(id) FROM public.person_team), 0)
+);

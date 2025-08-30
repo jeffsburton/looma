@@ -70,7 +70,9 @@ async function onCreate() {
     console.error('Failed to create subject')
     return
   }
-  emit('create')
+  let created = null
+  try { created = await resp.json() } catch {}
+  emit('create', created)
 }
 
 const canEdit = computed(() => props.canModify)

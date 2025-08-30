@@ -24,7 +24,22 @@ async function fetchOrganizations() {
   loadingOrgs.value = true
   try {
     const resp = await fetch('/api/v1/organizations')
-    if (resp.ok) orgs.value = await resp.json()
+    if (resp.ok) {
+      orgs.value = await resp.json()
+      // Auto-select Called2Rescue (organization.id=1) when creating a Shepherd
+      // The organizations API returns opaque ids, so map by name.
+      try {
+        const isCreating = !!props.isNew
+        const wantsShepherd = String(m.value?.subType || '').toLowerCase() === 'shepherds' || m.value?.organization_id === 1
+        const notAlreadyOpaque = typeof m.value?.organization_id === 'number' || m.value?.organization_id === 1
+        if (isCreating && wantsShepherd) {
+          const c2r = (orgs.value || []).find(o => String(o.name).trim().toLowerCase() === 'called2rescue')
+          if (c2r && c2r.id) {
+            m.value.organization_id = c2r.id
+          }
+        }
+      } catch {}
+    }
   } finally { loadingOrgs.value = false }
 }
 
@@ -92,7 +107,9 @@ async function onCreate() {
     console.error('Failed to create person')
     return
   }
-  emit('create')
+  let created = null
+  try { created = await resp.json() } catch {}
+  emit('create', created)
 }
 
 const canEdit = computed(() => props.canModify)

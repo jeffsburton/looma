@@ -1,9 +1,15 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import Select from 'primevue/select'
+import Button from 'primevue/button'
+import SplitButton from 'primevue/splitbutton'
+import Dialog from 'primevue/dialog'
+import { hasPermission } from '../lib/permissions'
+import PersonEditor from './contacts/Person.vue'
+import SubjectEditor from './contacts/Subject.vue'
 
 const props = defineProps({
-  modelValue: { type: String, default: '' }, // opaque person id
+  modelValue: { type: String, default: '' }, // opaque id (person or subject)
   shepherds: { type: Boolean, default: true },
   nonShepherds: { type: Boolean, default: true },
   placeholder: { type: String, default: 'Add team member' },
@@ -30,7 +36,29 @@ async function loadOptions() {
     const qs = new URLSearchParams({ shepherds: String(!!props.shepherds), non_shepherds: String(!!props.nonShepherds) })
     const resp = await fetch(`/api/v1/persons/select?${qs.toString()}`)
     if (!resp.ok) throw new Error('Failed to load people')
-    options.value = await resp.json()
+    const people = await resp.json()
+
+    let items = Array.isArray(people) ? people : []
+
+    // If nonShepherds is allowed, include subjects as selectable options as well
+    if (props.nonShepherds) {
+      try {
+        const sResp = await fetch('/api/v1/subjects/select')
+        if (sResp.ok) {
+          const subs = await sResp.json()
+          const mapped = (subs || []).map(s => ({
+            id: s.id, // opaque subject id like subj:...
+            name: s.name,
+            photo_url: s.photo_url,
+            is_shepherd: false,
+            organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
+            team_photo_urls: [],
+          }))
+          items = [...items, ...mapped]
+        }
+      } catch {}
+    }
+    options.value = items
   } finally {
     loading.value = false
   }
@@ -39,6 +67,41 @@ async function loadOptions() {
 watch(() => [props.shepherds, props.nonShepherds], loadOptions, { immediate: true })
 
 const selectedOption = computed(() => options.value.find(o => o.id === selectedId.value))
+
+// Permissions
+const canModify = computed(() => hasPermission('CONTACTS.MODIFY'))
+
+// Add overlay state
+const addVisible = ref(false)
+const addType = ref('person') // 'person' or 'subject'
+const editorModel = ref({ kind: 'person', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: null, dangerous: false, danger: '' })
+
+function openAddShepherd() {
+  addType.value = 'person'
+  editorModel.value = { kind: 'person', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: 1, dangerous: false, danger: '' }
+  addVisible.value = true
+}
+function openAddAgency() {
+  addType.value = 'person'
+  editorModel.value = { kind: 'person', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: null, dangerous: false, danger: '' }
+  addVisible.value = true
+}
+function openAddSubject() {
+  addType.value = 'subject'
+  editorModel.value = { kind: 'subject', id: null, first_name: '', last_name: '', phone: '', email: '', dangerous: false, danger: '' }
+  addVisible.value = true
+}
+
+async function onCreated(created) {
+  addVisible.value = false
+  await loadOptions()
+  // Try to select the newly created record if id is available
+  const newId = created?.id
+  if (newId) {
+    selectedId.value = newId
+    await nextTick()
+  }
+}
 </script>
 
 <template>
@@ -84,7 +147,48 @@ const selectedOption = computed(() => options.value.find(o => o.id === selectedI
       </div>
       <span v-else>{{ placeholder }}</span>
     </template>
+
+    <template v-if="filter && canModify" #footer>
+      <div class="p-2 border-top-1 surface-border flex justify-content-end">
+        <Button v-if="shepherds && !nonShepherds" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddShepherd" />
+        <SplitButton
+          v-else
+          label="Add"
+          icon="pi pi-plus"
+          size="small"
+          text
+          :model="[
+            ...(shepherds ? [{ label: 'Shepherd', command: openAddShepherd }] : []),
+            ...(nonShepherds ? [
+              { label: 'Agency Personnel', command: openAddAgency },
+              { label: 'Investigatory Subject', command: openAddSubject },
+            ] : []),
+          ]"
+        />
+      </div>
+    </template>
   </Select>
+
+  <Dialog v-model:visible="addVisible" modal :header="addType === 'subject' ? 'New Investigatory Subject' : 'New Person'" :style="{ width: '640px' }">
+    <div class="dialog-body-pad">
+      <PersonEditor
+        v-if="addType === 'person'"
+        v-model="editorModel"
+        :isNew="true"
+        :canModify="canModify"
+        @create="onCreated"
+        @cancel="addVisible=false"
+      />
+      <SubjectEditor
+        v-else
+        v-model="editorModel"
+        :isNew="true"
+        :canModify="canModify"
+        @create="onCreated"
+        @cancel="addVisible=false"
+      />
+    </div>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -92,4 +196,5 @@ const selectedOption = computed(() => options.value.find(o => o.id === selectedI
 .team-avatar { width: 18px; height: 18px; border-radius: 999px; object-fit: cover; }
 .name-clip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .team-pfps { flex-shrink: 0; }
+.dialog-body-pad { padding-top: .5rem; }
 </style>

@@ -32,4 +32,5 @@ class PersonUpsert(BaseModel):
     last_name: str
     phone: Optional[str] = None
     email: Optional[str] = None
+    telegram: Optional[str] = None
     organization_id: Optional[str] = None
