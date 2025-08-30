@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, asc, func
+from sqlalchemy import select, asc, func, or_, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -10,20 +10,82 @@ from app.db.models.subject import Subject
 from app.schemas.subject import SubjectRead
 from app.core.id_codec import encode_id
 from app.db.models.subject_case import SubjectCase
+from app.db.models.person import Person
+from app.db.models.person_case import PersonCase
+from app.db.models.person_team import PersonTeam
+from app.db.models.team_case import TeamCase
+from app.db.models.case import Case
+from app.db.models.app_user import AppUser
+from app.services.auth import user_has_permission
 
 # Simple authenticated listing for subjects
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
+async def _get_current_person_id(db: AsyncSession, current_user: AppUser) -> int | None:
+    res = await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))
+    pid = res.scalar_one_or_none()
+    return int(pid) if pid is not None else None
+
+
+def _subject_visibility_filter(person_id: int):
+    """
+    Build SQLAlchemy filter so that a Subject is included if it is attached to any case
+    related to the given person via either person_case or team_case.
+    Subject linkage to a case can be direct (case.subject_id) or via subject_case.
+    """
+    # Cases related directly to the person
+    pc_case_ids = select(PersonCase.case_id).where(PersonCase.person_id == person_id)
+
+    # Cases related via the person's teams
+    tc_case_ids = select(TeamCase.case_id).join(PersonTeam, PersonTeam.team_id == TeamCase.team_id).where(PersonTeam.person_id == person_id)
+
+    # Union of case ids
+    union_case_ids = pc_case_ids.union(tc_case_ids)
+
+    # Subjects related to those cases via subject_case
+    sc_subject_ids = select(SubjectCase.subject_id).where(SubjectCase.case_id.in_(union_case_ids))
+
+    # Subjects directly attached on the case.subject_id
+    direct_subject_ids = select(Case.subject_id).where(Case.id.in_(union_case_ids))
+
+    return or_(Subject.id.in_(sc_subject_ids), Subject.id.in_(direct_subject_ids))
+
+
 @router.get("/subjects", response_model=List[SubjectRead], summary="List subjects")
-async def list_subjects(db: AsyncSession = Depends(get_db)) -> List[SubjectRead]:
-    q = select(Subject).order_by(asc(Subject.last_name), asc(Subject.first_name))
+async def list_subjects(
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> List[SubjectRead]:
+    # If user has ALL_SUBJECTS permission, bypass filtering entirely
+    has_all = await user_has_permission(db, current_user.id, "CONTACTS.ALL_SUBJECTS")
+    if has_all:
+        q = select(Subject).order_by(asc(Subject.last_name), asc(Subject.first_name))
+        result = await db.execute(q)
+        return list(result.scalars().all())
+
+    person_id = await _get_current_person_id(db, current_user)
+    if person_id is None:
+        # No linked person -> no subjects visible
+        return []
+
+    q = select(Subject).where(_subject_visibility_filter(person_id)).order_by(asc(Subject.last_name), asc(Subject.first_name))
     result = await db.execute(q)
     return list(result.scalars().all())
 
 
 @router.get("/subjects/select", summary="List subjects for selection with enriched display")
-async def list_subjects_for_select(db: AsyncSession = Depends(get_db)):
+async def list_subjects_for_select(
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # If user has ALL_SUBJECTS permission, we won't apply visibility filter
+    has_all = await user_has_permission(db, current_user.id, "CONTACTS.ALL_SUBJECTS")
+
+    person_id = await _get_current_person_id(db, current_user) if not has_all else None
+    if not has_all and person_id is None:
+        return []
+
     # Base: subject fields + has_pic boolean
     q = select(
         Subject.id,
@@ -38,6 +100,11 @@ async def list_subjects_for_select(db: AsyncSession = Depends(get_db)):
         # any subject_case rows for this subject?
         func.count(SubjectCase.id).label("case_count"),
     ).join(SubjectCase, SubjectCase.subject_id == Subject.id, isouter=True)
+
+    if not has_all:
+        visibility_filter = _subject_visibility_filter(person_id)
+        q = q.where(visibility_filter)
+
     q = q.group_by(
         Subject.id,
         Subject.first_name,

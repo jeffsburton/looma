@@ -12,6 +12,8 @@ import Badge from 'primevue/badge'
 import Paginator from 'primevue/paginator'
 import { getCookie, setCookie } from '../lib/cookies'
 import { hasPermission } from '../lib/permissions'
+import PersonEditor from '../components/contacts/Person.vue'
+import SubjectEditor from '../components/contacts/Subject.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -181,7 +183,7 @@ watch(() => [view.value, filter.value, search.value, sortedFilteredContacts.valu
 
 // Edit overlay state (via route query)
 const isEditMode = computed(() => !!route.query.contact)
-const editModel = ref({ kind: 'person', subType: 'Shepherds', id: null, first_name: '', last_name: '', phone: '', email: '', organization_id: '' })
+const editModel = ref({ kind: 'person', subType: 'Shepherds', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: '', dangerous: false, danger: '' })
 const contentRef = ref(null)
 const savedScrollTop = ref(0)
 
@@ -204,6 +206,11 @@ function goToListAndRestore() {
   router.replace({ name: 'contacts', query: { ...rest } })
 }
 
+async function onCreated() {
+  await loadData()
+  goToListAndRestore()
+}
+
 // Populate editModel on route or data change
 watch(
   () => [route.query.contact, route.query.type, contacts.value],
@@ -213,11 +220,11 @@ watch(
     if (!q) return
     if (q === 'new') {
       if (t === 'subject') {
-        editModel.value = { kind: 'subject', subType: 'Subjects', id: null, first_name: '', last_name: '', phone: '', email: '', organization_id: '' }
+        editModel.value = { kind: 'subject', subType: 'Subjects', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: null, dangerous: false, danger: '' }
       } else if (t === 'agency') {
-        editModel.value = { kind: 'person', subType: 'Agency', id: null, first_name: '', last_name: '', phone: '', email: '', organization_id: '' }
+        editModel.value = { kind: 'person', subType: 'Agency', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: null, dangerous: false, danger: '' }
       } else {
-        editModel.value = { kind: 'person', subType: 'Shepherds', id: null, first_name: '', last_name: '', phone: '', email: '', organization_id: 1 }
+        editModel.value = { kind: 'person', subType: 'Shepherds', id: null, first_name: '', last_name: '', phone: '', email: '', telegram: '', organization_id: 1, dangerous: false, danger: '' }
       }
       await nextTick()
       return
@@ -226,12 +233,25 @@ watch(
     const item = contacts.value.find(x => String(x.id) === String(q))
     if (item) {
       if (item.kind === 'subject') {
-        // subjects
-        const s = subjects.value.find(x => String(x.id) === String(item.id))
-        if (s) editModel.value = { kind: 'subject', subType: 'Subjects', id: s.id, first_name: s.first_name || '', last_name: s.last_name || '', phone: s.phone || '', email: s.email || '', organization_id: '' }
+        // Load full subject details
+        try {
+          const resp = await fetch('/api/v1/subjects')
+          if (resp.ok) {
+            const arr = await resp.json()
+            const s = (arr || []).find(x => String(x.id) === String(item.id))
+            if (s) editModel.value = { kind: 'subject', subType: 'Subjects', id: s.id, first_name: s.first_name || '', last_name: s.last_name || '', phone: s.phone || '', email: s.email || '', telegram: '', organization_id: '', dangerous: !!s.dangerous, danger: s.danger || '' }
+          }
+        } catch {}
       } else {
-        const p = persons.value.find(x => String(x.id) === String(item.id))
-        if (p) editModel.value = { kind: 'person', subType: item.subType, id: p.id, first_name: p.first_name || '', last_name: p.last_name || '', phone: p.phone || '', email: p.email || '', organization_id: p.organization_id || '' }
+        // Load full person details
+        try {
+          const resp = await fetch('/api/v1/persons')
+          if (resp.ok) {
+            const arr = await resp.json()
+            const p = (arr || []).find(x => String(x.id) === String(item.id))
+            if (p) editModel.value = { kind: 'person', subType: item.subType, id: p.id, first_name: p.first_name || '', last_name: p.last_name || '', phone: p.phone || '', email: p.email || '', telegram: item.telegram || '', organization_id: (p.organization_id == null ? null : p.organization_id), dangerous: false, danger: '' }
+          }
+        } catch {}
       }
     }
     await nextTick()
@@ -272,7 +292,7 @@ function telHref(val) {
 }
 function mailtoHref(val) {
   if (!val) return ''
-  return `mailto:${String(val).trim()}`
+  return `sendto:${String(val).trim()}`
 }
 function telegramHref(val) {
   if (!val) return ''
@@ -460,33 +480,27 @@ function telegramHref(val) {
                 </button>
                 <div class="text-lg font-semibold">{{ editModel.id ? 'Edit Contact' : 'New Contact' }}</div>
               </div>
-              <div class="flex flex-column gap-3" style="max-width:560px;">
-                <div class="text-600">Type: {{ editModel.kind === 'subject' ? 'Investigatory Subject' : (editModel.subType === 'Agency' ? 'Agency Personnel' : 'Shepherd') }}</div>
-                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: .75rem;">
-                  <div>
-                    <label class="block mb-1 text-sm">First Name</label>
-                    <InputText v-model="editModel.first_name" class="w-full" />
-                  </div>
-                  <div>
-                    <label class="block mb-1 text-sm">Last Name</label>
-                    <InputText v-model="editModel.last_name" class="w-full" />
-                  </div>
-                </div>
-                <div>
-                  <label class="block mb-1 text-sm">Phone</label>
-                  <InputText v-model="editModel.phone" class="w-full" />
-                </div>
-                <div>
-                  <label class="block mb-1 text-sm">Email</label>
-                  <InputText v-model="editModel.email" class="w-full" />
-                </div>
-                <!-- Placeholder for future: organization select when Agency -->
-                <div v-if="editModel.kind === 'person' && editModel.subType === 'Agency'" class="text-600 text-sm">Select organization (coming soon)</div>
-
-                <div class="flex justify-content-end gap-2">
-                  <Button label="Back" text @click="goToListAndRestore" />
-                  <Button label="Save" icon="pi pi-check" disabled />
-                </div>
+              <div>
+                <PersonEditor
+                  v-if="editModel.kind === 'person'"
+                  v-model="editModel"
+                  :isNew="!editModel.id"
+                  :canModify="canModify"
+                  @create="onCreated"
+                  @cancel="goToListAndRestore"
+                  @updated="loadData"
+                  @avatarChanged="loadData"
+                />
+                <SubjectEditor
+                  v-else
+                  v-model="editModel"
+                  :isNew="!editModel.id"
+                  :canModify="canModify"
+                  @create="onCreated"
+                  @cancel="goToListAndRestore"
+                  @updated="loadData"
+                  @avatarChanged="loadData"
+                />
               </div>
             </template>
           </div>
