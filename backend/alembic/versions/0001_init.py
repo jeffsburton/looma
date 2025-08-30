@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-08-28 05:44:46.982714
+Create Date: 2025-08-30 06:34:44.811613
 
 """
 from typing import Sequence, Union
@@ -160,11 +160,13 @@ def upgrade() -> None:
     sa.Column('code', sa.String(length=50), nullable=False),
     sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('num_value', sa.Integer(), nullable=True),
+    sa.Column('sort_order', sa.Integer(), nullable=True),
     sa.Column('ref_type_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['ref_type_id'], ['ref_type.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_ref_value_id'), 'ref_value', ['id'], unique=False)
+    op.create_index(op.f('ix_ref_value_sort_order'), 'ref_value', ['sort_order'], unique=False)
     op.create_table('rfi_source',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -404,8 +406,9 @@ def upgrade() -> None:
     op.create_index(op.f('ix_eod_report_id'), 'eod_report', ['id'], unique=False)
     op.create_table('event',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=200), nullable=False),
+    sa.Column('short_name', sa.String(length=10), nullable=False),
+    sa.Column('description', sa.String(length=200), nullable=False),
     sa.Column('city', sa.String(length=200), server_default='', nullable=False),
     sa.Column('state_id', sa.Integer(), nullable=True),
     sa.Column('start', sa.Date(), nullable=True),
@@ -413,7 +416,6 @@ def upgrade() -> None:
     sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['state_id'], ['ref_value.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -508,6 +510,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=200), nullable=False),
     sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('event_id', sa.Integer(), nullable=True),
+    sa.Column('profile_pic', sa.LargeBinary(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['event_id'], ['event.id'], ondelete='CASCADE'),
@@ -910,6 +913,7 @@ def downgrade() -> None:
     op.drop_table('role_permission')
     op.drop_index(op.f('ix_rfi_source_id'), table_name='rfi_source')
     op.drop_table('rfi_source')
+    op.drop_index(op.f('ix_ref_value_sort_order'), table_name='ref_value')
     op.drop_index(op.f('ix_ref_value_id'), table_name='ref_value')
     op.drop_table('ref_value')
     op.drop_index(op.f('ix_case_id'), table_name='case')

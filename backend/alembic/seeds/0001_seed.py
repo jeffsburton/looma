@@ -478,9 +478,19 @@ def seed_0001():
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
 
 
-    perm_id :int = seed("permission", {"name": "Contacts", "code": "CONTACTS", "description": "Search events"})
+    perm_id :int = seed("permission", {"name": "Contacts", "code": "CONTACTS", "description": "Contacts"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
     seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
     seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})
-    perm_id :int = seed("permission", {"name": "Modify Contacts", "code": "CONTACTS.MODIFY", "description": "Add/change events"})
+    perm_id :int = seed("permission", {"name": "Modify Contacts", "code": "CONTACTS.MODIFY", "description": "Add/change contacts"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Modify Contacts", "code": "CONTACTS.ALL_SUBJECTS", "description": "Add/change contacts"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+
+
+    perm_id :int = seed("permission", {"name": "Cases", "code": "CASES", "description": "Cases"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Modify Cases", "code": "CASES.MODIFY", "description": "Add/change cases"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})

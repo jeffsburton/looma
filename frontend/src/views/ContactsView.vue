@@ -9,7 +9,9 @@ import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Badge from 'primevue/badge'
+import Paginator from 'primevue/paginator'
 import { getCookie, setCookie } from '../lib/cookies'
+import { hasPermission } from '../lib/permissions'
 
 const route = useRoute()
 const router = useRouter()
@@ -87,6 +89,9 @@ const contacts = computed(() => {
       kind: 'subject',
       subType: 'Subjects', // for filter only
       name: sr.name || ([sr.first_name, sr.last_name].filter(Boolean).join(' ').trim()),
+      // Keep explicit name parts to enable correct last, first sorting
+      first_name: sr.first_name || '',
+      last_name: sr.last_name || '',
       phone: sr.phone || '',
       email: sr.email || '',
       dangerous: !!sr.dangerous,
@@ -100,6 +105,8 @@ const contacts = computed(() => {
 
 const search = ref('')
 
+const canModify = computed(() => hasPermission('CONTACTS.MODIFY'))
+
 const filteredContacts = computed(() => {
   const q = search.value.trim().toLowerCase()
   const f = filter.value
@@ -111,6 +118,67 @@ const filteredContacts = computed(() => {
     })
 })
 
+// For card views: sort by last name, then first name
+function parseNameParts(item) {
+  // Prefer explicit subject fields if present
+  const hasSubjectNames = item && item.kind === 'subject' && (item.first_name || item.last_name)
+  if (hasSubjectNames) {
+    return [String(item.first_name || '').trim(), String(item.last_name || '').trim()]
+  }
+  const full = String(item?.name || '').trim()
+  if (!full) return ['', '']
+  const parts = full.split(/\s+/)
+  if (parts.length === 1) {
+    return ['', parts[0]] // first='', last=only token treats single token as last name for sorting consistency
+  }
+  const last = parts[parts.length - 1]
+  const first = parts.slice(0, -1).join(' ')
+  return [first, last]
+}
+
+const sortedFilteredContacts = computed(() => {
+  const arr = filteredContacts.value || []
+  return [...arr].sort((a, b) => {
+    const [af, al] = parseNameParts(a)
+    const [bf, bl] = parseNameParts(b)
+    const lastCmp = String(al).localeCompare(String(bl), undefined, { sensitivity: 'base' })
+    if (lastCmp !== 0) return lastCmp
+    return String(af).localeCompare(String(bf), undefined, { sensitivity: 'base' })
+  })
+})
+
+// Pagination state for card views
+const firstLarge = ref(0)
+const rowsLarge = ref(10)
+const firstSmall = ref(0)
+const rowsSmall = ref(25)
+
+function onPageLarge(e) {
+  firstLarge.value = e.first
+  rowsLarge.value = e.rows
+}
+function onPageSmall(e) {
+  firstSmall.value = e.first
+  rowsSmall.value = e.rows
+}
+
+const pagedLargeContacts = computed(() => {
+  const start = Math.min(firstLarge.value, Math.max(0, (sortedFilteredContacts.value.length - 1)))
+  const end = start + rowsLarge.value
+  return sortedFilteredContacts.value.slice(start, end)
+})
+const pagedSmallContacts = computed(() => {
+  const start = Math.min(firstSmall.value, Math.max(0, (sortedFilteredContacts.value.length - 1)))
+  const end = start + rowsSmall.value
+  return sortedFilteredContacts.value.slice(start, end)
+})
+
+// Reset page when filters/search/view change
+watch(() => [view.value, filter.value, search.value, sortedFilteredContacts.value.length], () => {
+  if (view.value === 'large') firstLarge.value = 0
+  if (view.value === 'small') firstSmall.value = 0
+})
+
 // Edit overlay state (via route query)
 const isEditMode = computed(() => !!route.query.contact)
 const editModel = ref({ kind: 'person', subType: 'Shepherds', id: null, first_name: '', last_name: '', phone: '', email: '', organization_id: '' })
@@ -118,12 +186,14 @@ const contentRef = ref(null)
 const savedScrollTop = ref(0)
 
 function openAdd(type) {
+  if (!canModify.value) return
   // type: 'shepherd'|'agency'|'subject'
   const params = { ...route.query, contact: 'new', type }
   router.replace({ name: 'contacts', query: params })
 }
 
 function openEdit(item) {
+  if (!canModify.value) return
   const id = item?.id || ''
   const type = item?.kind === 'subject' ? 'subject' : (item?.subType === 'Agency' ? 'agency' : 'shepherd')
   router.replace({ name: 'contacts', query: { ...route.query, contact: id, type } })
@@ -238,7 +308,7 @@ function telegramHref(val) {
                 </template>
               </SelectButton>
               <!-- Add split button -->
-              <SplitButton label="Add" icon="pi pi-plus" :model="[
+              <SplitButton v-if="canModify" label="Add" icon="pi pi-plus" :model="[
                 { label: 'Shepherd', command: () => openAdd('shepherd') },
                 { label: 'Agency Personnel', command: () => openAdd('agency') },
                 { label: 'Investigatory Subject', command: () => openAdd('subject') },
@@ -250,57 +320,79 @@ function telegramHref(val) {
           <div ref="contentRef" class="surface-card border-round p-2 flex-1 overflow-auto">
             <!-- List mode -->
             <template v-if="!isEditMode">
-              <div v-if="view === 'large'" class="cards-grid cards-grid-large">
-                <div v-for="c in filteredContacts" :key="c.kind + ':' + c.id" class="card-large" @click="openEdit(c)">
-                  <div class="flex gap-2">
-                    <img :src="c.photo_url" alt="pfp" class="pfp pfp-lg" />
-                    <div class="min-w-0 flex-1">
-                      <div class="text-lg font-semibold name-clip">{{ c.name }}</div>
-                      <div class="text-600 text-sm">{{ c.subLine }}</div>
-                      <div class="text-sm mt-1 flex flex-column gap-1">
-                        <div v-if="c.phone">
-                          <a :href="telHref(c.phone)" @click.stop title="Call" class="link-row">
-                            <span class="icon">📞</span>
-                            <span class="text">{{ c.phone }}</span>
-                          </a>
-                        </div>
-                        <div v-if="c.email">
-                          <a :href="mailtoHref(c.email)" @click.stop title="Email" class="link-row">
-                            <span class="icon">✉️</span>
-                            <span class="text">{{ c.email }}</span>
-                          </a>
-                        </div>
-                        <!-- Telegram for people only -->
-                        <div v-if="c.kind === 'person' && c.telegram">
-                          <a :href="telegramHref(c.telegram)" @click.stop title="Telegram" target="_blank" rel="noopener noreferrer" class="link-row">
-                            <span class="icon">🗨️</span>
-                            <span class="text">Telegram: {{ c.telegram }}</span>
-                          </a>
-                        </div>
-                        <!-- Subject danger badge -->
-                        <div v-if="c.kind === 'subject' && c.dangerous" class="flex align-items-center gap-2">
-                          <Badge value="Danger" severity="danger" />
-                          <span class="text-800">{{ c.danger }}</span>
+              <div v-if="view === 'large'">
+                <div class="cards-grid cards-grid-large">
+                  <div v-for="c in pagedLargeContacts" :key="c.kind + ':' + c.id" class="card-large" :class="{ 'can-edit': canModify }" @click="canModify ? openEdit(c) : null">
+                    <div class="flex gap-2">
+                      <img :src="c.photo_url" alt="pfp" class="pfp pfp-lg" />
+                      <div class="min-w-0 flex-1">
+                        <div class="text-lg font-semibold name-clip">{{ c.name }}</div>
+                        <div class="text-600 text-sm">{{ c.subLine }}</div>
+                        <div class="text-sm mt-1 flex flex-column gap-1">
+                          <div v-if="c.phone">
+                            <a :href="telHref(c.phone)" @click.stop title="Call" class="link-row">
+                              <span class="icon">📞</span>
+                              <span class="text">{{ c.phone }}</span>
+                            </a>
+                          </div>
+                          <div v-if="c.email">
+                            <a :href="mailtoHref(c.email)" @click.stop title="Email" class="link-row">
+                              <span class="icon">✉️</span>
+                              <span class="text">{{ c.email }}</span>
+                            </a>
+                          </div>
+                          <!-- Telegram for people only -->
+                          <div v-if="c.kind === 'person' && c.telegram">
+                            <a :href="telegramHref(c.telegram)" @click.stop title="Telegram" target="_blank" rel="noopener noreferrer" class="link-row">
+                              <span class="icon">🗨️</span>
+                              <span class="text">Telegram: {{ c.telegram }}</span>
+                            </a>
+                          </div>
+                          <!-- Subject danger badge -->
+                          <div v-if="c.kind === 'subject' && c.dangerous" class="flex align-items-center gap-2">
+                            <Badge :value="c.danger" severity="danger" />
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+                <Paginator
+                  class="mt-2 w-full"
+                  :rows="rowsLarge"
+                  :first="firstLarge"
+                  :totalRecords="sortedFilteredContacts.length"
+                  :rowsPerPageOptions="[10,25,50,100]"
+                  @page="onPageLarge"
+                />
               </div>
-              <div v-else-if="view === 'small'" class="cards-grid cards-grid-small">
-                <div v-for="c in filteredContacts" :key="c.kind + ':' + c.id" class="card-small" @click="openEdit(c)">
-                  <img :src="c.photo_url" alt="pfp" class="pfp pfp-sm" />
-                  <div class="min-w-0">
-                    <div class="name-clip">{{ c.name }}</div>
-                    <small class="text-600 block">{{ c.subLine }}</small>
-                    <small v-if="c.phone" class="text-700 block">
-                                          <a :href="telHref(c.phone)" @click.stop class="inline-link" title="Call">
-                                            <span class="icon">📞</span>
-                                            <span class="text">{{ c.phone }}</span>
-                                          </a>
-                                        </small>
+              <div v-else-if="view === 'small'">
+                <div class="cards-grid cards-grid-small">
+                  <div v-for="c in pagedSmallContacts" :key="c.kind + ':' + c.id" class="card-small" :class="{ 'can-edit': canModify }" @click="canModify ? openEdit(c) : null">
+                    <img :src="c.photo_url" alt="pfp" class="pfp pfp-sm" />
+                    <div class="min-w-0">
+                      <div class="name-clip">{{ c.name }}</div>
+                      <small class="text-600 block">{{ c.subLine }}</small>
+                      <div v-if="c.kind === 'subject' && c.dangerous" class="mt-1">
+                        <Badge :value="c.danger" severity="danger" />
+                      </div>
+                      <small v-if="c.phone" class="text-700 block">
+                                            <a :href="telHref(c.phone)" @click.stop class="inline-link" title="Call">
+                                              <span class="icon">📞</span>
+                                              <span class="text">{{ c.phone }}</span>
+                                            </a>
+                                          </small>
+                    </div>
                   </div>
                 </div>
+                <Paginator
+                  class="mt-2 w-full"
+                  :rows="rowsSmall"
+                  :first="firstSmall"
+                  :totalRecords="sortedFilteredContacts.length"
+                  :rowsPerPageOptions="[10,25,50,100]"
+                  @page="onPageSmall"
+                />
               </div>
               <div v-else>
                 <!-- Table -->
@@ -314,7 +406,12 @@ function telegramHref(val) {
                       <img :src="data.photo_url" class="pfp pfp-sm" />
                     </template>
                   </Column>
-                  <Column field="name" header="Name" sortable></Column>
+                  <Column field="name" header="Name" sortable>
+                    <template #body="{ data }">
+                      <span>{{ data.name }}</span>
+                      <Badge v-if="data.kind === 'subject' && data.dangerous" :value="data.danger" severity="danger" class="ml-2" />
+                    </template>
+                  </Column>
                   <Column field="subLine" header="Organization" sortable></Column>
                   <Column field="phone" header="Phone">
                     <template #body="{ data }">
@@ -348,7 +445,7 @@ function telegramHref(val) {
                   </Column>
                   <Column header="" style="width:1%">
                     <template #body="{ data }">
-                      <Button icon="pi pi-pencil" text rounded @click.stop="openEdit(data)" />
+                      <Button v-if="canModify" icon="pi pi-pencil" text rounded @click.stop="openEdit(data)" />
                     </template>
                   </Column>
                 </DataTable>
@@ -406,10 +503,12 @@ function telegramHref(val) {
 .cards-grid-small { grid-template-columns: 1fr; }
 @media (min-width: 768px) { .cards-grid-small { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1100px) { .cards-grid-small { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.card-large { padding: .5rem; border: 1px solid rgba(0,0,0,0.1); border-radius: .5rem; cursor: pointer; }
-.card-large:hover { background: rgba(0,0,0,0.03); }
-.card-small { display: flex; align-items: center; gap: .5rem; padding: .5rem; border: 1px solid rgba(0,0,0,0.1); border-radius: .5rem; cursor: pointer; }
-.card-small:hover { background: rgba(0,0,0,0.03); }
+.card-large { padding: .5rem; border: 1px solid rgba(0,0,0,0.1); border-radius: .5rem; }
+.card-large.can-edit { cursor: pointer; }
+.card-large.can-edit:hover { background: rgba(0,0,0,0.03); }
+.card-small { display: flex; align-items: center; gap: .5rem; padding: .5rem; border: 1px solid rgba(0,0,0,0.1); border-radius: .5rem; }
+.card-small.can-edit { cursor: pointer; }
+.card-small.can-edit:hover { background: rgba(0,0,0,0.03); }
 .pfp { border-radius: 999px; object-fit: cover; }
 .pfp-sm { width: 32px; height: 32px; }
 .pfp-lg { width: 64px; height: 64px; }
