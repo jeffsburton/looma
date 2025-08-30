@@ -474,5 +474,13 @@ def seed_0001():
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
     seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
     seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})
-    perm_id :int = seed("permission", {"name": "Events", "code": "EVENTS.MODIFY", "description": "Add/change events"})
+    perm_id :int = seed("permission", {"name": "Modify Events", "code": "EVENTS.MODIFY", "description": "Add/change events"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+
+
+    perm_id :int = seed("permission", {"name": "Contacts", "code": "CONTACTS", "description": "Search events"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})
+    perm_id :int = seed("permission", {"name": "Modify Contacts", "code": "CONTACTS.MODIFY", "description": "Add/change events"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})

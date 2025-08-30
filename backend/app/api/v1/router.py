@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, core, reference, organizations, admin, case, hospital_er, qualification, rfi_source, persons, event, team, media
+from app.api.v1.endpoints import auth, users, core, reference, organizations, admin, case, hospital_er, qualification, rfi_source, persons, event, team, media, subjects
 
 api_router = APIRouter()
 
@@ -17,3 +17,4 @@ api_router.include_router(persons.router, tags=["persons"])  # exposes /persons
 api_router.include_router(event.router, tags=["events"])  # exposes /events
 api_router.include_router(team.router, tags=["teams"])  # exposes /teams
 api_router.include_router(media.router, tags=["media"])  # exposes /media/*
+api_router.include_router(subjects.router, tags=["subjects"])  # exposes /subjects

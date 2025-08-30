@@ -16,6 +16,7 @@ import TeamsDataTable from '../components/teams/TeamsDataTable.vue'
 import TeamMembersTable from '../components/teams/TeamMembersTable.vue'
 import TeamCasesTable from '../components/teams/TeamCasesTable.vue'
 import { hasPermission } from '../lib/permissions'
+import { getCookie, setCookie } from '../lib/cookies'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +24,12 @@ const router = useRouter()
 const COOKIE_KEY = 'ui_teams_view'
 const VALID_VIEWS = ['large','small','list']
 const view = ref('large')
+// Restore view from cookie if valid
+try {
+  const v = getCookie(COOKIE_KEY)
+  const val = (v || '').toString()
+  if (VALID_VIEWS.includes(val)) view.value = val
+} catch {}
 const viewOptions = [
   { label: 'crop_landscape', value: 'large' },
   { label: 'view_cozy', value: 'small' },
@@ -175,6 +182,14 @@ watch(isEditMode, async (val, oldVal) => {
 
 onMounted(async () => {
   await fetchTeams()
+})
+
+// Persist view changes to cookie
+watch(view, (val) => {
+  try {
+    if (!VALID_VIEWS.includes(val)) return
+    setCookie(COOKIE_KEY, val, { maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
+  } catch {}
 })
 </script>
 

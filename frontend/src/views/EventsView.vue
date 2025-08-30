@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import SidebarMenu from '../components/SidebarMenu.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -11,6 +11,7 @@ import Checkbox from 'primevue/checkbox'
 import SelectButton from 'primevue/selectbutton'
 import RefSelect from '../components/RefSelect.vue'
 import { hasPermission } from '../lib/permissions'
+import { getCookie, setCookie } from '../lib/cookies'
 
 // Calendar components and styles for calendar view
 import { CalendarView, CalendarViewHeader } from 'vue-simple-calendar'
@@ -23,7 +24,14 @@ const loading = ref(false)
 const filterText = ref('')
 
 // View selector: cards, calendar, list
+const COOKIE_KEY = 'ui_events_view'
+const VALID_VIEWS = ['cards','calendar','list']
 const view = ref('cards')
+try {
+  const v = getCookie(COOKIE_KEY)
+  const val = (v || '').toString()
+  if (VALID_VIEWS.includes(val)) view.value = val
+} catch {}
 const viewOptions = [
   { label: 'crop_landscape', value: 'cards' },
   { label: 'calendar_month', value: 'calendar' },
@@ -180,6 +188,14 @@ async function saveEdit() {
 
 onMounted(async () => {
   await fetchEvents()
+})
+
+// Persist view changes to cookie
+watch(view, (val) => {
+  try {
+    if (!VALID_VIEWS.includes(val)) return
+    setCookie(COOKIE_KEY, val, { maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
+  } catch {}
 })
 </script>
 

@@ -44,6 +44,9 @@ async def list_persons_for_select(
         Person.id,
         Person.first_name,
         Person.last_name,
+        Person.phone,
+        Person.email,
+        Person.telegram,
         Person.profile_pic.isnot(None).label("has_pic"),
         Person.organization_id,
         Organization.name.label("org_name"),
@@ -81,14 +84,17 @@ async def list_persons_for_select(
 
     # Build response items
     items = []
-    for pid, first, last, has_pic, org_id, org_name in rows:
+    for pid, first, last, phone, email, telegram, has_pic, org_id, org_name in rows:
         is_shep = (org_id == 1)
         items.append({
             "id": encode_id("person", int(pid)),
             "name": f"{first} {last}".strip(),
-            "photo_url": f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=xs" if has_pic else "/images/pfp-generic.png",
+            "phone": phone,
+            "email": email,
+            "telegram": telegram,
+            "photo_url": f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=sm" if has_pic else "/images/pfp-generic.png",
             "is_shepherd": is_shep,
-            "organization_name": org_name if not is_shep and org_name else None,
+            "organization_name": org_name,
             "team_photo_urls": team_pfp_map.get(int(pid), []) if is_shep else [],
         })
 
