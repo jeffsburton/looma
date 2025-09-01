@@ -5,8 +5,8 @@ import { useRouter } from 'vue-router'
 
 const props = defineProps({
   name: { type: String, required: true },
-  age: { type: [String, Number], required: true },
-  missingDays: { type: [String, Number], default: 0 },
+  age: { type: [String, Number], required: false, default: null },
+  missingDays: { type: [String, Number], required: false, default: null },
   photoUrl: { type: String, required: true },
   caseNumber: { type: [String, Number], default: '' }
 })
@@ -25,7 +25,7 @@ function goToCase() {
         <div class="meta">
           <div class="name truncate">{{ name }}</div>
           <div class="sub text-color-secondary text-sm">
-            #{{ caseNumber }} • {{ age }}y • {{ missingDays }}d missing
+            #{{ caseNumber }}<template v-if="age != null"> • {{ age }}y</template><template v-if="missingDays != null"> • {{ missingDays }}d missing</template>
           </div>
         </div>
       </div>

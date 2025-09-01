@@ -342,7 +342,7 @@ def seed_0001():
                            ["N", "No warrant"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Communications channel", "code": "OP_COMMS", "description": "Comms channel for operation."})
-    seed_ref(ref_type_id, [["1", "1)"],
+    seed_ref(ref_type_id, [["1", "1"],
                            ["2", "2"],
                            ["3", "3"],
                            ["4", "4"],
@@ -351,7 +351,7 @@ def seed_0001():
                            ["7", "7"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Operation assignment", "code": "OP_ROLE", "description": "Operation role."})
-    seed_ref(ref_type_id, [["TL", "Team Lead)"],
+    seed_ref(ref_type_id, [["TL", "Team Lead"],
                            ["SO", "Safety Officer"],
                            ["MED", "Medic"],
                            ["IO", "Intel/Ops"],
@@ -496,3 +496,5 @@ def seed_0001():
     seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})
     perm_id :int = seed("permission", {"name": "Modify Cases", "code": "CASES.MODIFY", "description": "Add/change cases"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": member_role_id, "permission_id": perm_id})

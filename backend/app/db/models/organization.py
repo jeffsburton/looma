@@ -9,7 +9,7 @@ class Organization(Base):
     __tablename__ = "organization"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False)
+    name = Column(String(200), nullable=False, unique=True)
     state_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
     # Timestamps – keep in sync with migrations

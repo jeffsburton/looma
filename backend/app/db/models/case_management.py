@@ -9,7 +9,7 @@ class CaseManagement(Base):
     __tablename__ = "case_management"
 
     id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
+    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False, unique=True)
 
 
     consent_sent = Column(Boolean, server_default="false", nullable=False)
@@ -18,8 +18,13 @@ class CaseManagement(Base):
 
     ottic = Column(Boolean, server_default="false", nullable=False)
 
+    # ref_type CSEC
     csec_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+
+    # ref_type MSTAT
     missing_status_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+
+    # ref_type MCLASS
     classification_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
     ncic_case_number = Column(String(30), nullable=True)

@@ -9,7 +9,7 @@ class CaseDemographics(Base):
     __tablename__ = "case_demographics"
 
     id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
+    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False, unique=True)
 
     date_of_birth = Column(Date, nullable=True)
     age_when_missing = Column(Integer, nullable=True)
@@ -22,7 +22,11 @@ class CaseDemographics(Base):
 
     identifying_marks = Column(Text, nullable=True)
 
+    # ref_value SEX
     sex_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+
+    # ref_value RACE
+    race_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -1,8 +1,8 @@
-"""init!
+"""init
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-08-30 06:34:44.811613
+Create Date: 2025-09-01 06:53:38.492090
 
 """
 from typing import Sequence, Union
@@ -126,7 +126,8 @@ def upgrade() -> None:
     sa.Column('role_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['app_user_id'], ['app_user.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['role_id'], ['role.id'], ),
-    sa.PrimaryKeyConstraint('app_user_id', 'role_id')
+    sa.PrimaryKeyConstraint('app_user_id', 'role_id'),
+    sa.UniqueConstraint('role_id', 'app_user_id', name='uq_app_user_role')
     )
     op.create_table('app_user_session',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -178,7 +179,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['backup_id'], ['app_user.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['primary_id'], ['app_user.id'], ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
     )
     op.create_index(op.f('ix_rfi_source_id'), 'rfi_source', ['id'], unique=False)
     op.create_table('role_permission',
@@ -186,7 +188,8 @@ def upgrade() -> None:
     sa.Column('permission_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['permission_id'], ['permission.id'], ),
     sa.ForeignKeyConstraint(['role_id'], ['role.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('role_id', 'permission_id')
+    sa.PrimaryKeyConstraint('role_id', 'permission_id'),
+    sa.UniqueConstraint('role_id', 'permission_id', name='uq_role_permission')
     )
     op.create_table('app_user_case',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -196,7 +199,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['app_user_id'], ['app_user.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id', 'app_user_id', name='uq_app_user_case_case_user')
     )
     op.create_index(op.f('ix_app_user_case_id'), 'app_user_case', ['id'], unique=False)
     op.create_table('case_action',
@@ -211,9 +215,8 @@ def upgrade() -> None:
     op.create_table('case_circumstances',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('action_id', sa.Integer(), nullable=False),
-    sa.Column('date_missing', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('time_missing', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('date_missing', sa.Date(), nullable=True),
+    sa.Column('time_missing', sa.Time(timezone=True), nullable=True),
     sa.Column('date_reported', sa.DateTime(timezone=True), nullable=True),
     sa.Column('address', sa.Text(), nullable=True),
     sa.Column('city', sa.String(length=50), nullable=True),
@@ -242,7 +245,6 @@ def upgrade() -> None:
     sa.Column('wifi_only', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['action_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['cc_taken_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['have_cc_id'], ['ref_value.id'], ),
@@ -253,7 +255,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['money_taken_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['state_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['voip_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_circumstances_id'), 'case_circumstances', ['id'], unique=False)
     op.create_table('case_demographics',
@@ -268,11 +271,14 @@ def upgrade() -> None:
     sa.Column('eye_color', sa.String(length=20), nullable=True),
     sa.Column('identifying_marks', sa.Text(), nullable=True),
     sa.Column('sex_id', sa.Integer(), nullable=True),
+    sa.Column('race_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['race_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['sex_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_demographics_id'), 'case_demographics', ['id'], unique=False)
     op.create_table('case_disposition',
@@ -293,7 +299,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['living_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['scope_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['status_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_disposition_id'), 'case_disposition', ['id'], unique=False)
     op.create_table('case_exploitation',
@@ -302,7 +309,8 @@ def upgrade() -> None:
     sa.Column('exploitation_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['exploitation_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_exploitation_id'), 'case_exploitation', ['id'], unique=False)
     op.create_table('case_management',
@@ -329,7 +337,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['classification_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['csec_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['missing_status_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_management_id'), 'case_management', ['id'], unique=False)
     op.create_table('case_pattern_of_life',
@@ -349,19 +358,21 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_pattern_of_life_id'), 'case_pattern_of_life', ['id'], unique=False)
     op.create_table('case_search_urgency',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('age_id', sa.Integer(), nullable=False),
-    sa.Column('physical_condition_id', sa.Integer(), nullable=False),
-    sa.Column('medical_condition_id', sa.Integer(), nullable=False),
-    sa.Column('personal_risk_id', sa.Integer(), nullable=False),
-    sa.Column('online_risk_id', sa.Integer(), nullable=False),
-    sa.Column('family_risk_id', sa.Integer(), nullable=False),
-    sa.Column('behavioral_risk_id', sa.Integer(), nullable=False),
+    sa.Column('age_id', sa.Integer(), nullable=True),
+    sa.Column('physical_condition_id', sa.Integer(), nullable=True),
+    sa.Column('medical_condition_id', sa.Integer(), nullable=True),
+    sa.Column('personal_risk_id', sa.Integer(), nullable=True),
+    sa.Column('online_risk_id', sa.Integer(), nullable=True),
+    sa.Column('family_risk_id', sa.Integer(), nullable=True),
+    sa.Column('behavioral_risk_id', sa.Integer(), nullable=True),
+    sa.Column('score', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['age_id'], ['ref_value.id'], ),
@@ -372,26 +383,29 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['online_risk_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['personal_risk_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['physical_condition_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id')
     )
     op.create_index(op.f('ix_case_search_urgency_id'), 'case_search_urgency', ['id'], unique=False)
     op.create_table('case_victimology',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('victimology_id', sa.Integer(), nullable=False),
-    sa.Column('answer_id', sa.Integer(), nullable=True),
+    sa.Column('answer_id', sa.Integer(), nullable=False),
     sa.Column('details', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['answer_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['victimology_id'], ['victimology.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id', 'victimology_id', name='uq_case_victimology')
     )
     op.create_index(op.f('ix_case_victimology_id'), 'case_victimology', ['id'], unique=False)
     op.create_table('eod_report',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
+    sa.Column('date', sa.Date(), server_default=sa.text('now()'), nullable=False),
     sa.Column('activity', sa.Text(), nullable=True),
     sa.Column('communication', sa.Text(), nullable=True),
     sa.Column('tomorrow_intel', sa.Text(), nullable=True),
@@ -442,13 +456,14 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['state_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
     )
     op.create_index(op.f('ix_organization_id'), 'organization', ['id'], unique=False)
     op.create_table('previous_run',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('date_ran', sa.Date(), nullable=False),
+    sa.Column('date_ran', sa.Date(), nullable=True),
     sa.Column('point_last_seen', sa.Text(), nullable=True),
     sa.Column('accompanied_by', sa.Text(), nullable=True),
     sa.Column('found_by', sa.Text(), nullable=True),
@@ -461,6 +476,26 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_previous_run_id'), 'previous_run', ['id'], unique=False)
+    op.create_table('social_media',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('case_id', sa.Integer(), nullable=False),
+    sa.Column('person_id', sa.Integer(), nullable=True),
+    sa.Column('platform_id', sa.Integer(), nullable=False),
+    sa.Column('platform_other', sa.Text(), nullable=True),
+    sa.Column('url', sa.Text(), nullable=False),
+    sa.Column('status_id', sa.Integer(), nullable=False),
+    sa.Column('investigated_id', sa.Integer(), nullable=True),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['investigated_id'], ['ref_value.id'], ),
+    sa.ForeignKeyConstraint(['person_id'], ['subject.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['platform_id'], ['ref_value.id'], ),
+    sa.ForeignKeyConstraint(['status_id'], ['ref_value.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_social_media_id'), 'social_media', ['id'], unique=False)
     op.create_table('subject_case',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subject_id', sa.Integer(), nullable=False),
@@ -474,7 +509,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['relationship_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_id', 'subject_id', name='uq_case_subject')
     )
     op.create_index(op.f('ix_subject_case_id'), 'subject_case', ['id'], unique=False)
     op.create_table('event_hospital_er',
@@ -485,7 +521,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['event_id'], ['event.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['hospital_er_id'], ['hospital_er.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('event_id', 'hospital_er_id', name='uq_event_hospital_er')
     )
     op.create_index(op.f('ix_event_hospital_er_id'), 'event_hospital_er', ['id'], unique=False)
     op.create_table('person',
@@ -638,7 +675,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['relationship_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('person_id', 'case_id', name='uq_person_case')
     )
     op.create_index(op.f('ix_person_case_id'), 'person_case', ['id'], unique=False)
     op.create_table('person_qualification',
@@ -650,7 +688,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['qualification_id'], ['qualification.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('person_id', 'qualification_id', name='uq_person_qualification')
     )
     op.create_index(op.f('ix_person_qualification_id'), 'person_qualification', ['id'], unique=False)
     op.create_table('person_team',
@@ -663,7 +702,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['team_id'], ['team.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['team_role_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('person_id', 'team_id', name='uq_person_team')
     )
     op.create_index(op.f('ix_person_team_id'), 'person_team', ['id'], unique=False)
     op.create_table('rfi',
@@ -687,24 +727,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_rfi_id'), 'rfi', ['id'], unique=False)
-    op.create_table('social_media',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('person_id', sa.Integer(), nullable=True),
-    sa.Column('platform_id', sa.Integer(), nullable=False),
-    sa.Column('platform_other', sa.Text(), nullable=True),
-    sa.Column('url', sa.Text(), nullable=False),
-    sa.Column('status_id', sa.Integer(), nullable=False),
-    sa.Column('notes', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['platform_id'], ['ref_value.id'], ),
-    sa.ForeignKeyConstraint(['status_id'], ['ref_value.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_social_media_id'), 'social_media', ['id'], unique=False)
     op.create_table('social_media_alias',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('social_media_id', sa.Integer(), nullable=False),
@@ -818,7 +840,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['ops_plan_id'], ['ops_plan.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['person_id'], ['person.id'], ),
     sa.ForeignKeyConstraint(['role_id'], ['ref_value.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('ops_plan_id', 'person_id', name='uq_ops_plan_person')
     )
     op.create_index(op.f('ix_ops_plan_assignment_id'), 'ops_plan_assignment', ['id'], unique=False)
     op.create_table('image_person',
@@ -854,8 +877,6 @@ def downgrade() -> None:
     op.drop_table('team_case')
     op.drop_index(op.f('ix_social_media_alias_id'), table_name='social_media_alias')
     op.drop_table('social_media_alias')
-    op.drop_index(op.f('ix_social_media_id'), table_name='social_media')
-    op.drop_table('social_media')
     op.drop_index(op.f('ix_rfi_id'), table_name='rfi')
     op.drop_table('rfi')
     op.drop_index(op.f('ix_person_team_id'), table_name='person_team')
@@ -880,6 +901,8 @@ def downgrade() -> None:
     op.drop_table('event_hospital_er')
     op.drop_index(op.f('ix_subject_case_id'), table_name='subject_case')
     op.drop_table('subject_case')
+    op.drop_index(op.f('ix_social_media_id'), table_name='social_media')
+    op.drop_table('social_media')
     op.drop_index(op.f('ix_previous_run_id'), table_name='previous_run')
     op.drop_table('previous_run')
     op.drop_index(op.f('ix_organization_id'), table_name='organization')

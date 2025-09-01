@@ -14,6 +14,8 @@ class Rfi(Base):
     description = Column(Text, nullable=False)
 
     created_by = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
+
+    # ref_type
     rfi_source_id = Column(Integer, ForeignKey("rfi_source.id", ondelete="CASCADE"), nullable=False)
 
     subject_id = Column(Integer, ForeignKey("subject.id", ondelete="CASCADE"), nullable=False)

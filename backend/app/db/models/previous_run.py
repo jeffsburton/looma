@@ -9,7 +9,7 @@ class PreviousRun(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
-    date_ran = Column(Date, nullable=False)
+    date_ran = Column(Date, nullable=True)
     point_last_seen = Column(Text, nullable=True)
     accompanied_by = Column(Text, nullable=True)
     found_by = Column(Text, nullable=True)

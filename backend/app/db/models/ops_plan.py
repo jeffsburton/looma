@@ -22,10 +22,13 @@ class OpsPlan(Base):
     date = Column(Date, nullable=True)
 
     team_id = Column(Integer, ForeignKey("team.id", ondelete="CASCADE"), nullable=True)
+
+    # ref_type OP_TYPE
     op_type_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
     op_type_other = Column(String(100), nullable=True)
     responsible_agency_id = Column(Integer, ForeignKey("organization.id", ondelete="CASCADE"), nullable=True)
 
+    # ref_type OP_SUB_LEG
     subject_legal_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
 
     address = Column(Text, nullable=True)
@@ -33,11 +36,22 @@ class OpsPlan(Base):
     vehicles = Column(Text, nullable=True)
     residence_owner = Column(String(100), nullable=True)
 
+    # ref_type YNU
     threat_dogs_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
+
+    # ref_type YNU
     threat_cameras_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
+
+    # ref_type YNU
     threat_weapons_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
+
+    # ref_type YNU
     threat_drugs_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
+
+    # ref_type YNU
     threat_gangs_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
+
+    # ref_type YNU
     threat_assault_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
 
     threat_other = Column(Text, nullable=True)
@@ -45,6 +59,8 @@ class OpsPlan(Base):
     briefing_time = Column(Time, nullable=True)
     rendevouz_location = Column(Text, nullable=True)
     primary_location = Column(Text, nullable=True)
+
+    # ref_type OP_COMMS
     comms_channel_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
 
     police_phone = Column(String(50), server_default = "911", nullable=False)

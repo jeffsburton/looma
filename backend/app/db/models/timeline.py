@@ -12,6 +12,8 @@ class Timeline(Base):
     entered_by_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
     time = Column(Time, nullable=True)
+
+    # ref_type TL_TYPE
     type_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)
     type_other = Column(Text, nullable=True)
     details = Column(Text, nullable=True)

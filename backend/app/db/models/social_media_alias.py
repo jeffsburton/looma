@@ -10,7 +10,9 @@ class SocialMediaAlias(Base):
     id = Column(Integer, primary_key=True, index=True)
     social_media_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
 
+    # ref_type SM_ALIAS
     alias_status_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)
+
     alias = Column(Text, nullable=True)
 
     # the shepherd who owns the alias

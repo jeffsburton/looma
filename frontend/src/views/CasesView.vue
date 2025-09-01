@@ -1,15 +1,17 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import SidebarMenu from '../components/SidebarMenu.vue'
 import SelectButton from 'primevue/selectbutton'
+import Button from 'primevue/button'
 import { getCookie, setCookie } from '../lib/cookies'
+import { hasPermission } from '../lib/permissions'
 
-import CaseProfilesLarge from '../components/Cases/CaseProfilesLarge.vue'
-import CaseProfilesSmall from '../components/Cases/CaseProfilesSmall.vue'
-import CaseProfilesList from '../components/Cases/CaseProfilesList.vue'
+import CaseProfilesLarge from '../components/cases/CaseProfilesLarge.vue'
+import CaseProfilesSmall from '../components/cases/CaseProfilesSmall.vue'
+import CaseProfilesList from '../components/cases/CaseProfilesList.vue'
 
-const userEmail = ref('')
-const userName = ref('')
+const toast = useToast()
 
 const COOKIE_KEY = 'ui_cases_view'
 const VALID_VIEWS = ['large','small','list']
@@ -17,44 +19,43 @@ const view = ref('large')
 const viewOptions = [
   { label: 'crop_landscape', value: 'large' },
   { label: 'view_cozy', value: 'small' },
-  { label: 'list', value: 'list' }
+  { label: 'table_rows', value: 'list' }
 ]
 
-const cases = ref([
-  {
-    name: 'Kendrick Owen', age: 16, missingDays: 33, caseNumber: 'C-1001',
-    photoUrl: '/images/sample_faces/1.png',
-    guardians: [{ name: 'John Owen', phone: '702-382-9283' }, { name: 'Moira Owen', phone: '702-392-5818' }],
-    leContact: { name: 'Peter Jorgensen', phone: '630-928-3928' },
-    agencyContact: { name: 'Angela Consejo', phone: '290-938-1858' }
-  },
-  {
-    name: 'Jasmine Jackson', age: 14, missingDays: 12, caseNumber: 'C-1002',
-    photoUrl: '/images/sample_faces/2.png',
-    guardians: [{ name: 'Keisha Butler', phone: '702-382-9283' }],
-    leContact: { name: 'Axl Pendergast', phone: '908-329-3398' },
-    agencyContact: { name: 'Kendra Smith', phone: '714-392-8583' }
-  },
-  {
-    name: 'Chaz Hernandez', age: 17, missingDays: 71, caseNumber: 'C-1003',
-    photoUrl: '/images/sample_faces/3.png',
-    guardians: [{ name: 'Jesus Hernandez', phone: '702-583-3928' }, { name: 'Maria Hernandez', phone: '698-382-3858' }],
-    leContact: { name: 'Brent Lowe', phone: '668-382-5831' },
-    agencyContact: { name: 'Ursula Lequinn', phone: '734-392-8581' }
-  },
-  {
-    name: 'Tanya Rider', age: 16, missingDays: 25, caseNumber: 'C-1004',
-    photoUrl: '/images/sample_faces/4.png',
-    guardians: [{ name: 'Wesley Kendrick', phone: '702-838-2293' }, { name: 'Felicia Sutter', phone: '702-983-0382' }],
-    leContact: { name: 'Penelope Yoder', phone: '630-382-0392' },
-    agencyContact: { name: 'Janet Orf', phone: '849-392-3902' }
+const cases = ref([])
+const loading = ref(false)
+
+const canModify = computed(() => hasPermission('CASES.MODIFY'))
+
+async function loadCases() {
+  loading.value = true
+  try {
+    const resp = await fetch('/api/v1/cases/select', { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (resp.status === 401) {
+      toast.add({ severity: 'warn', summary: 'Authentication required', detail: 'Please sign in to view cases.', life: 3500 })
+      cases.value = []
+      return
+    }
+    if (!resp.ok) throw new Error('Failed to load cases')
+    const items = await resp.json()
+    // Map API fields to component-friendly fields
+    cases.value = (items || []).map(it => ({
+      id: it.id,
+      name: it.name,
+      photoUrl: it.photo_url,
+      caseNumber: it.id,
+      // age/missingDays/contacts unknown from API; leave undefined
+    }))
+  } catch (err) {
+    // Provide a user-friendly message and avoid unhandled promise rejections
+    const message = err instanceof Error ? err.message : 'Unexpected error'
+    toast.add({ severity: 'error', summary: 'Failed to load cases', detail: message, life: 3500 })
+  } finally {
+    loading.value = false
   }
-])
+}
 
 onMounted(() => {
-  // Restore user info
-  userEmail.value = localStorage.getItem('user_email') || 'user@example.com'
-  userName.value = localStorage.getItem('user_name') || 'User'
   // Restore view from cookie if present and valid
   try {
     const saved = getCookie(COOKIE_KEY)
@@ -62,6 +63,7 @@ onMounted(() => {
       view.value = saved
     }
   } catch (_) { /* noop */ }
+  loadCases()
 })
 
 // Persist view changes (mirror Sidebar cookie logic: 1 year, Lax)
@@ -86,14 +88,17 @@ watch(view, (v) => {
 
         <!-- Main Content -->
         <div class="flex-1 min-w-0 flex flex-column" style="min-height: calc(100vh - 2rem)">
-          <!-- Toolbar with SelectButton -->
+          <!-- Toolbar with SelectButton and Add button -->
           <div class="flex align-items-center justify-content-between gap-2 pb-2">
             <div class="text-xl font-semibold">Cases</div>
-            <SelectButton v-model="view" :options="viewOptions" optionValue="value" optionLabel="label">
-              <template #option="{ option }">
-                <span class="material-symbols-outlined">{{ option.label }}</span>
-              </template>
-            </SelectButton>
+            <div class="flex align-items-center gap-2">
+              <Button v-if="canModify" label="Add" icon="pi pi-plus" @click="() => toast.add({ severity: 'info', summary: 'Coming soon', detail: 'New Case creation is not implemented yet.', life: 2500 })" />
+              <SelectButton v-model="view" :options="viewOptions" optionValue="value" optionLabel="label">
+                <template #option="{ option }">
+                  <span class="material-symbols-outlined">{{ option.label }}</span>
+                </template>
+              </SelectButton>
+            </div>
           </div>
 
           <!-- Content panel -->

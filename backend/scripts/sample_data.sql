@@ -57,36 +57,95 @@ INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at
 INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at, updated_at) VALUES (12, 4, 4, 143, '2025-08-28 20:48:38.135995 +00:00', '2025-08-28 20:48:38.135995 +00:00');
 INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at, updated_at) VALUES (13, 5, 4, 144, '2025-08-28 20:48:38.135995 +00:00', '2025-08-28 20:48:38.135995 +00:00');
 
-SELECT setval(
-  pg_get_serial_sequence('public.organization', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.organization), 0)
-);
 
-SELECT setval(
-  pg_get_serial_sequence('public.event', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.event), 0)
-);
+INSERT INTO public.case_action (id, case_id, action_id) VALUES (1, 1, 4);
 
-SELECT setval(
-  pg_get_serial_sequence('public.team', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.team), 0)
-);
+INSERT INTO public.case_circumstances (id, case_id, date_missing, time_missing, date_reported, address, city, state_id, point_last_seen, have_id_id, id_taken_id, have_money_id, money_taken_id, have_cc_id, cc_taken_id, vehicle_taken, vehicle_desc, with_whom, what_happened, clothing_top, clothing_bottom, clothing_shoes, clothing_outerwear, clothing_innerwear, bags, other_items, mobile_carrier_id, mobile_carrier_other, voip_id, wifi_only, created_at, updated_at) VALUES (2, 1, '2025-07-26 08:47:36.872000 +00:00', null, '2025-07-27 08:49:05.551000 +00:00', '401 Grieves Avenue', 'Lachrymose', 87, 'At home', 146, 146, 147, 146, 146, 145, false, null, null, 'MC went to bed at 10:30pm, missing in morning', 'black hoodie', 'red sweat pants', 'white Nikes', 'none', 'unknown', 'green school backpack is missing', null, 154, null, null, false, '2025-08-31 13:59:56.904475 +00:00', '2025-08-31 13:59:56.904475 +00:00');
+INSERT INTO public.case_demographics (id, case_id, date_of_birth, age_when_missing, height, weight, hair_color, hair_length, eye_color, identifying_marks, sex_id, created_at, updated_at) VALUES (1, 1, '2010-02-10', 15, '5'' 3"', '115', 'black', 'medium', 'brown', 'scar on left knee', 46, '2025-08-31 14:04:47.281661 +00:00', '2025-08-31 14:04:47.281661 +00:00');
+INSERT INTO public.case_disposition (id, case_id, shepherds_contributed_intel, date_found, scope_id, class_id, status_id, living_id, found_by_id, created_at, updated_at) VALUES (1, 1, true, null, 45, null, 116, null, null, '2025-08-31 14:10:40.450032 +00:00', '2025-08-31 14:10:40.450032 +00:00');
+INSERT INTO public.case_exploitation (id, case_id, exploitation_id) VALUES (1, 1, 12);
+INSERT INTO public.case_management (id, case_id, consent_sent, consent_returned, flyer_complete, ottic, csec_id, missing_status_id, classification_id, ncic_case_number, ncmec_case_number, le_case_number, le_24hour_contact, ss_case_number, ss_24hour_contact, jpo_case_number, jpo_24hour_contact, created_at, updated_at) VALUES (1, 1, true, true, false, false, 175, 177, 179, 'N38929-93', '38092837b', '29384', '800-382-8392', 'n/a', 'n/a', 'n/a', 'n/a', '2025-08-31 14:18:22.178399 +00:00', '2025-08-31 14:18:22.178399 +00:00');
+INSERT INTO public.case_pattern_of_life (id, case_id, school, grade, missing_classes, school_laptop, school_laptop_taken, school_address, employed, employer, work_hours, employer_address, confidants, created_at, updated_at) VALUES (1, 1, 'Laverton High School', '9th', true, false, false, null, false, null, null, null, 'Pauline Nonce', '2025-08-31 14:20:38.041259 +00:00', '2025-08-31 14:20:38.041259 +00:00');
+INSERT INTO public.case_search_urgency (id, case_id, age_id, physical_condition_id, medical_condition_id, personal_risk_id, online_risk_id, family_risk_id, behavioral_risk_id, created_at, updated_at) VALUES (2, 1, 185, 188, 193, 197, 201, 205, 211, '2025-09-01 10:12:19.598437 +00:00', '2025-09-01 10:12:19.598437 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (1, 1, 1, 148, 'Previously honor roll student whose grades declined sharply after family financial crisis. Stopped attending orchestra practice and withdrew from tutoring activities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (2, 1, 2, 149, 'Former environmental activist who became withdrawn after parents'' divorce. Stopped volunteering and began skipping classes regularly.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (3, 1, 3, 150, 'Talented artist who stopped creating after experiencing severe bullying at school. Withdrew competition entries and avoided art classes.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (4, 1, 4, 151, 'Former debate captain who lost interest in academics after moving to new school. Struggled with social anxiety and stopped participating in activities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (5, 1, 5, 152, 'Quit bookstore job abruptly and abandoned writing projects. Stopped maintaining blog and became increasingly isolated from friends.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (6, 1, 6, 148, 'Dropped out of dance programs despite previous success. Stopped teaching classes and rarely left her room at home.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (7, 1, 7, 149, 'Lost interest in programming and stopped attending coding club meetings. Grades dropped significantly in computer science courses.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (8, 1, 8, 150, 'Abandoned pre-med aspirations and stopped hospital volunteering. Academic performance declined and she quit her part-time job.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (9, 1, 9, 151, 'Stopped photography projects and withdrew museum work submissions. Became reclusive and avoided social interactions with peers.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (10, 1, 10, 152, 'Stopped attending language classes and quit Model UN activities. Lost motivation for international relations career plans.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (11, 1, 11, 148, 'Quit track team mid-season despite holding school records. Stopped training and began having conflicts with coaches and teammates.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (12, 1, 12, 149, 'Lost interest in marine biology and stopped aquarium volunteering. Grades in science classes dropped and she avoided outdoor activities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (13, 1, 13, 150, 'Stopped performing at venues and abandoned music projects. Became withdrawn from creative communities and friends.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (14, 1, 14, 151, 'Academic performance declined from valedictorian track. Stopped tutoring others and resigned from student government positions.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (15, 1, 15, 152, 'Stepped down from astronomy club leadership and stopped attending meetings. Lost interest in science and college preparation.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (16, 1, 16, 148, 'Quit bakery job without notice and stopped participating in school events. Became increasingly isolated from family activities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (17, 1, 17, 149, 'Stopped writing for publications and missed journalism deadlines. Withdrew from investigative projects and social justice activities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (18, 1, 18, 150, 'Dropped out of theater productions and avoided auditions. Lost confidence in performing and stopped attending rehearsals.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (19, 1, 19, 151, 'Stopped organizing community events and quit volunteer activities. Became withdrawn from family and social obligations.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (20, 1, 20, 152, 'Abandoned fashion design projects and stopped creating costumes. Lost interest in competitions and creative pursuits.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (21, 1, 21, 148, 'Stopped competing in horse shows and reduced stable visits. Lost connection with equestrian community and struggled academically.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (22, 1, 22, 149, 'Stopped sign language classes and quit volunteer work. Became withdrawn from community service and family interactions.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (23, 1, 23, 150, 'Quit soccer team despite scholarship opportunities and stopped coaching. Academic performance declined significantly.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (24, 1, 24, 151, 'Abandoned environmental projects and stopped garden work. Lost motivation for sustainability efforts and became increasingly isolated.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (25, 1, 25, 152, 'Stopped attending book club meetings and quit reading programs. Lost interest in literature and teaching aspirations.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (26, 1, 26, 149, 'Abandoned costume design projects and stopped theater involvement. Withdrew from creative communities and historical studies.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (27, 1, 27, 150, 'Stopped wildlife photography and quit conservation projects. Lost interest in environmental work and outdoor activities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (28, 1, 28, 151, 'Stopped composing music and quit school performances. Withdrew from competitions and musical communities.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.case_victimology (id, case_id, victimology_id, answer_id, details, created_at, updated_at) VALUES (29, 1, 29, 152, 'Stopped tutoring other students and struggled with own coursework. Lost early college admission due to declining grades.', '2025-09-01 10:18:00.867565 +00:00', '2025-09-01 10:18:00.867565 +00:00');
+INSERT INTO public.eod_report (id, case_id, activity, communication, tomorrow_intel, tomorrow_ops, are_there_ministry_needs, ministry_needs, created_at, updated_at, date) VALUES (1, 1, 'Did some stuff', 'Told someone', 'Will find out tomrrow', 'Will do some stuff tomorrow', false, null, '2025-09-01 10:33:22.111135 +00:00', '2025-09-01 10:33:22.111135 +00:00', '2025-09-01');
+INSERT INTO public.intel_activity (id, case_id, date, entered_by_id, what, source_id, source_other, findings, case_management, reported_to, on_eod_report, created_at, updated_at) VALUES (1, 1, '2025-08-05', 1, 'Door Cam', 230, null, 'Unknown male came to door', null, null, false, '2025-09-01 10:42:56.560337 +00:00', '2025-09-01 10:42:56.560337 +00:00');
+INSERT INTO public.intel_activity (id, case_id, date, entered_by_id, what, source_id, source_other, findings, case_management, reported_to, on_eod_report, created_at, updated_at) VALUES (2, 1, '2025-08-20', 1, 'Note', 243, 'Trash', 'Note found in trash', null, null, false, '2025-09-01 10:42:56.560337 +00:00', '2025-09-01 10:42:56.560337 +00:00');
+INSERT INTO public.hospital_er (id, name, address, city, state_id, zip_code, phone, inactive, created_at, updated_at) VALUES (1, 'University Medical Center', '800 Charlestone', 'Las Vegas', 89, '83928', '889-232-9039', false, '2025-09-01 10:56:02.614042 +00:00', '2025-09-01 10:56:02.614042 +00:00');
+INSERT INTO public.ops_plan (id, case_id, created_by, forecast, temperature, humidity, precipitation, uv_index, winds, date, team_id, op_type_id, op_type_other, responsible_agency_id, subject_legal_id, address, city, vehicles, residence_owner, threat_dogs_id, threat_cameras_id, threat_weapons_id, threat_drugs_id, threat_gangs_id, threat_assault_id, threat_other, briefing_time, rendevouz_location, primary_location, comms_channel_id, police_phone, ems_phone, hospital_er_id, resp_contact_at_door_id, resp_overwatch_id, resp_navigation_id, resp_communications_id, resp_safety_id, resp_medical_id, created_at, updated_at) VALUES (1, 1, 1, 'sunny', 72, 35, 5, 50, '5 sw', '2025-09-17', 1, 258, null, 2, 266, '8372 Filmore', 'Las Vegas', 'White Ford Escape', 'John Inez', 145, 146, 147, 145, 146, 147, 'Poison ivy', '08:53:40', '7-11 on corner', 'House on filmore', 269, '800-382-3029', '888-192-3928', 1, 2, 3, 4, 5, 6, 7, '2025-09-01 10:56:06.657679 +00:00', '2025-09-01 10:56:06.657679 +00:00');
+INSERT INTO public.ops_plan_assignment (id, ops_plan_id, person_id, role_id, role_other, created_at, updated_at) VALUES (1, 1, 2, 274, null, '2025-09-01 10:58:27.231599 +00:00', '2025-09-01 10:58:27.231599 +00:00');
+INSERT INTO public.ops_plan_assignment (id, ops_plan_id, person_id, role_id, role_other, created_at, updated_at) VALUES (2, 1, 3, 275, null, '2025-09-01 10:59:33.469029 +00:00', '2025-09-01 10:59:33.469029 +00:00');
+INSERT INTO public.ops_plan_assignment (id, ops_plan_id, person_id, role_id, role_other, created_at, updated_at) VALUES (3, 1, 4, 276, null, '2025-09-01 10:59:33.469029 +00:00', '2025-09-01 10:59:33.469029 +00:00');
+INSERT INTO public.ops_plan_assignment (id, ops_plan_id, person_id, role_id, role_other, created_at, updated_at) VALUES (4, 1, 5, 277, null, '2025-09-01 10:59:33.469029 +00:00', '2025-09-01 10:59:33.469029 +00:00');
+INSERT INTO public.ops_plan_assignment (id, ops_plan_id, person_id, role_id, role_other, created_at, updated_at) VALUES (5, 1, 6, 279, 'Dog handler', '2025-09-01 10:59:33.469029 +00:00', '2025-09-01 10:59:33.469029 +00:00');
+INSERT INTO public.person_case (id, person_id, case_id, relationship_id, relationship_other, notes, created_at, updated_at) VALUES (1, 4, 1, 27, null, null, '2025-09-01 11:03:06.042639 +00:00', '2025-09-01 11:03:06.042639 +00:00');
+INSERT INTO public.person_case (id, person_id, case_id, relationship_id, relationship_other, notes, created_at, updated_at) VALUES (2, 5, 1, 29, 'Counselor', null, '2025-09-01 11:03:06.042639 +00:00', '2025-09-01 11:03:06.042639 +00:00');
+INSERT INTO public.previous_run (id, case_id, date_ran, point_last_seen, accompanied_by, found_by, date_found, location_found, notes, created_at, updated_at) VALUES (1, 1, '2024-05-08', 'Home', 'No one', 'self', '2024-05-11', 'Home', null, '2025-09-01 11:15:29.698803 +00:00', '2025-09-01 11:15:29.698803 +00:00');
+INSERT INTO public.rfi_source (id, name, description, primary_id, backup_id, inactive, created_at, updated_at) VALUES (3, 'IDI', 'Information on persons', 1, 1, false, '2025-09-01 11:26:49.190678 +00:00', '2025-09-01 11:26:49.190678 +00:00');
+INSERT INTO public.rfi_source (id, name, description, primary_id, backup_id, inactive, created_at, updated_at) VALUES (4, 'Spotlight', 'Sex trafficking victim identification', 1, 1, false, '2025-09-01 11:26:49.190678 +00:00', '2025-09-01 11:26:49.190678 +00:00');
+INSERT INTO public.social_media (id, case_id, subject_id, platform_id, platform_other, url, status_id, notes, created_at, updated_at, investigated_id) VALUES (2, 1, 1, 52, null, 'https://instagram.com/missing_person', 217, null, '2025-09-01 11:36:26.222489 +00:00', '2025-09-01 11:36:26.222489 +00:00', 226);
+INSERT INTO public.social_media (id, case_id, subject_id, platform_id, platform_other, url, status_id, notes, created_at, updated_at, investigated_id) VALUES (3, 1, 2, 56, null, 'https://tiktok.com/missing_person', 219, null, '2025-09-01 11:36:26.222489 +00:00', '2025-09-01 11:36:26.222489 +00:00', 226);
+INSERT INTO public.social_media (id, case_id, subject_id, platform_id, platform_other, url, status_id, notes, created_at, updated_at, investigated_id) VALUES (1, 1, 3, 51, null, 'https://facebook.com/missing_person', 218, null, '2025-09-01 11:36:26.222489 +00:00', '2025-09-01 11:36:26.222489 +00:00', 226);
+INSERT INTO public.social_media_alias (id, social_media_id, alias_status_id, alias, alias_owner_id, created_at, updated_at) VALUES (1, 1, 221, 'cool_teen', 1, '2025-09-01 11:43:21.085821 +00:00', '2025-09-01 11:43:21.085821 +00:00');
+INSERT INTO public.subject_case (id, subject_id, case_id, relationship_id, relationship_other, legal_guardian, notes, created_at, updated_at) VALUES (1, 3, 1, 127, null, false, null, '2025-09-01 11:46:02.297993 +00:00', '2025-09-01 11:46:02.297993 +00:00');
+INSERT INTO public.subject_case (id, subject_id, case_id, relationship_id, relationship_other, legal_guardian, notes, created_at, updated_at) VALUES (2, 4, 1, 128, null, false, null, '2025-09-01 11:46:13.490004 +00:00', '2025-09-01 11:46:13.490004 +00:00');
+INSERT INTO public.timeline (id, case_id, entered_by_id, date, time, type_id, type_other, details, comments, "where", who_id, questions, created_at, updated_at) VALUES (1, 1, 1, '2025-08-13', null, 253, null, 'MC walked to the store', null, null, null, null, '2025-09-01 11:48:44.007997 +00:00', '2025-09-01 11:48:44.007997 +00:00');
+INSERT INTO public.timeline (id, case_id, entered_by_id, date, time, type_id, type_other, details, comments, "where", who_id, questions, created_at, updated_at) VALUES (2, 1, 1, '2025-08-19', null, 254, null, 'MC talked on the phone', null, null, null, null, '2025-09-01 11:48:44.007997 +00:00', '2025-09-01 11:48:44.007997 +00:00');
 
-SELECT setval(
-  pg_get_serial_sequence('public.subject', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.subject), 0)
-);
 
-SELECT setval(
-  pg_get_serial_sequence('public.team_case', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.team_case), 0)
-);
-
-SELECT setval(
-  pg_get_serial_sequence('public.person', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.person), 0)
-);
-SELECT setval(
-  pg_get_serial_sequence('public.person_team', 'id'),
-  COALESCE((SELECT MAX(id) FROM public.person_team), 0)
-);
+SELECT setval(  pg_get_serial_sequence('public.organization', 'id'),  COALESCE((SELECT MAX(id) FROM public.organization), 0));
+SELECT setval(  pg_get_serial_sequence('public.event', 'id'),  COALESCE((SELECT MAX(id) FROM public.event), 0));
+SELECT setval(  pg_get_serial_sequence('public.team', 'id'),  COALESCE((SELECT MAX(id) FROM public.team), 0));
+SELECT setval(  pg_get_serial_sequence('public.subject', 'id'),  COALESCE((SELECT MAX(id) FROM public.subject), 0));
+SELECT setval(  pg_get_serial_sequence('public.team_case', 'id'),  COALESCE((SELECT MAX(id) FROM public.team_case), 0));
+SELECT setval(  pg_get_serial_sequence('public.person', 'id'),  COALESCE((SELECT MAX(id) FROM public.person), 0));
+SELECT setval(  pg_get_serial_sequence('public.person_team', 'id'),  COALESCE((SELECT MAX(id) FROM public.person_team), 0));
+SELECT setval(  pg_get_serial_sequence('public.case_action', 'id'),  COALESCE((SELECT MAX(id) FROM public.case_action), 0));
+SELECT setval(  pg_get_serial_sequence('public.case_circumstances', 'id'),  COALESCE((SELECT MAX(id) FROM public.case_circumstances), 0));
+SELECT setval(pg_get_serial_sequence('public.case_demographics', 'id'), COALESCE((SELECT MAX(id) FROM public.case_demographics), 0));
+SELECT setval(pg_get_serial_sequence('public.case_disposition', 'id'), COALESCE((SELECT MAX(id) FROM public.case_disposition), 0));
+SELECT setval(pg_get_serial_sequence('public.case_exploitation', 'id'), COALESCE((SELECT MAX(id) FROM public.case_exploitation), 0));
+SELECT setval(pg_get_serial_sequence('public.case_management', 'id'), COALESCE((SELECT MAX(id) FROM public.case_management), 0));
+SELECT setval(pg_get_serial_sequence('public.case_pattern_of_life', 'id'), COALESCE((SELECT MAX(id) FROM public.case_pattern_of_life), 0));
+SELECT setval(pg_get_serial_sequence('public.case_search_urgency', 'id'), COALESCE((SELECT MAX(id) FROM public.case_search_urgency), 0));
+SELECT setval(pg_get_serial_sequence('public.case_victimology', 'id'), COALESCE((SELECT MAX(id) FROM public.case_victimology), 0));
+SELECT setval(pg_get_serial_sequence('public.eod_report', 'id'), COALESCE((SELECT MAX(id) FROM public.eod_report), 0));
+SELECT setval(pg_get_serial_sequence('public.intel_activity', 'id'), COALESCE((SELECT MAX(id) FROM public.intel_activity), 0));
+SELECT setval(pg_get_serial_sequence('public.hospital_er', 'id'), COALESCE((SELECT MAX(id) FROM public.hospital_er), 0));
+SELECT setval(pg_get_serial_sequence('public.ops_plan', 'id'), COALESCE((SELECT MAX(id) FROM public.ops_plan), 0));
+SELECT setval(pg_get_serial_sequence('public.ops_plan_assignment', 'id'), COALESCE((SELECT MAX(id) FROM public.ops_plan_assignment), 0));
+SELECT setval(pg_get_serial_sequence('public.person_case', 'id'), COALESCE((SELECT MAX(id) FROM public.person_case), 0));
+SELECT setval(pg_get_serial_sequence('public.previous_run', 'id'), COALESCE((SELECT MAX(id) FROM public.previous_run), 0));
+SELECT setval(pg_get_serial_sequence('public.rfi_source', 'id'), COALESCE((SELECT MAX(id) FROM public.rfi_source), 0));
+SELECT setval(pg_get_serial_sequence('public.social_media', 'id'), COALESCE((SELECT MAX(id) FROM public.social_media), 0));
+SELECT setval(pg_get_serial_sequence('public.social_media_alias', 'id'), COALESCE((SELECT MAX(id) FROM public.social_media_alias), 0));
+SELECT setval(pg_get_serial_sequence('public.subject_case', 'id'), COALESCE((SELECT MAX(id) FROM public.subject_case), 0));
+SELECT setval(pg_get_serial_sequence('public.timeline', 'id'), COALESCE((SELECT MAX(id) FROM public.timeline), 0));

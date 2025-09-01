@@ -11,9 +11,7 @@ const props = defineProps({
 const filters = ref({
   global: { value: null, matchMode: 'contains' },
   name: { value: null, matchMode: 'contains' },
-  caseNumber: { value: null, matchMode: 'contains' },
-  age: { value: null, matchMode: 'equals' },
-  missingDays: { value: null, matchMode: 'gte' }
+  caseNumber: { value: null, matchMode: 'contains' }
 })
 
 const rows = ref(10)
@@ -30,7 +28,7 @@ const rows = ref(10)
       :filters="filters"
       removableSort
       dataKey="caseNumber"
-      :globalFilterFields="['name','caseNumber','age','missingDays']"
+      :globalFilterFields="['name','caseNumber']"
       tableStyle="min-width: 40rem"
       class="w-full"
     >
@@ -44,17 +42,13 @@ const rows = ref(10)
         </div>
       </template>
 
-
-
       <Column header="Image" style="width: 80px">
         <template #body="{ data }">
-          <Image :src="data.photoUrl" alt="thumb" imageClass="w-3rem h-3rem border-round object-cover" preview />
+          <Image :src="data.photoUrl || data.photo_url" alt="thumb" imageClass="w-3rem h-3rem border-round object-cover" preview />
         </template>
       </Column>
       <Column field="name" header="Name" sortable filter filterPlaceholder="Search by name" />
       <Column field="caseNumber" header="Case #" sortable filter filterPlaceholder="Search by case #" />
-      <Column field="age" header="Age" sortable filter dataType="numeric" />
-      <Column field="missingDays" header="Days Missing" sortable filter dataType="numeric" />
     </DataTable>
   </div>
 </template>

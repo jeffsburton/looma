@@ -9,7 +9,7 @@ class EodReport(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
-
+    date = Column(Date, nullable=False, server_default=func.now())
     activity = Column(Text, nullable=True)
     communication = Column(Text, nullable=True)
     tomorrow_intel = Column(Text, nullable=True)

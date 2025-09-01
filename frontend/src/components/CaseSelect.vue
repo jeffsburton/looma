@@ -21,9 +21,16 @@ const loading = ref(false)
 async function loadOptions() {
   loading.value = true
   try {
-    const resp = await fetch('/api/v1/cases/select')
+    const resp = await fetch('/api/v1/cases/select', { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (resp.status === 401) {
+      options.value = []
+      return
+    }
     if (!resp.ok) throw new Error('Failed to load cases')
     options.value = await resp.json()
+  } catch (_) {
+    // silence in dropdown context
+    options.value = []
   } finally {
     loading.value = false
   }

@@ -12,6 +12,8 @@ class IntelActivity(Base):
     date = Column(Date, nullable=False)
     entered_by_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
     what = Column(Text, nullable=True)
+
+    # rev_type
     source_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
     source_other = Column(String(255), nullable=True)
     findings = Column(Text, nullable=True)

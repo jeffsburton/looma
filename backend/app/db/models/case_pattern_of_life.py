@@ -9,10 +9,12 @@ class CasePatternOfLife(Base):
     __tablename__ = "case_pattern_of_life"
 
     id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
+    case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False, unique=True)
 
     school = Column(String(100), nullable=True)
     grade = Column(String(20), nullable=True)
+
+    # whether or not they are missing classes.
     missing_classes = Column(Boolean, server_default="false", nullable=False)
     school_laptop = Column(Boolean, server_default="false", nullable=False)
     school_laptop_taken = Column(Boolean, server_default="false", nullable=False)

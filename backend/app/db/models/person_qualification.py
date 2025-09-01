@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Date, DateTime
+from sqlalchemy import Column, Integer, ForeignKey, Date, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.db import Base
@@ -6,6 +6,9 @@ from app.db import Base
 
 class PersonQualification(Base):
     __tablename__ = "person_qualification"
+    __table_args__ = (
+        UniqueConstraint("person_id", "qualification_id", name="uq_person_qualification"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)

@@ -57,7 +57,7 @@ async function logout() {
 
 // Top section items (excluding Account which is pinned to bottom)
 const items = [
-  { icon: 'cases', label: 'Cases', routeName: 'cases' },
+  { icon: 'cases', label: 'Cases', routeName: 'cases', requiredPerm: 'CASES' },
   { icon: '3p', label: 'Messages', routeName: 'messages' },
   { icon: 'list_alt_check', label: 'Tasks', routeName: 'tasks' },
   { icon: 'patient_list', label: 'Contacts', routeName: 'contacts', requiredPerm: 'CONTACTS' },

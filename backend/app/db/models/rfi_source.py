@@ -9,7 +9,7 @@ class RfiSource(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    name = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False, unique=True)
     description = Column(Text, nullable=False)
 
     primary_id = Column(Integer, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True)

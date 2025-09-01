@@ -70,11 +70,11 @@ const pagedCases = computed(() => {
         :name="c.name"
         :age="c.age"
         :missing-days="c.missingDays"
-        :photo-url="c.photoUrl"
+        :photo-url="c.photoUrl || c.photo_url"
         :guardians="c.guardians"
         :le-contact="c.leContact"
         :agency-contact="c.agencyContact"
-        :case-number="c.caseNumber"
+        :case-number="c.caseNumber || c.id"
         class="mb-2 flex-none"
       />
     </div>

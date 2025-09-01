@@ -9,4 +9,6 @@ class CaseAction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
+
+    # ref_type SH_ACTION
     action_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)

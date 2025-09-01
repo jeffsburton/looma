@@ -7,8 +7,8 @@ import { useRouter } from 'vue-router'
 
 const props = defineProps({
   name: { type: String, required: true },
-  age: { type: [String, Number], required: true },
-  missingDays: {type: [String, Number], default: 0},
+  age: { type: [String, Number], required: false, default: null },
+  missingDays: { type: [String, Number], required: false, default: null },
   caseNumber: { type: [String, Number], default: '' },
   photoUrl: { type: String, required: true },
   guardians: { // array of { name, phone }
@@ -41,7 +41,7 @@ function goToCase() {
       <div class="profile-card-body">
         <!-- Full-width header with name -->
         <div class="card-header">
-          <h2 class="m-0"><span class="material-symbols-outlined name-icon" aria-hidden="true">work</span>{{ name }}<span class="age-after-name"> age {{ age }}, missing {{missingDays}} days, <span v-if="caseNumber">{{ caseNumber }}</span></span></h2>
+          <h2 class="m-0"><span class="material-symbols-outlined name-icon" aria-hidden="true">work</span>{{ name }}<span class="age-after-name"><template v-if="age != null"> age {{ age }}</template><template v-if="missingDays != null">, missing {{missingDays}} days</template><template v-if="caseNumber">, {{ caseNumber }}</template></span></h2>
         </div>
 
         <!-- Two-panel layout below: photo (left) and text grid (right) -->

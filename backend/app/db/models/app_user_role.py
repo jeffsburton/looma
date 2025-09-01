@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy import Column, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -6,6 +6,9 @@ from app.db import Base
 
 class AppUserRole(Base):
     __tablename__ = "app_user_role"
+    __table_args__ = (
+        UniqueConstraint("role_id", "app_user_id", name="uq_app_user_role"),
+    )
 
     # Composite PK using app_user_id + role_id
     app_user_id = Column(Integer, ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True)
