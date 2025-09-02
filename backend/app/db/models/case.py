@@ -9,7 +9,7 @@ class Case(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subject.id"), nullable=False)
-    case_number = Column(String(120), nullable=True)
+    case_number = Column(String(120), nullable=True, unqiue=True)
     inactive = Column(Boolean, nullable=False, server_default="false")
     date_intake = Column(Date, nullable=True)
 
