@@ -4,7 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 
 // Local data model for Ops Plans. In the future, lift to store/API as needed.
@@ -148,11 +148,11 @@ function rowClass(data) {
             <!-- Required form fields -->
             <div class="col-12 md:col-3">
               <label class="block mb-2">Weather</label>
-              <Dropdown v-model="data.weather" :options="weatherOptions" optionLabel="label" optionValue="value" placeholder="Select weather" class="w-full" />
+              <Select v-model="data.weather" :options="weatherOptions" optionLabel="label" optionValue="value" placeholder="Select weather" class="w-full" />
             </div>
             <div class="col-12 md:col-3">
               <label class="block mb-2">Op Type</label>
-              <Dropdown v-model="data.opType" :options="opTypeOptions" optionLabel="label" optionValue="value" placeholder="Select type" class="w-full" />
+              <Select v-model="data.opType" :options="opTypeOptions" optionLabel="label" optionValue="value" placeholder="Select type" class="w-full" />
             </div>
             <div class="col-12 md:col-3">
               <label class="block mb-2">Agency</label>

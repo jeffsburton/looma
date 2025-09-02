@@ -18,8 +18,9 @@ const props = defineProps({
   subjectModel: { type: Object, default: () => ({}) },
   demographicsModel: { type: Object, default: () => ({}) },
   managementModel: { type: Object, default: () => ({}) },
+  patternOfLifeModel: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel','update:demographicsModel','update:managementModel'])
+const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel','update:demographicsModel','update:managementModel','update:patternOfLifeModel'])
 
 const VALID_SUBTABS = ['intake','status','contacts','victimology','social','urgency']
 
@@ -86,10 +87,12 @@ watch(
             :subjectModel="props.subjectModel"
             :demographicsModel="props.demographicsModel"
             :managementModel="props.managementModel"
+            :patternOfLifeModel="props.patternOfLifeModel"
             @update:caseModel="(v) => emit('update:caseModel', v)"
             @update:subjectModel="(v) => emit('update:subjectModel', v)"
             @update:demographicsModel="(v) => emit('update:demographicsModel', v)"
             @update:managementModel="(v) => emit('update:managementModel', v)"
+            @update:patternOfLifeModel="(v) => emit('update:patternOfLifeModel', v)"
           />
         </TabPanel>
         <TabPanel value="status">

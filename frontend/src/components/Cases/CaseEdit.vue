@@ -113,6 +113,7 @@ const caseModel = ref({})
 const subjectModel = ref({})
 const demographicsModel = ref({})
 const managementModel = ref({})
+const patternOfLifeModel = ref({})
 
 // Keep header subjectName reactive to edits in IntakeTab
 watch(subjectModel, (s) => {
@@ -175,6 +176,21 @@ async function loadCase() {
       race_id: dem.race_id ?? '',
       sex_code: dem.sex_code || '',
       race_code: dem.race_code || '',
+    }
+
+    const pol = data.pattern_of_life || {}
+    patternOfLifeModel.value = {
+      school: pol.school || '',
+      grade: pol.grade || '',
+      missing_classes: !!pol.missing_classes,
+      school_laptop: !!pol.school_laptop,
+      school_laptop_taken: !!pol.school_laptop_taken,
+      school_address: pol.school_address || '',
+      employed: !!pol.employed,
+      employer: pol.employer || '',
+      work_hours: pol.work_hours || '',
+      employer_address: pol.employer_address || '',
+      confidants: pol.confidants || '',
     }
 
     subjectModel.value = {
@@ -277,7 +293,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
     <!-- Tab Panels -->
     <TabPanels>
       <TabPanel value="core">
-        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <IntakeTab
               :subtab="intakeSubActive"
@@ -286,6 +302,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
               v-model:subjectModel="subjectModel"
               v-model:demographicsModel="demographicsModel"
               v-model:managementModel="managementModel"
+              v-model:patternOfLifeModel="patternOfLifeModel"
             />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
@@ -294,7 +311,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
         </div>
       </TabPanel>
       <TabPanel value="timeline">
-        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+        <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
             <TimelineTab />
             <template #fallback>
@@ -304,7 +321,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
         </div>
       </TabPanel>
       <TabPanel value="files">
-        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <FilesTab :subtab="filesSubActive" @update:subtab="(v) => (filesSubActive = v)" />
             <template #fallback>
@@ -314,7 +331,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
         </div>
       </TabPanel>
       <TabPanel value="activity">
-        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+        <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
             <ActivityTab />
             <template #fallback>
@@ -324,7 +341,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
         </div>
       </TabPanel>
       <TabPanel value="messages">
-        <div class="surface-card border-round p-2 flex-1 overflow-auto">
+        <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
             <MessagesTab />
             <template #fallback>

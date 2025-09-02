@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 
 // Standardized option sets with scores. Lower score = higher urgency.
 // Note: These values are based on commonly used search-urgency style assessments.
@@ -95,34 +95,34 @@ const advisory = computed(() => {
       <div class="grid formgrid p-fluid">
         <div class="col-12 md:col-6">
           <label class="block mb-2">Subject's Age</label>
-          <Dropdown v-model="form.age" :options="ageOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.age" :options="ageOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
         <div class="col-12 md:col-6">
           <label class="block mb-2">Physical Condition</label>
-          <Dropdown v-model="form.physical" :options="physicalOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.physical" :options="physicalOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
 
         <div class="col-12 md:col-6">
           <label class="block mb-2">Medical Condition</label>
-          <Dropdown v-model="form.medical" :options="medicalOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.medical" :options="medicalOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
         <div class="col-12 md:col-6">
           <label class="block mb-2">Personal Risk Factors</label>
-          <Dropdown v-model="form.personalRisk" :options="personalRiskOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.personalRisk" :options="personalRiskOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
 
         <div class="col-12 md:col-6">
           <label class="block mb-2">Online Risk Factors</label>
-          <Dropdown v-model="form.onlineRisk" :options="onlineRiskOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.onlineRisk" :options="onlineRiskOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
         <div class="col-12 md:col-6">
           <label class="block mb-2">Family Dynamics</label>
-          <Dropdown v-model="form.family" :options="familyDynamicsOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.family" :options="familyDynamicsOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
 
         <div class="col-12 md:col-6">
           <label class="block mb-2">Behavioral</label>
-          <Dropdown v-model="form.behavioral" :options="behavioralOptions" optionLabel="label" optionValue="value" placeholder="Select" />
+          <Select v-model="form.behavioral" :options="behavioralOptions" optionLabel="label" optionValue="value" placeholder="Select" />
         </div>
       </div>
 

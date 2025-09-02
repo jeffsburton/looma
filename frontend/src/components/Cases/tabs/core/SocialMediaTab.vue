@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
 import Button from 'primevue/button'
@@ -51,7 +51,7 @@ function removeRow(rowId) {
 
       <Column field="platform" header="Platform" style="min-width:12rem">
         <template #body="{ data }">
-          <Dropdown v-model="data.platform" :options="platforms" optionLabel="label" optionValue="value" placeholder="Select platform" class="w-full" />
+          <Select v-model="data.platform" :options="platforms" optionLabel="label" optionValue="value" placeholder="Select platform" class="w-full" />
         </template>
       </Column>
 

@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
-import InputSwitch from 'primevue/inputswitch'
-import Dropdown from 'primevue/dropdown'
-import Calendar from 'primevue/calendar'
+import ToggleSwitch from 'primevue/toggleswitch'
+import Select from 'primevue/select'
+import DatePicker from 'primevue/datepicker'
 import MultiSelect from 'primevue/multiselect'
 
 // Local form model
@@ -50,7 +50,7 @@ const disabledAfterArchive = computed(() => !form.value.found)
         <div class="col-12 md:col-3">
           <label class="block mb-2">Found</label>
           <div class="flex align-items-center gap-2">
-            <InputSwitch v-model="form.found" :inputId="'found'" />
+            <ToggleSwitch v-model="form.found" :inputId="'found'" />
             <label for="found">{{ form.found ? 'Yes' : 'No' }}</label>
           </div>
         </div>
@@ -59,7 +59,7 @@ const disabledAfterArchive = computed(() => !form.value.found)
         <div class="col-12 md:col-3">
           <label class="block mb-2">Archive</label>
           <div class="flex align-items-center gap-2">
-            <InputSwitch v-model="form.archive" :inputId="'archive'" />
+            <ToggleSwitch v-model="form.archive" :inputId="'archive'" />
             <label for="archive">{{ form.archive ? 'Yes' : 'No' }}</label>
           </div>
         </div>
@@ -67,36 +67,36 @@ const disabledAfterArchive = computed(() => !form.value.found)
         <!-- Found by -->
         <div class="col-12 md:col-6">
           <label class="block mb-2">Found by</label>
-          <Dropdown v-model="form.foundBy"
-                    :options="foundByOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Select"
-                    class="w-full"
-                    :disabled="disabledAfterArchive" />
+          <Select v-model="form.foundBy"
+                   :options="foundByOptions"
+                   optionLabel="label"
+                   optionValue="value"
+                   placeholder="Select"
+                   class="w-full"
+                   :disabled="disabledAfterArchive" />
         </div>
 
         <!-- Date found -->
         <div class="col-12 md:col-4">
           <label class="block mb-2">Date found</label>
-          <Calendar v-model="form.dateFound"
-                    date-format="M d, yy"
-                    show-icon
-                    icon-display="input"
-                    placeholder="Select date"
-                    :disabled="disabledAfterArchive" />
+          <DatePicker v-model="form.dateFound"
+                   date-format="M d, yy"
+                   showIcon
+                   iconDisplay="input"
+                   placeholder="Select date"
+                   :disabled="disabledAfterArchive" />
         </div>
 
         <!-- Condition -->
         <div class="col-12 md:col-4">
           <label class="block mb-2">Condition</label>
-          <Dropdown v-model="form.condition"
-                    :options="conditionOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Select"
-                    class="w-full"
-                    :disabled="disabledAfterArchive" />
+          <Select v-model="form.condition"
+                   :options="conditionOptions"
+                   optionLabel="label"
+                   optionValue="value"
+                   placeholder="Select"
+                   class="w-full"
+                   :disabled="disabledAfterArchive" />
         </div>
 
         <!-- Exploitation -->
