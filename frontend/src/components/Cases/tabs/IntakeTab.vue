@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, computed } from 'vue'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
@@ -8,11 +8,39 @@ import TabPanel from 'primevue/tabpanel'
 import CoreTab from './intake/CoreTab.vue'
 import StatusTab from './intake/StatusTab.vue'
 import ContactsTab from './intake/ContactsTab.vue'
-import victimologyTab from './intake/victimologyTab.vue'
+import VictomologyTab from './intake/VictomologyTab.vue'
 import SearchUrgencyTab from './intake/SearchUrgencyTab.vue'
 import SocialMediaTab from './intake/SocialMediaTab.vue'
 
-const active = ref('core')
+const props = defineProps({
+  subtab: { type: String, default: 'status' }
+})
+const emit = defineEmits(['update:subtab'])
+
+const VALID_SUBTABS = ['core','status','contacts','victimology','social','urgency']
+
+const active = ref('status')
+
+// Initialize and sync from prop
+watch(
+  () => props.subtab,
+  (val) => {
+    let v = String(val || 'status')
+    if (!VALID_SUBTABS.includes(v)) v = 'status'
+    if (active.value !== v) active.value = v
+  },
+  { immediate: true }
+)
+
+// Emit up when local changes
+watch(
+  () => active.value,
+  (v) => {
+    const sub = String(v || 'status')
+    if (!VALID_SUBTABS.includes(sub)) return
+    emit('update:subtab', sub)
+  }
+)
 </script>
 
 <template>
@@ -56,7 +84,7 @@ const active = ref('core')
           <ContactsTab />
         </TabPanel>
         <TabPanel value="victimology">
-          <victimologyTab />
+          <VictomologyTab />
         </TabPanel>
         <TabPanel value="social">
           <SocialMediaTab />

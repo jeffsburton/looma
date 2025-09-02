@@ -18,7 +18,9 @@ const routes = [
     // Protected routes (authentication required)
     { path: '/', redirect: { name: 'cases' } },
     { path: '/cases', name: 'cases', component: CasesView },
-    { path: '/case', name: 'case', component: () => import('../views/CaseView.vue') },
+    // Case editor routing: /cases/:caseNumber and optional :tab (default to intake)
+    { path: '/cases/:caseNumber', redirect: (to) => ({ name: 'case-detail', params: { caseNumber: to.params.caseNumber, tab: 'intake', subtab: 'status' } }) },
+    { path: '/cases/:caseNumber/:tab/:subtab?', name: 'case-detail', component: () => import('../views/CaseView.vue'), props: true },
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },
     { path: '/tasks', name: 'tasks', component: () => import('../views/TasksView.vue') },

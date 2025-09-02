@@ -41,6 +41,7 @@ async function loadCases() {
     // Map API fields to component-friendly fields
     cases.value = (items || []).map(it => ({
       id: it.id,
+      rawId: it.raw_db_id,
       name: it.name,
       photoUrl: it.photo_url,
       caseNumber: it.id,

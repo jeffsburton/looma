@@ -45,6 +45,7 @@ async def list_cases_for_select(db: AsyncSession = Depends(get_db)):
     for case_id, subject_id, first, last, has_pic in rows:
         items.append({
             "id": encode_id("case", int(case_id)),
+            "raw_db_id": int(case_id),
             "name": f"{first} {last}".strip(),
             "photo_url": f"/api/v1/media/pfp/subject/{encode_id('subject', int(subject_id))}?s=xs" if has_pic else "/images/pfp-generic.png",
         })
