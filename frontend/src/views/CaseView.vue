@@ -8,8 +8,8 @@ const route = useRoute()
 const router = useRouter()
 
 const caseNumber = computed(() => String(route.params.caseNumber || ''))
-const tab = computed(() => String(route.params.tab || 'intake'))
-const subtab = computed(() => String(route.params.subtab || 'status'))
+const tab = computed(() => String(route.params.tab || 'core'))
+const subtab = computed(() => String(route.params.subtab || 'intake'))
 
 function goBackToList() {
   router.replace({ name: 'cases' })

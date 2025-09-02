@@ -42,5 +42,27 @@
       }
     },
     "isImported": false
+  },
+  {
+    "id": "TASK_6",
+    "priority": "LOW",
+    "tags": [],
+    "title": "Create new case",
+    "description": "",
+    "status": "TODO",
+    "date": {
+      "date": {
+        "year": 2025,
+        "month": 9,
+        "day": 2
+      },
+      "time": {
+        "hour": 7,
+        "minute": 10,
+        "second": 59,
+        "nano": 922256900
+      }
+    },
+    "isImported": false
   }
 ]

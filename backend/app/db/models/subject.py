@@ -10,6 +10,7 @@ class Subject(Base):
     id = Column(Integer, primary_key=True, index=True)
     first_name = Column(String(120), nullable=False)
     last_name = Column(String(120), nullable=False)
+    middle_name = Column(String(120), nullable=True)
     nicknames = Column(String(255), nullable=True)
     phone = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)

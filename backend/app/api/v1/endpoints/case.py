@@ -15,6 +15,8 @@ from app.db.models.person_team import PersonTeam
 from app.db.models.team_case import TeamCase
 from app.services.auth import user_has_permission
 from app.db.models.app_user import AppUser
+from app.db.models.case_demographics import CaseDemographics
+from app.db.models.case_circumstances import CaseCircumstances
 
 
 router = APIRouter(prefix="/cases")
@@ -67,6 +69,7 @@ async def list_cases_for_select(
     q = (
         select(
             Case.id.label("case_id"),
+            Case.case_number,
             Subject.id.label("subject_id"),
             Subject.first_name,
             Subject.last_name,
@@ -99,12 +102,96 @@ async def list_cases_for_select(
     rows = (await db.execute(q)).all()
 
     items = []
-    for case_id, subject_id, first, last, has_pic in rows:
+    for case_id, case_number, subject_id, first, last, has_pic in rows:
         items.append({
             "id": encode_id("case", int(case_id)),
             "raw_db_id": int(case_id),
             "name": f"{first} {last}".strip(),
             "photo_url": f"/api/v1/media/pfp/subject/{encode_id('subject', int(subject_id))}?s=xs" if has_pic else "/images/pfp-generic.png",
+            "case_number": case_number,
         })
 
     return items
+
+
+@router.get("/by-number/{case_number}", summary="Get case header by case number")
+async def get_case_by_number(
+    case_number: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Locate the case by its public number
+    res = await db.execute(select(Case).where(Case.case_number == case_number))
+    case_row = res.scalar_one_or_none()
+    if case_row is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Access control
+    if not await can_user_access_case(db, current_user.id, int(case_row.id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Fetch joins: subject, demographics, circumstances
+    q = (
+        select(
+            Case.id.label("case_id"),
+            Case.case_number,
+            Subject.id.label("subject_id"),
+            Subject.first_name,
+            Subject.last_name,
+            Subject.middle_name,
+            Subject.nicknames,
+            Subject.profile_pic.isnot(None).label("has_pic"),
+            CaseDemographics.age_when_missing,
+            CaseDemographics.date_of_birth,
+            CaseCircumstances.date_missing,
+        )
+        .join(Subject, Subject.id == Case.subject_id)
+        .join(CaseDemographics, CaseDemographics.case_id == Case.id, isouter=True)
+        .join(CaseCircumstances, CaseCircumstances.case_id == Case.id, isouter=True)
+        .where(Case.id == case_row.id)
+    )
+    row = (await db.execute(q)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    (
+        case_id,
+        case_number_val,
+        subject_id,
+        first,
+        last,
+        middle,
+        nicknames,
+        has_pic,
+        age_when_missing,
+        date_of_birth,
+        date_missing,
+    ) = row
+
+    subject_opaque = encode_id("subject", int(subject_id))
+    case_opaque = encode_id("case", int(case_id))
+
+    return {
+        "case": {
+            "id": case_opaque,
+            "raw_db_id": int(case_id),
+            "case_number": case_number_val,
+            "subject_id": subject_opaque,
+        },
+        "subject": {
+            "id": subject_opaque,
+            "first_name": first,
+            "last_name": last,
+            "middle_name": middle,
+            "nicknames": nicknames,
+            "has_pic": bool(has_pic),
+            "photo_url": f"/api/v1/media/pfp/subject/{subject_opaque}?s=sm" if has_pic else "/images/pfp-generic.png",
+        },
+        "demographics": {
+            "age_when_missing": int(age_when_missing) if age_when_missing is not None else None,
+            "date_of_birth": date_of_birth.isoformat() if date_of_birth is not None else None,
+        },
+        "circumstances": {
+            "date_missing": date_missing.isoformat() if date_missing is not None else None,
+        },
+    }

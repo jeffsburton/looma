@@ -44,7 +44,7 @@ async function loadCases() {
       rawId: it.raw_db_id,
       name: it.name,
       photoUrl: it.photo_url,
-      caseNumber: it.id,
+      caseNumber: it.case_number,
       // age/missingDays/contacts unknown from API; leave undefined
     }))
   } catch (err) {
