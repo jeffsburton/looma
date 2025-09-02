@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import FloatLabel from 'primevue/floatlabel'
 import RefSelect from '../RefSelect.vue'
 import Button from 'primevue/button'
 import PersonSelect from '../PersonSelect.vue'
@@ -94,13 +95,15 @@ async function deleteMember(personId) {
     </DataTable>
 
     <div v-if="canModify" class="mt-2">
-      <PersonSelect
-        v-model="newMemberId"
-        :shepherds="true"
-        :nonShepherds="false"
-        placeholder="Add team member"
-        @change="(v) => v && addMember(v)"
-      />
+      <FloatLabel variant="on">
+          <PersonSelect
+            v-model="newMemberId"
+            :shepherds="true"
+            :nonShepherds="false"
+            @change="(v) => v && addMember(v)"
+          />
+          <label>Add person</label>
+        </FloatLabel>
     </div>
   </div>
 </template>

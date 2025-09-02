@@ -5,8 +5,9 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
-import InputSwitch from 'primevue/inputswitch'
+import ToggleSwitch from 'primevue/toggleswitch'
 import RefSelect from '../RefSelect.vue'
+import FloatLabel from 'primevue/floatlabel'
 
 const hospitals = ref([])
 const loading = ref(false)
@@ -201,48 +202,60 @@ onMounted(async () => {
     </DataTable>
 
     <Dialog v-model:visible="editDialogVisible" modal header="Hospital" :style="{ width: '600px' }">
-      <div class="flex flex-column gap-3">
+      <div class="flex flex-column gap-3 mt-1">
         <div v-if="validationMessage" class="text-red-600 text-sm">{{ validationMessage }}</div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Name</label>
-            <InputText v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <InputText id="h-name" v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+              <label for="h-name">Name</label>
+            </FloatLabel>
             <small v-if="errors.name" class="p-error text-red-600">{{ errors.name }}</small>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Address</label>
-            <InputText v-model="editModel.address" :class="['w-full', errors.address && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <InputText id="h-address" v-model="editModel.address" :class="['w-full', errors.address && 'p-invalid']" />
+              <label for="h-address">Address</label>
+            </FloatLabel>
             <small v-if="errors.address" class="p-error text-red-600">{{ errors.address }}</small>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">City</label>
-            <InputText v-model="editModel.city" :class="['w-full', errors.city && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <label class="block mb-1 text-sm">City</label>
+              <InputText v-model="editModel.city" :class="['w-full', errors.city && 'p-invalid']" />
+            </FloatLabel>
             <small v-if="errors.city" class="p-error text-red-600">{{ errors.city }}</small>
           </div>
           <div class="flex-1">
-            <label class="block mb-1 text-sm">State</label>
-            <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." :class="['w-full', errors.state_id && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" :class="['w-full', errors.state_id && 'p-invalid']" />
+              <label class="block mb-1 text-sm">State</label>
+            </FloatLabel>
             <small v-if="errors.state_id" class="p-error text-red-600">{{ errors.state_id }}</small>
           </div>
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Zip</label>
-            <InputText v-model="editModel.zip_code" :class="['w-full', errors.zip_code && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <label class="block mb-1 text-sm">Zip</label>
+              <InputText v-model="editModel.zip_code" :class="['w-full', errors.zip_code && 'p-invalid']" />
+            </FloatLabel>
             <small v-if="errors.zip_code" class="p-error text-red-600">{{ errors.zip_code }}</small>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Phone</label>
-            <InputText v-model="editModel.phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="e.g., (555) 123-4567" :class="['w-full', errors.phone && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <label class="block mb-1 text-sm">Phone</label>
+              <InputText v-model="editModel.phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="e.g., (555) 123-4567" :class="['w-full', errors.phone && 'p-invalid']" />
+            </FloatLabel>
             <small v-if="errors.phone" class="p-error text-red-600">{{ errors.phone }}</small>
           </div>
           <div class="flex align-items-center gap-2" style="width: 12rem">
             <label class="mb-0 text-sm">Inactive</label>
-            <InputSwitch v-model="editModel.inactive" />
+            <ToggleSwitch v-model="editModel.inactive" />
           </div>
         </div>
         <div class="flex justify-content-end gap-2">

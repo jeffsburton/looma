@@ -4,7 +4,6 @@ import Select from 'primevue/select'
 
 const props = defineProps({
   modelValue: { type: String, default: '' }, // opaque case id
-  placeholder: { type: String, default: 'Add case' },
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
 })
@@ -49,7 +48,6 @@ const selectedOption = computed(() => options.value.find(o => o.id === selectedI
     optionValue="id"
     :filter="filter"
     :loading="loading"
-    :placeholder="placeholder"
     class="w-full"
     :disabled="disabled"
   >
@@ -59,12 +57,11 @@ const selectedOption = computed(() => options.value.find(o => o.id === selectedI
         <div class="text-900 name-clip">{{ option.name }}</div>
       </div>
     </template>
-    <template #value="{ value, placeholder }">
+    <template #value="{ value }">
       <div v-if="selectedOption" class="flex align-items-center gap-2 w-full">
         <img :src="selectedOption.photo_url" :alt="selectedOption.name" class="avatar" />
         <div class="text-900 name-clip">{{ selectedOption.name }}</div>
       </div>
-      <span v-else>{{ placeholder }}</span>
     </template>
   </Select>
 </template>

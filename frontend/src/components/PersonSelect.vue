@@ -12,7 +12,6 @@ const props = defineProps({
   modelValue: { type: String, default: '' }, // opaque id (person or subject)
   shepherds: { type: Boolean, default: true },
   nonShepherds: { type: Boolean, default: true },
-  placeholder: { type: String, default: 'Add team member' },
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
 })
@@ -112,7 +111,6 @@ async function onCreated(created) {
     optionValue="id"
     :filter="filter"
     :loading="loading"
-    :placeholder="placeholder"
     class="w-full"
     :disabled="disabled || (!shepherds && !nonShepherds)"
   >
@@ -132,7 +130,7 @@ async function onCreated(created) {
         </div>
       </div>
     </template>
-    <template #value="{ value, placeholder }">
+    <template #value="{ value }">
       <div v-if="selectedOption" class="flex align-items-center gap-2 w-full">
         <img :src="selectedOption.photo_url" :alt="selectedOption.name" class="avatar" />
         <div class="min-w-0 flex-1">
@@ -145,7 +143,6 @@ async function onCreated(created) {
           <div v-if="!selectedOption.is_shepherd && selectedOption.organization_name" class="text-600 text-xs">{{ selectedOption.organization_name }}</div>
         </div>
       </div>
-      <span v-else>{{ placeholder }}</span>
     </template>
 
     <template v-if="filter && canModify" #footer>

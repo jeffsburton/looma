@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import RefSelect from '../RefSelect.vue'
+import FloatLabel from "primevue/floatlabel";
 
 const orgs = ref([])
 const loading = ref(false)
@@ -129,19 +130,23 @@ onMounted(async () => {
     </DataTable>
 
     <Dialog v-model:visible="editDialogVisible" modal header="Organization" :style="{ width: '520px' }">
-      <div class="flex flex-column gap-3">
+      <div class="flex flex-column gap-3 mt-1">
         <div v-if="validationMessage" class="text-red-600 text-sm">{{ validationMessage }}</div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Name</label>
-            <InputText v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+            <FloatLabel variant="on">
+              <label for="o-name" class="block mb-1 text-sm">Name</label>
+              <InputText id="o-name" v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+            </FloatLabel>
             <small v-if="errors.name" class="p-error text-red-600">{{ errors.name }}</small>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">State</label>
-            <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
+            <FloatLabel variant="on">
+              <RefSelect id="o-state" v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
+              <label for="o-state" class="block mb-1 text-sm">State</label>
+            </FloatLabel>
           </div>
         </div>
         <div class="flex justify-content-end gap-2">

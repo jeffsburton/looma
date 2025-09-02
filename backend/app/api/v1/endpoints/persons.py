@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy import select, and_, or_, asc
@@ -12,6 +12,7 @@ from app.db.models.person_team import PersonTeam
 from app.db.models.team import Team
 from app.core.id_codec import encode_id, decode_id, OpaqueIdError
 from app.schemas.person import PersonRead, PersonUpsert
+from pydantic import BaseModel
 
 # Simple authenticated listing for person selection widgets
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -134,3 +135,71 @@ async def list_persons_for_select(
         })
 
     return items
+
+
+class PersonPartial(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    telegram: Optional[str] = None
+    organization_id: Optional[str] = None
+
+
+@router.patch(
+    "/persons/{person_id}",
+    response_model=PersonRead,
+    summary="Update a person by opaque id",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def update_person(
+    person_id: str,
+    payload: PersonPartial,
+    db: AsyncSession = Depends(get_db),
+):
+    # Decode opaque person id
+    try:
+        pid = decode_id("person", person_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    # Load person
+    person = (await db.execute(select(Person).where(Person.id == pid))).scalar_one_or_none()
+    if person is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    # Helper to clean strings
+    def _clean(s: Optional[str]) -> Optional[str]:
+        if s is None:
+            return None
+        s2 = str(s).strip()
+        return s2 if s2 else None
+
+    # Update fields if provided
+    if payload.first_name is not None:
+        person.first_name = (payload.first_name or "").strip()
+    if payload.last_name is not None:
+        person.last_name = (payload.last_name or "").strip()
+    if hasattr(payload, "phone"):
+        person.phone = _clean(payload.phone)
+    if hasattr(payload, "email"):
+        person.email = _clean(payload.email)
+    if hasattr(payload, "telegram"):
+        person.telegram = _clean(payload.telegram)
+    if hasattr(payload, "organization_id"):
+        # Normalize organization_id: accept opaque token, raw int, empty/null
+        org_raw = payload.organization_id
+        if org_raw is None or org_raw == "":
+            person.organization_id = None
+        else:
+            try:
+                if isinstance(org_raw, str):
+                    person.organization_id = int(decode_id("organization", org_raw))
+                else:
+                    person.organization_id = int(org_raw)  # type: ignore[arg-type]
+            except (ValueError, OpaqueIdError):
+                raise HTTPException(status_code=400, detail="Invalid organization_id")
+
+    await db.commit()
+    await db.refresh(person)
+    return person

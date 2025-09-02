@@ -149,6 +149,7 @@ async def get_case_by_number(
         select(
             Case.id.label("case_id"),
             Case.case_number,
+            Case.date_intake,
             Subject.id.label("subject_id"),
             Subject.first_name,
             Subject.last_name,
@@ -217,6 +218,7 @@ async def get_case_by_number(
     (
         case_id,
         case_number_val,
+        date_intake,
         subject_id,
         first,
         last,
@@ -275,6 +277,7 @@ async def get_case_by_number(
             "id": case_opaque,
             "raw_db_id": int(case_id),
             "case_number": case_number_val,
+            "date_intake": date_intake.isoformat() if date_intake is not None else None,
             "subject_id": subject_opaque,
         },
         "subject": {

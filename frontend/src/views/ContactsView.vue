@@ -341,6 +341,10 @@ function telegramHref(val) {
             <!-- List mode -->
             <template v-if="!isEditMode">
               <div v-if="view === 'large'">
+                <div class="flex align-items-center gap-2 mb-2">
+                  <span class="material-symbols-outlined text-600">search</span>
+                  <InputText v-model="search" placeholder="Search contacts..." class="w-20rem max-w-full" />
+                </div>
                 <div class="cards-grid cards-grid-large">
                   <div v-for="c in pagedLargeContacts" :key="c.kind + ':' + c.id" class="card-large" :class="{ 'can-edit': canModify }" @click="canModify ? openEdit(c) : null">
                     <div class="flex gap-2">
@@ -387,6 +391,10 @@ function telegramHref(val) {
                 />
               </div>
               <div v-else-if="view === 'small'">
+                <div class="flex align-items-center gap-2 mb-2">
+                  <span class="material-symbols-outlined text-600">search</span>
+                  <InputText v-model="search" placeholder="Search contacts..." class="w-20rem max-w-full" />
+                </div>
                 <div class="cards-grid cards-grid-small">
                   <div v-for="c in pagedSmallContacts" :key="c.kind + ':' + c.id" class="card-small" :class="{ 'can-edit': canModify }" @click="canModify ? openEdit(c) : null">
                     <img :src="c.photo_url" alt="pfp" class="pfp pfp-sm" />

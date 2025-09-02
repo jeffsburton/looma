@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import FloatLabel from 'primevue/floatlabel'
 import CaseSelect from '../CaseSelect.vue'
 
 const props = defineProps({
@@ -63,11 +64,13 @@ async function deleteCase(caseId) {
     </DataTable>
 
     <div v-if="canModify" class="mt-2">
-      <CaseSelect
-        v-model="newCaseId"
-        placeholder="Add case"
-        @change="(v) => v && addCase(v)"
-      />
+      <FloatLabel variant="on">
+        <CaseSelect
+          v-model="newCaseId"
+          @change="(v) => v && addCase(v)"
+        />
+        <label>Add case</label>
+      </FloatLabel>
     </div>
   </div>
 </template>

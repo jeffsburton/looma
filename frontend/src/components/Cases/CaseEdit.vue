@@ -205,6 +205,7 @@ async function loadCase() {
       id: c.id || null,
       subject_id: s.id || null,
       case_number: c.case_number || num,
+      date_intake: c.date_intake || null,
     }
     photoError.value = false
   } catch (e) {
@@ -232,7 +233,7 @@ const daysMissing = computed(() => {
 })
 
 // Lazy imports for tab components
-const IntakeTab = defineAsyncComponent(() => import('./tabs/IntakeTab.vue'))
+const IntakeTab = defineAsyncComponent(() => import('./tabs/CoreTab.vue'))
 const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
 const FilesTab = defineAsyncComponent(() => import('./tabs/FilesTab.vue'))
 const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))

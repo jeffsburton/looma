@@ -5,8 +5,9 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
-import InputSwitch from 'primevue/inputswitch'
+import ToggleSwitch from 'primevue/toggleswitch'
 import PersonSelect from '../PersonSelect.vue'
+import FloatLabel from "primevue/floatlabel";
 
 const sources = ref([])
 const loading = ref(false)
@@ -151,37 +152,45 @@ onMounted(async () => {
     </DataTable>
 
     <Dialog v-model:visible="editDialogVisible" modal header="RFI Source" :style="{ width: '600px' }">
-      <div class="flex flex-column gap-3">
+      <div class="flex flex-column gap-3 mt-1">
         <div v-if="validationMessage" class="text-red-600 text-sm">{{ validationMessage }}</div>
         <div class="flex gap-2">
           <div class="flex-1">
+            <FloatLabel variant="on">
             <label class="block mb-1 text-sm">Name</label>
             <InputText v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+            </FloatLabel>
             <small v-if="errors.name" class="p-error text-red-600">{{ errors.name }}</small>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
+            <FloatLabel variant="on">
             <label class="block mb-1 text-sm">Description</label>
             <InputText v-model="editModel.description" :class="['w-full', errors.description && 'p-invalid']" />
+            </FloatLabel>
             <small v-if="errors.description" class="p-error text-red-600">{{ errors.description }}</small>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Primary</label>
-            <PersonSelect v-model="editModel.primary_id" />
+            <FloatLabel variant="on">
+              <PersonSelect v-model="editModel.primary_id" />
+              <label class="block mb-1 text-sm">Primary</label>
+            </FloatLabel>
           </div>
         </div>
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="block mb-1 text-sm">Backup</label>
-            <PersonSelect v-model="editModel.backup_id" />
+            <FloatLabel variant="on">
+              <PersonSelect v-model="editModel.backup_id" />
+              <label class="block mb-1 text-sm">Backup</label>
+            </FloatLabel>
           </div>
         </div>
         <div class="flex align-items-center gap-2" style="width: 12rem">
           <label class="mb-0 text-sm">Inactive</label>
-          <InputSwitch v-model="editModel.inactive" />
+          <ToggleSwitch v-model="editModel.inactive" />
         </div>
         <div class="flex justify-content-end gap-2">
           <Button label="Cancel" text @click="editDialogVisible = false" />

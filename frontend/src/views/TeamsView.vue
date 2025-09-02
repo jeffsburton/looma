@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SidebarMenu from '../components/SidebarMenu.vue'
 import SelectButton from 'primevue/selectbutton'
-import InputSwitch from 'primevue/inputswitch'
+import ToggleSwitch from 'primevue/toggleswitch'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
@@ -17,6 +17,7 @@ import TeamMembersTable from '../components/teams/TeamMembersTable.vue'
 import TeamCasesTable from '../components/teams/TeamCasesTable.vue'
 import { hasPermission } from '../lib/permissions'
 import { getCookie, setCookie } from '../lib/cookies'
+import FloatLabel from "primevue/floatlabel";
 
 const route = useRoute()
 const router = useRouter()
@@ -210,7 +211,7 @@ watch(view, (val) => {
             <div class="flex align-items-center gap-2">
               <div class="flex align-items-center gap-2">
                 <span class="text-sm text-700">Show inactive</span>
-                <InputSwitch v-model="showInactive" />
+                <ToggleSwitch v-model="showInactive" />
               </div>
               <SelectButton v-model="view" :options="viewOptions" optionValue="value" optionLabel="label">
                 <template #option="{ option }">
@@ -246,12 +247,16 @@ watch(view, (val) => {
               </div>
               <div class="flex flex-column gap-3" style="max-width:560px;">
                 <div>
-                  <label class="block mb-1 text-sm">Name</label>
-                  <InputText v-model="editModel.name" class="w-full" />
+                  <FloatLabel variant="on">
+                    <label class="block mb-1 text-sm">Name</label>
+                    <InputText v-model="editModel.name" class="w-full" />
+                </FloatLabel>
                 </div>
                 <div>
-                  <label class="block mb-1 text-sm">Event</label>
-                  <EventSelect v-model="editModel.event_id" :disabled="!canModify" placeholder="Select event" />
+                  <FloatLabel variant="on">
+                    <EventSelect v-model="editModel.event_id" :disabled="!canModify" placeholder="Select event" />
+                    <label class="block mb-1 text-sm">Event</label>
+                </FloatLabel>
                 </div>
                 <div class="flex gap-2 align-items-center">
                   <Checkbox inputId="inactive" v-model="editModel.inactive" :binary="true" />

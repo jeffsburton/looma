@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import InputText from 'primevue/inputtext'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import Checkbox from 'primevue/checkbox'
+import FloatLabel from 'primevue/floatlabel'
 import Button from 'primevue/button'
 import AvatarEditor from '../../components/common/AvatarEditor.vue'
 
@@ -14,8 +15,18 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue','create','cancel','updated','avatarChanged'])
 
 const m = ref({ ...props.modelValue })
-watch(() => props.modelValue, (val) => { m.value = { ...val } }, { deep: true })
-watch(m, (val) => emit('update:modelValue', val), { deep: true })
+// guard to avoid feedback loops when syncing from parent
+let syncingFromParent = false
+watch(() => props.modelValue, (val) => {
+  syncingFromParent = true
+  m.value = { ...val }
+  // allow reactive chain to settle before re-enabling child emissions
+  queueMicrotask(() => { syncingFromParent = false })
+}, { deep: true })
+watch(m, (val) => {
+  if (syncingFromParent) return
+  emit('update:modelValue', val)
+}, { deep: true })
 
 // Organizations
 const orgs = ref([])
@@ -75,8 +86,10 @@ async function updateExisting() {
     telegram: m.value.telegram || null,
     organization_id: m.value.organization_id || null,
   }
-  const url = `/api/v1/persons/${encodeURIComponent(m.value.id)}`
-  const resp = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  // Backend expects PATCH with opaque person id in the path
+  const idPart = String(m.value.id ?? '').trim()
+  const url = `/api/v1/persons/${encodeURIComponent(idPart)}`
+  const resp = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
   if (!resp.ok) {
     // swallow to avoid blocking typing; parent can surface error if desired
     console.error('Failed to update person')
@@ -89,6 +102,7 @@ watch(() => ({...m.value}), (val) => {
   if (props.isNew) return
   if (!props.canModify) return
   if (!m.value.id) return
+  if (syncingFromParent) return
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => { updateExisting() }, 400)
 }, { deep: true })
@@ -124,19 +138,20 @@ const canEdit = computed(() => props.canModify)
 
     <div class="grid" style="grid-template-columns: 1fr 1fr; gap: .75rem;">
       <div>
-        <label class="block mb-1 text-sm">First Name</label>
-        <InputText v-if="canEdit" v-model="m.first_name" class="w-full" />
-        <div v-else class="flex align-items-center gap-2"><span class="icon">👤</span> <span>{{ m.first_name }}</span></div>
+          <FloatLabel variant="on">
+            <label class="block mb-1 text-sm">First Name</label>
+            <InputText v-if="canEdit" v-model="m.first_name" class="w-full" />
+          </FloatLabel>
       </div>
       <div>
-        <label class="block mb-1 text-sm">Last Name</label>
-        <InputText v-if="canEdit" v-model="m.last_name" class="w-full" />
-        <div v-else class="flex align-items-center gap-2"><span class="icon">👤</span> <span>{{ m.last_name }}</span></div>
+          <FloatLabel variant="on">
+            <label class="block mb-1 text-sm">Last Name</label>
+            <InputText v-if="canEdit" v-model="m.last_name" class="w-full" />
+          </FloatLabel>
       </div>
     </div>
 
     <div>
-      <label class="block mb-1 text-sm">Phone</label>
       <template v-if="canEdit">
         <div class="flex align-items-center gap-2">
           <template v-if="m.phone">
@@ -147,7 +162,10 @@ const canEdit = computed(() => props.canModify)
           <template v-else>
             <span class="icon">📞</span>
           </template>
-          <InputText v-model="m.phone" class="w-full" />
+          <FloatLabel variant="on">
+            <label class="block mb-1 text-sm">Phone</label>
+            <InputText v-model="m.phone" class="w-full" />
+          </FloatLabel>
         </div>
       </template>
       <template v-else>
@@ -157,7 +175,6 @@ const canEdit = computed(() => props.canModify)
     </div>
 
     <div>
-      <label class="block mb-1 text-sm">Email</label>
       <template v-if="canEdit">
         <div class="flex align-items-center gap-2">
           <template v-if="m.email">
@@ -168,7 +185,10 @@ const canEdit = computed(() => props.canModify)
           <template v-else>
             <span class="icon">✉️</span>
           </template>
-          <InputText v-model="m.email" class="w-full" />
+          <FloatLabel variant="on">
+            <label class="block mb-1 text-sm">Email</label>
+            <InputText v-model="m.email" class="w-full" />
+          </FloatLabel>
         </div>
       </template>
       <template v-else>
@@ -178,7 +198,6 @@ const canEdit = computed(() => props.canModify)
     </div>
 
     <div>
-      <label class="block mb-1 text-sm">Telegram</label>
       <template v-if="canEdit">
         <div class="flex align-items-center gap-2">
           <template v-if="m.telegram">
@@ -189,7 +208,10 @@ const canEdit = computed(() => props.canModify)
           <template v-else>
             <span class="icon">🗨️</span>
           </template>
-          <InputText v-model="m.telegram" class="w-full" placeholder="@handle or https://t.me/..." />
+          <FloatLabel variant="on">
+            <label class="block mb-1 text-sm">Telegram</label>
+            <InputText v-model="m.telegram" class="w-full" />
+          </FloatLabel>
         </div>
       </template>
       <template v-else>
@@ -199,11 +221,10 @@ const canEdit = computed(() => props.canModify)
     </div>
 
     <div>
-      <label class="block mb-1 text-sm">Organization</label>
-      <Dropdown v-if="canEdit" v-model="m.organization_id" :options="orgs" optionLabel="name" optionValue="id" :loading="loadingOrgs" placeholder="Select organization" class="w-full" />
-      <div v-else class="flex align-items-center gap-2"><span class="icon">🏢</span> <span>
-        {{ (orgs.find(o => String(o.id) === String(m.organization_id))?.name) || '—' }}
-      </span></div>
+      <FloatLabel variant="on">
+        <Select v-if="canEdit" v-model="m.organization_id" :options="orgs" optionLabel="name" optionValue="id" :loading="loadingOrgs" class="w-full" />
+        <label class="block mb-1 text-sm">Organization</label>
+      </FloatLabel>
     </div>
 
     <div v-if="isNew" class="flex justify-content-end gap-2">

@@ -6,8 +6,9 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
-import Calendar from 'primevue/calendar'
+import DatePicker from 'primevue/datepicker'
 import Checkbox from 'primevue/checkbox'
+import FloatLabel from 'primevue/floatlabel'
 import SelectButton from 'primevue/selectbutton'
 import RefSelect from '../components/RefSelect.vue'
 import { hasPermission } from '../lib/permissions'
@@ -313,43 +314,57 @@ watch(view, (val) => {
             </DataTable>
 
             <Dialog v-model:visible="editDialogVisible" modal header="Event" :style="{ width: '600px' }">
-              <div class="flex flex-column gap-3">
+              <div class="flex flex-column gap-3 mt-1">
                 <div v-if="validationMessage" class="text-red-600 text-sm">{{ validationMessage }}</div>
                 <div class="flex gap-2">
                   <div class="flex-1">
-                    <label class="block mb-1 text-sm">Name</label>
-                    <InputText v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+                    <FloatLabel variant="on">
+                      <label class="block mb-1 text-sm">Name</label>
+                      <InputText v-model="editModel.name" :class="['w-full', errors.name && 'p-invalid']" />
+                    </FloatLabel>
                     <small v-if="errors.name" class="p-error text-red-600">{{ errors.name }}</small>
                   </div>
                   <div class="flex-1" style="max-width: 220px;">
+                    <FloatLabel variant="on">
                     <label class="block mb-1 text-sm">Short Name</label>
                     <InputText v-model="editModel.short_name" :class="['w-full', errors.short_name && 'p-invalid']" maxlength="10" />
+                    </FloatLabel>
                     <small v-if="errors.short_name" class="p-error text-red-600">{{ errors.short_name }}</small>
                   </div>
                 </div>
                 <div class="flex gap-2">
                   <div class="flex-1">
+                    <FloatLabel variant="on">
                     <label class="block mb-1 text-sm">City</label>
                     <InputText v-model="editModel.city" class="w-full" />
+                    </FloatLabel>
                   </div>
                   <div class="flex-1">
-                    <label class="block mb-1 text-sm">State</label>
+                    <FloatLabel variant="on">
                     <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
+                    <label class="block mb-1 text-sm">State</label>
+                    </FloatLabel>
                   </div>
                 </div>
                 <div class="flex gap-2">
                   <div class="flex-1">
+                    <FloatLabel variant="on">
+                    <DatePicker v-model="editModel.start" dateFormat="yy-mm-dd" showIcon iconDisplay="input" />
                     <label class="block mb-1 text-sm">Start</label>
-                    <Calendar v-model="editModel.start" dateFormat="yy-mm-dd" showIcon iconDisplay="input" />
+                    </FloatLabel>
                   </div>
                   <div class="flex-1">
+                    <FloatLabel variant="on">
+                    <DatePicker v-model="editModel.end" dateFormat="yy-mm-dd" showIcon iconDisplay="input" />
                     <label class="block mb-1 text-sm">End</label>
-                    <Calendar v-model="editModel.end" dateFormat="yy-mm-dd" showIcon iconDisplay="input" />
+                    </FloatLabel>
                   </div>
                 </div>
                 <div>
+                    <FloatLabel variant="on">
                   <label class="block mb-1 text-sm">Description</label>
                   <textarea v-model="editModel.description" rows="4" maxlength="200" class="w-full p-inputtext"></textarea>
+                    </FloatLabel>
                   <small v-if="errors.description" class="p-error text-red-600">{{ errors.description }}</small>
                 </div>
                 <div class="flex gap-2 align-items-center">
