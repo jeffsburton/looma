@@ -28,8 +28,9 @@ const props = defineProps({
 
 const router = useRouter()
 function goToCase() {
-  const idForRoute = props.rawId || props.caseNumber || ''
-  router.push({ name: 'case-detail', params: { caseNumber: idForRoute, tab: 'intake' } })
+  const caseNum = String(props.caseNumber || '')
+  if (!caseNum) return
+  router.push({ name: 'case-detail', params: { caseNumber: caseNum, tab: 'core', subtab: 'intake' } })
 }
 
 </script>
@@ -37,7 +38,7 @@ function goToCase() {
 <template>
   <Card class="youth-profile-card clickable" @click="goToCase">
       <template #header>
-        <div class="sr-only" aria-hidden="false">Open case</div>
+        <div class="case-header">Case {{ caseNumber }}</div>
       </template>
     <template #content>
       <div class="profile-card-body">
@@ -111,6 +112,7 @@ function goToCase() {
   font-size: 0.9rem;
   line-height: 1.25;
 }
+.case-header { padding: .5rem 1rem; font-weight: 600; color: var(--p-primary-800, #1D3B52); }
 .clickable { cursor: pointer; }
 .youth-profile-card h2 { font-size: 1.3rem; }
 .youth-profile-card :deep(.mb-3) { margin-bottom: .5rem !important; }

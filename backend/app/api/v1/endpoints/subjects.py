@@ -8,7 +8,9 @@ from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.db.models.subject import Subject
 from app.schemas.subject import SubjectRead, SubjectUpsert
-from app.core.id_codec import encode_id
+from pydantic import BaseModel
+from typing import Optional
+from app.core.id_codec import encode_id, decode_id, OpaqueIdError
 from app.db.models.subject_case import SubjectCase
 from app.db.models.person import Person
 from app.db.models.person_case import PersonCase
@@ -168,3 +170,81 @@ async def list_subjects_for_select(
         })
 
     return items
+
+
+class SubjectPartial(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    nicknames: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    dangerous: Optional[bool] = None
+    danger: Optional[str] = None
+
+@router.patch(
+    "/subjects/{subject_id}",
+    response_model=SubjectRead,
+    summary="Update a subject by opaque id",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def update_subject(
+    subject_id: str,
+    payload: SubjectPartial,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+) -> SubjectRead:
+    # Decode opaque subject id
+    try:
+        sid = decode_id("subject", subject_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    # Authorization: if user has ALL_SUBJECTS, allow; else ensure subject visible via cases
+    if not await user_has_permission(db, current_user.id, "CONTACTS.ALL_SUBJECTS"):
+        person_id = await _get_current_person_id(db, current_user)
+        if person_id is None:
+            raise HTTPException(status_code=404, detail="Subject not found")
+        # Ensure the subject is within visibility filter
+        vis_filter = _subject_visibility_filter(person_id)
+        res = await db.execute(select(Subject.id).where(Subject.id == sid).where(vis_filter))
+        if res.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Subject not found")
+
+    # Load subject
+    subj = (await db.execute(select(Subject).where(Subject.id == sid))).scalar_one_or_none()
+    if subj is None:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    # Update allowed fields; trim strings and normalize empties to None where appropriate
+    def _clean(s: str | None) -> str | None:
+        if s is None:
+            return None
+        s2 = str(s).strip()
+        return s2 if s2 else None
+
+    # Required fields on schema; keep existing if payload not provided (allow partial)
+    if payload.first_name is not None:
+        subj.first_name = (payload.first_name or "").strip()
+    if payload.last_name is not None:
+        subj.last_name = (payload.last_name or "").strip()
+    # Optional fields
+    if hasattr(payload, "middle_name"):
+        subj.middle_name = _clean(payload.middle_name)
+    if hasattr(payload, "nicknames"):
+        subj.nicknames = _clean(payload.nicknames)
+    if hasattr(payload, "phone"):
+        subj.phone = _clean(payload.phone)
+    if hasattr(payload, "email"):
+        subj.email = _clean(payload.email)
+    if hasattr(payload, "dangerous") and payload.dangerous is not None:
+        subj.dangerous = bool(payload.dangerous)
+        # Reset danger text if not dangerous
+        if not subj.dangerous:
+            subj.danger = None
+    if hasattr(payload, "danger"):
+        subj.danger = _clean(payload.danger)
+
+    await db.commit()
+    await db.refresh(subj)
+    return subj

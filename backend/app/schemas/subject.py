@@ -10,6 +10,7 @@ class SubjectRead(OpaqueIdMixin):
     id: int
     first_name: str
     last_name: str
+    middle_name: Optional[str] = None
     nicknames: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -29,6 +30,7 @@ class SubjectUpsert(BaseModel):
     id: Optional[str] = None
     first_name: str
     last_name: str
+    middle_name: Optional[str] = None
     nicknames: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None

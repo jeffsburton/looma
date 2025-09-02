@@ -14,8 +14,9 @@ const props = defineProps({
 
 const router = useRouter()
 function goToCase() {
-  const idForRoute = props.rawId || props.caseNumber || ''
-  router.push({ name: 'case-detail', params: { caseNumber: idForRoute, tab: 'intake' } })
+  const caseNum = String(props.caseNumber || '')
+  if (!caseNum) return
+  router.push({ name: 'case-detail', params: { caseNumber: caseNum, tab: 'core', subtab: 'intake' } })
 }
 </script>
 

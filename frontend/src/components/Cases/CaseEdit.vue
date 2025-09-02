@@ -9,25 +9,25 @@ import TabPanel from 'primevue/tabpanel'
 
 const props = defineProps({
   caseNumber: { type: [String, Number], required: true },
-  tab: { type: String, default: 'intake' },
-  subtab: { type: String, default: 'status' },
+  tab: { type: String, default: 'core' },
+  subtab: { type: String, default: 'intake' },
 })
 
 const router = useRouter()
 const route = useRoute()
 
-const active = ref('intake')
-const intakeSubActive = ref('status')
+const active = ref('core')
+const intakeSubActive = ref('intake')
 const filesSubActive = ref('images')
-const VALID_TABS = ['intake','timeline','files','activity','messages']
+const VALID_TABS = ['core','timeline','files','activity','messages']
 const VALID_FILES_SUBTABS = ['images','ops','intel','rfis','eod','flyer','other']
 
 // Sync initial tab from route/prop and keep in sync
 watch(
   () => props.tab,
   (val) => {
-    let v = String(val || 'intake')
-    if (!VALID_TABS.includes(v)) v = 'intake'
+    let v = String(val || 'core')
+    if (!VALID_TABS.includes(v)) v = 'core'
     if (active.value !== v) active.value = v
   },
   { immediate: true }
@@ -37,10 +37,10 @@ watch(
 watch(
   () => props.subtab,
   (val) => {
-    const t = String(props.tab || active.value || 'intake')
-    let sub = String(val || (t === 'files' ? 'images' : 'status'))
+    const t = String(props.tab || active.value || 'core')
+    let sub = String(val || (t === 'files' ? 'images' : 'intake'))
     if (t === 'files' && !VALID_FILES_SUBTABS.includes(sub)) sub = 'images'
-    if (t === 'intake') {
+    if (t === 'core') {
       if (intakeSubActive.value !== sub) intakeSubActive.value = sub
     } else if (t === 'files') {
       if (filesSubActive.value !== sub) filesSubActive.value = sub
@@ -52,10 +52,10 @@ watch(
 watch(
   () => active.value,
   (v) => {
-    const tab = String(v || 'intake')
+    const tab = String(v || 'core')
     const caseNumber = String(props.caseNumber || '')
-    const subtab = tab === 'intake'
-      ? String(intakeSubActive.value || 'status')
+    const subtab = tab === 'core'
+      ? String(intakeSubActive.value || 'intake')
       : (tab === 'files' ? (VALID_FILES_SUBTABS.includes(String(filesSubActive.value)) ? String(filesSubActive.value) : 'images') : undefined)
     const curSub = route.params.subtab ? String(route.params.subtab) : undefined
     // Only update if different to avoid redundant navigations
@@ -73,10 +73,10 @@ watch(
 watch(
   () => intakeSubActive.value,
   (v) => {
-    if (active.value !== 'intake') return
+    if (active.value !== 'core') return
     const caseNumber = String(props.caseNumber || '')
-    const tab = 'intake'
-    const subtab = String(v || 'status')
+    const tab = 'core'
+    const subtab = String(v || 'intake')
     const curSub = route.params.subtab ? String(route.params.subtab) : undefined
     if (curSub !== subtab) {
       router.replace({ name: 'case-detail', params: { caseNumber, tab, subtab } })
@@ -99,15 +99,66 @@ watch(
   }
 )
 
-// TEMP subject photo (to be wired to actual case subject data)
-const subjectPhotoUrl = ref('/images/sample_faces/1.png')
+// Subject header reactive data (populated from API)
+const subjectPhotoUrl = ref('/images/pfp-generic.png')
 const photoError = ref(false)
 function onImgError() { photoError.value = true }
 
-// TEMP subject core details (to be wired to actual case subject data)
-const subjectName = ref('Kendrick Owen')
-const subjectAge = ref(16)
-const dateMissing = ref('2025-07-03')
+const subjectName = ref('')
+const subjectAge = ref(null)
+const dateMissing = ref(null)
+
+// Models to pass to Intake/Core tabs
+const caseModel = ref({})
+const subjectModel = ref({})
+
+// Keep header subjectName reactive to edits in IntakeTab
+watch(subjectModel, (s) => {
+  const nicks = s?.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
+  subjectName.value = `${s?.first_name || ''}${nicks} ${s?.last_name || ''}`.trim()
+}, { deep: true })
+
+async function loadCase() {
+  const num = String(props.caseNumber || '')
+  if (!num) return
+  try {
+    const resp = await fetch(`/api/v1/cases/by-number/${encodeURIComponent(num)}`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (!resp.ok) throw new Error('Failed to load case')
+    const data = await resp.json()
+    // Header
+    const s = data.subject || {}
+    const nicks = s.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
+    subjectName.value = `${s.first_name || ''}${nicks} ${s.last_name || ''}`.trim()
+    subjectPhotoUrl.value = (s.photo_url || '/images/pfp-generic.png')
+    const dem = data.demographics || {}
+    // Prefer age_when_missing
+    subjectAge.value = dem.age_when_missing ?? null
+    const circ = data.circumstances || {}
+    dateMissing.value = circ.date_missing || null
+
+    // Models for tabs
+    subjectModel.value = {
+      id: s.id || null,
+      first_name: s.first_name || '',
+      last_name: s.last_name || '',
+      middle_name: s.middle_name || '',
+      nicknames: s.nicknames || '',
+    }
+    const c = data.case || {}
+    caseModel.value = {
+      id: c.id || null,
+      subject_id: s.id || null,
+      case_number: c.case_number || num,
+    }
+    photoError.value = false
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+loadCase()
+
+watch(() => props.caseNumber, () => { loadCase() })
 
 // Computed: days missing since dateMissing (in whole days)
 const daysMissing = computed(() => {
@@ -146,9 +197,12 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
         <div class="min-w-0">
           <div class="subject-name text-xl font-semibold">{{ subjectName }}</div>
           <div class="subject-meta text-sm text-color-secondary">
-            Age {{ subjectAge }} • Missing since {{ dateMissing }}
-            <template v-if="daysMissing !== null">
-              ({{ daysMissing }} day<span v-if="daysMissing !== 1">s</span>)
+            <template v-if="subjectAge !== null && subjectAge !== undefined">Age {{ subjectAge }}</template>
+            <template v-if="(subjectAge !== null && subjectAge !== undefined) && dateMissing"> • </template>
+            <template v-if="dateMissing">Missing since {{ dateMissing }}
+              <template v-if="daysMissing !== null">
+                ({{ daysMissing }} day<span v-if="daysMissing !== 1">s</span>)
+              </template>
             </template>
           </div>
         </div>
@@ -158,7 +212,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
     <!-- Tabs -->
     <Tabs :value="active" @update:value="(v) => (active = v)">
       <TabList class="mb-1">
-        <Tab value="intake">
+        <Tab value="core">
           <span class="material-symbols-outlined">article</span>
           <span class="ml-1">Core</span>
         </Tab>
@@ -182,10 +236,15 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
 
     <!-- Tab Panels -->
     <TabPanels>
-      <TabPanel value="intake">
+      <TabPanel value="core">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
           <Suspense>
-            <IntakeTab :subtab="intakeSubActive" @update:subtab="(v) => (intakeSubActive = v)" />
+            <IntakeTab
+              :subtab="intakeSubActive"
+              @update:subtab="(v) => (intakeSubActive = v)"
+              v-model:caseModel="caseModel"
+              v-model:subjectModel="subjectModel"
+            />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

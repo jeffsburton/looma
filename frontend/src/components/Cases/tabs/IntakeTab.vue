@@ -5,28 +5,30 @@ import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
-import CoreTab from './intake/CoreTab.vue'
-import StatusTab from './intake/StatusTab.vue'
-import ContactsTab from './intake/ContactsTab.vue'
-import VictomologyTab from './intake/VictomologyTab.vue'
-import SearchUrgencyTab from './intake/SearchUrgencyTab.vue'
-import SocialMediaTab from './intake/SocialMediaTab.vue'
+import IntakeTab from './core/IntakeTab.vue'
+import StatusTab from './core/StatusTab.vue'
+import ContactsTab from './core/ContactsTab.vue'
+import VictomologyTab from './core/VictomologyTab.vue'
+import SearchUrgencyTab from './core/SearchUrgencyTab.vue'
+import SocialMediaTab from './core/SocialMediaTab.vue'
 
 const props = defineProps({
-  subtab: { type: String, default: 'status' }
+  subtab: { type: String, default: 'intake' },
+  caseModel: { type: Object, default: () => ({}) },
+  subjectModel: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['update:subtab'])
+const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel'])
 
-const VALID_SUBTABS = ['core','status','contacts','victimology','social','urgency']
+const VALID_SUBTABS = ['intake','status','contacts','victimology','social','urgency']
 
-const active = ref('status')
+const active = ref('intake')
 
 // Initialize and sync from prop
 watch(
   () => props.subtab,
   (val) => {
-    let v = String(val || 'status')
-    if (!VALID_SUBTABS.includes(v)) v = 'status'
+    let v = String(val || 'intake')
+    if (!VALID_SUBTABS.includes(v)) v = 'intake'
     if (active.value !== v) active.value = v
   },
   { immediate: true }
@@ -38,6 +40,8 @@ watch(
   (v) => {
     const sub = String(v || 'status')
     if (!VALID_SUBTABS.includes(sub)) return
+    // Avoid redundant emit if nothing changed
+    if (sub === String(props.subtab || 'intake')) return
     emit('update:subtab', sub)
   }
 )
@@ -47,7 +51,7 @@ watch(
   <div class="intake">
     <Tabs :value="active" @update:value="(v) => (active = v)">
       <TabList class="mb-2">
-        <Tab value="core">
+        <Tab value="intake">
           <span class="material-symbols-outlined">arrows_input</span>
           <span class="ml-1">Intake</span>
         </Tab>
@@ -74,8 +78,13 @@ watch(
       </TabList>
 
       <TabPanels>
-        <TabPanel value="core">
-          <CoreTab />
+        <TabPanel value="intake">
+          <IntakeTab
+            :caseModel="props.caseModel"
+            :subjectModel="props.subjectModel"
+            @update:caseModel="(v) => emit('update:caseModel', v)"
+            @update:subjectModel="(v) => emit('update:subjectModel', v)"
+          />
         </TabPanel>
         <TabPanel value="status">
           <StatusTab />
