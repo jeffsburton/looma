@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
@@ -13,7 +13,35 @@ import EODReportsTab from './files/EODReportsTab.vue'
 import MissingFlyerTab from './files/MissingFlyerTab.vue'
 import OtherTab from './files/OtherTab.vue'
 
+const props = defineProps({
+  subtab: { type: String, default: 'images' }
+})
+const emit = defineEmits(['update:subtab'])
+
+const VALID_SUBTABS = ['images','ops','intel','rfis','eod','flyer','other']
+
 const active = ref('images')
+
+// Initialize and sync from prop
+watch(
+  () => props.subtab,
+  (val) => {
+    let v = String(val || 'images')
+    if (!VALID_SUBTABS.includes(v)) v = 'images'
+    if (active.value !== v) active.value = v
+  },
+  { immediate: true }
+)
+
+// Emit up when local changes
+watch(
+  () => active.value,
+  (v) => {
+    const sub = String(v || 'images')
+    if (!VALID_SUBTABS.includes(sub)) return
+    emit('update:subtab', sub)
+  }
+)
 </script>
 
 <template>
@@ -32,7 +60,7 @@ const active = ref('images')
           <span class="material-symbols-outlined">network_intelligence_update</span>
           <span class="ml-1">Intel Summaries</span>
         </Tab>
-        <Tab value="rfi">
+        <Tab value="rfis">
           <span class="material-symbols-outlined">quiz</span>
           <span class="ml-1">RFI's</span>
         </Tab>
@@ -40,7 +68,7 @@ const active = ref('images')
           <span class="material-symbols-outlined">bedtime</span>
           <span class="ml-1">EOD Reports</span>
         </Tab>
-        <Tab value="missing">
+        <Tab value="flyer">
           <span class="material-symbols-outlined">contact_phone</span>
           <span class="ml-1">Missing Flyer</span>
         </Tab>
@@ -60,13 +88,13 @@ const active = ref('images')
         <TabPanel value="intel">
           <IntelSummariesTab />
         </TabPanel>
-        <TabPanel value="rfi">
+        <TabPanel value="rfis">
           <RFIsTab />
         </TabPanel>
         <TabPanel value="eod">
           <EODReportsTab />
         </TabPanel>
-        <TabPanel value="missing">
+        <TabPanel value="flyer">
           <MissingFlyerTab />
         </TabPanel>
         <TabPanel value="other">

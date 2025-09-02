@@ -75,6 +75,7 @@ const pagedCases = computed(() => {
         :le-contact="c.leContact"
         :agency-contact="c.agencyContact"
         :case-number="c.caseNumber || c.id"
+        :raw-id="c.rawId || c.raw_db_id"
         class="mb-2 flex-none"
       />
     </div>

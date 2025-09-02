@@ -1,12 +1,103 @@
 <script setup>
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 
+const props = defineProps({
+  caseNumber: { type: [String, Number], required: true },
+  tab: { type: String, default: 'intake' },
+  subtab: { type: String, default: 'status' },
+})
+
+const router = useRouter()
+const route = useRoute()
+
 const active = ref('intake')
+const intakeSubActive = ref('status')
+const filesSubActive = ref('images')
+const VALID_TABS = ['intake','timeline','files','activity','messages']
+const VALID_FILES_SUBTABS = ['images','ops','intel','rfis','eod','flyer','other']
+
+// Sync initial tab from route/prop and keep in sync
+watch(
+  () => props.tab,
+  (val) => {
+    let v = String(val || 'intake')
+    if (!VALID_TABS.includes(v)) v = 'intake'
+    if (active.value !== v) active.value = v
+  },
+  { immediate: true }
+)
+
+// Keep subtab in sync with prop for intake/files based on active tab
+watch(
+  () => props.subtab,
+  (val) => {
+    const t = String(props.tab || active.value || 'intake')
+    let sub = String(val || (t === 'files' ? 'images' : 'status'))
+    if (t === 'files' && !VALID_FILES_SUBTABS.includes(sub)) sub = 'images'
+    if (t === 'intake') {
+      if (intakeSubActive.value !== sub) intakeSubActive.value = sub
+    } else if (t === 'files') {
+      if (filesSubActive.value !== sub) filesSubActive.value = sub
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => active.value,
+  (v) => {
+    const tab = String(v || 'intake')
+    const caseNumber = String(props.caseNumber || '')
+    const subtab = tab === 'intake'
+      ? String(intakeSubActive.value || 'status')
+      : (tab === 'files' ? (VALID_FILES_SUBTABS.includes(String(filesSubActive.value)) ? String(filesSubActive.value) : 'images') : undefined)
+    const curSub = route.params.subtab ? String(route.params.subtab) : undefined
+    // Only update if different to avoid redundant navigations
+    if (
+      String(route.params.caseNumber || '') !== caseNumber ||
+      String(route.params.tab || '') !== tab ||
+      curSub !== subtab
+    ) {
+      router.replace({ name: 'case-detail', params: { caseNumber, tab, subtab } })
+    }
+  }
+)
+
+// When intake subtab changes, update URL
+watch(
+  () => intakeSubActive.value,
+  (v) => {
+    if (active.value !== 'intake') return
+    const caseNumber = String(props.caseNumber || '')
+    const tab = 'intake'
+    const subtab = String(v || 'status')
+    const curSub = route.params.subtab ? String(route.params.subtab) : undefined
+    if (curSub !== subtab) {
+      router.replace({ name: 'case-detail', params: { caseNumber, tab, subtab } })
+    }
+  }
+)
+
+// When files subtab changes, update URL
+watch(
+  () => filesSubActive.value,
+  (v) => {
+    if (active.value !== 'files') return
+    const caseNumber = String(props.caseNumber || '')
+    const tab = 'files'
+    const subtab = String(v || 'images')
+    const curSub = route.params.subtab ? String(route.params.subtab) : undefined
+    if (curSub !== subtab) {
+      router.replace({ name: 'case-detail', params: { caseNumber, tab, subtab } })
+    }
+  }
+)
 
 // TEMP subject photo (to be wired to actual case subject data)
 const subjectPhotoUrl = ref('/images/sample_faces/1.png')
@@ -35,7 +126,6 @@ const daysMissing = computed(() => {
 
 // Lazy imports for tab components
 const IntakeTab = defineAsyncComponent(() => import('./tabs/IntakeTab.vue'))
-const SocialMediaTab = defineAsyncComponent(() => import('./tabs/SocialMediaTab.vue'))
 const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
 const FilesTab = defineAsyncComponent(() => import('./tabs/FilesTab.vue'))
 const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))
@@ -72,10 +162,6 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
           <span class="material-symbols-outlined">article</span>
           <span class="ml-1">Core</span>
         </Tab>
-        <Tab value="social">
-          <span class="material-symbols-outlined">photo_camera</span>
-          <span class="ml-1">Social Media</span>
-        </Tab>
         <Tab value="timeline">
           <span class="material-symbols-outlined">calendar_month</span>
           <span class="ml-1">Timeline</span>
@@ -99,17 +185,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="intake">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
           <Suspense>
-            <IntakeTab />
-            <template #fallback>
-              <div class="p-3 text-600">Loading...</div>
-            </template>
-          </Suspense>
-        </div>
-      </TabPanel>
-      <TabPanel value="social">
-        <div class="surface-card border-round p-2 flex-1 overflow-auto">
-          <Suspense>
-            <SocialMediaTab />
+            <IntakeTab :subtab="intakeSubActive" @update:subtab="(v) => (intakeSubActive = v)" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
@@ -129,7 +205,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="files">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 overflow-auto">
           <Suspense>
-            <FilesTab />
+            <FilesTab :subtab="filesSubActive" @update:subtab="(v) => (filesSubActive = v)" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

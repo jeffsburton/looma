@@ -8,12 +8,14 @@ const props = defineProps({
   age: { type: [String, Number], required: false, default: null },
   missingDays: { type: [String, Number], required: false, default: null },
   photoUrl: { type: String, required: true },
-  caseNumber: { type: [String, Number], default: '' }
+  caseNumber: { type: [String, Number], default: '' },
+  rawId: { type: [String, Number], default: '' },
 })
 
 const router = useRouter()
 function goToCase() {
-  router.push({ name: 'case' })
+  const idForRoute = props.rawId || props.caseNumber || ''
+  router.push({ name: 'case-detail', params: { caseNumber: idForRoute, tab: 'intake' } })
 }
 </script>
 

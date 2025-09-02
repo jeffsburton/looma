@@ -68,6 +68,7 @@ const pagedCases = computed(() => {
         :missing-days="c.missingDays"
         :photo-url="c.photoUrl || c.photo_url"
         :case-number="c.caseNumber || c.id"
+        :raw-id="c.rawId || c.raw_db_id"
         class="mb-2 flex-none"
       />
     </div>
