@@ -111,6 +111,8 @@ const dateMissing = ref(null)
 // Models to pass to Intake/Core tabs
 const caseModel = ref({})
 const subjectModel = ref({})
+const demographicsModel = ref({})
+const managementModel = ref({})
 
 // Keep header subjectName reactive to edits in IntakeTab
 watch(subjectModel, (s) => {
@@ -137,6 +139,44 @@ async function loadCase() {
     dateMissing.value = circ.date_missing || null
 
     // Models for tabs
+    const mgmt = data.management || {}
+    managementModel.value = {
+      consent_sent: !!mgmt.consent_sent,
+      consent_returned: !!mgmt.consent_returned,
+      flyer_complete: !!mgmt.flyer_complete,
+      ottic: !!mgmt.ottic,
+      csec_id: mgmt.csec_id ?? null,
+      missing_status_id: mgmt.missing_status_id ?? null,
+      classification_id: mgmt.classification_id ?? null,
+      csec_code: mgmt.csec_code || '',
+      missing_status_code: mgmt.missing_status_code || '',
+      classification_code: mgmt.classification_code || '',
+      ncic_case_number: mgmt.ncic_case_number || '',
+      ncmec_case_number: mgmt.ncmec_case_number || '',
+      le_case_number: mgmt.le_case_number || '',
+      le_24hour_contact: mgmt.le_24hour_contact || '',
+      ss_case_number: mgmt.ss_case_number || '',
+      ss_24hour_contact: mgmt.ss_24hour_contact || '',
+      jpo_case_number: mgmt.jpo_case_number || '',
+      jpo_24hour_contact: mgmt.jpo_24hour_contact || '',
+    }
+
+    demographicsModel.value = {
+      // keep as primitives (Calendar in child will convert date to Date)
+      date_of_birth: dem.date_of_birth || null,
+      age_when_missing: dem.age_when_missing ?? null,
+      height: dem.height || '',
+      weight: dem.weight || '',
+      hair_color: dem.hair_color || '',
+      hair_length: dem.hair_length || '',
+      eye_color: dem.eye_color || '',
+      identifying_marks: dem.identifying_marks || '',
+      sex_id: dem.sex_id ?? '',
+      race_id: dem.race_id ?? '',
+      sex_code: dem.sex_code || '',
+      race_code: dem.race_code || '',
+    }
+
     subjectModel.value = {
       id: s.id || null,
       first_name: s.first_name || '',
@@ -244,6 +284,8 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
               @update:subtab="(v) => (intakeSubActive = v)"
               v-model:caseModel="caseModel"
               v-model:subjectModel="subjectModel"
+              v-model:demographicsModel="demographicsModel"
+              v-model:managementModel="managementModel"
             />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>

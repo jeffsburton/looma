@@ -3,6 +3,7 @@ from datetime import date as Date
 
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy import select, asc, exists, or_, and_
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
@@ -18,6 +19,8 @@ from app.services.auth import user_has_permission
 from app.db.models.app_user import AppUser
 from app.db.models.case_demographics import CaseDemographics
 from app.db.models.case_circumstances import CaseCircumstances
+from app.db.models.case_management import CaseManagement
+from app.db.models.ref_value import RefValue
 from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
 
 
@@ -132,7 +135,13 @@ async def get_case_by_number(
     if not await can_user_access_case(db, current_user.id, int(case_row.id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Fetch joins: subject, demographics, circumstances
+    # Fetch joins: subject, demographics, circumstances, management + ref codes
+    SexRV = aliased(RefValue)
+    RaceRV = aliased(RefValue)
+    CsecRV = aliased(RefValue)
+    MstatRV = aliased(RefValue)
+    MclassRV = aliased(RefValue)
+
     q = (
         select(
             Case.id.label("case_id"),
@@ -153,11 +162,37 @@ async def get_case_by_number(
             CaseDemographics.identifying_marks,
             CaseDemographics.sex_id,
             CaseDemographics.race_id,
+            SexRV.code.label("sex_code"),
+            RaceRV.code.label("race_code"),
             CaseCircumstances.date_missing,
+            CaseManagement.consent_sent,
+            CaseManagement.consent_returned,
+            CaseManagement.flyer_complete,
+            CaseManagement.ottic,
+            CaseManagement.csec_id,
+            CaseManagement.missing_status_id,
+            CaseManagement.classification_id,
+            CsecRV.code.label("csec_code"),
+            MstatRV.code.label("missing_status_code"),
+            MclassRV.code.label("classification_code"),
+            CaseManagement.ncic_case_number,
+            CaseManagement.ncmec_case_number,
+            CaseManagement.le_case_number,
+            CaseManagement.le_24hour_contact,
+            CaseManagement.ss_case_number,
+            CaseManagement.ss_24hour_contact,
+            CaseManagement.jpo_case_number,
+            CaseManagement.jpo_24hour_contact,
         )
         .join(Subject, Subject.id == Case.subject_id)
         .join(CaseDemographics, CaseDemographics.case_id == Case.id, isouter=True)
+        .join(SexRV, SexRV.id == CaseDemographics.sex_id, isouter=True)
+        .join(RaceRV, RaceRV.id == CaseDemographics.race_id, isouter=True)
         .join(CaseCircumstances, CaseCircumstances.case_id == Case.id, isouter=True)
+        .join(CaseManagement, CaseManagement.case_id == Case.id, isouter=True)
+        .join(CsecRV, CsecRV.id == CaseManagement.csec_id, isouter=True)
+        .join(MstatRV, MstatRV.id == CaseManagement.missing_status_id, isouter=True)
+        .join(MclassRV, MclassRV.id == CaseManagement.classification_id, isouter=True)
         .where(Case.id == case_row.id)
     )
     row = (await db.execute(q)).first()
@@ -183,7 +218,27 @@ async def get_case_by_number(
         identifying_marks,
         sex_id,
         race_id,
+        sex_code,
+        race_code,
         date_missing,
+        consent_sent,
+        consent_returned,
+        flyer_complete,
+        ottic,
+        csec_id,
+        missing_status_id,
+        classification_id,
+        csec_code,
+        missing_status_code,
+        classification_code,
+        ncic_case_number,
+        ncmec_case_number,
+        le_case_number,
+        le_24hour_contact,
+        ss_case_number,
+        ss_24hour_contact,
+        jpo_case_number,
+        jpo_24hour_contact,
     ) = row
 
     subject_opaque = encode_id("subject", int(subject_id))
@@ -216,8 +271,30 @@ async def get_case_by_number(
             "identifying_marks": identifying_marks,
             "sex_id": int(sex_id) if sex_id is not None else None,
             "race_id": int(race_id) if race_id is not None else None,
+            "sex_code": sex_code,
+            "race_code": race_code,
         },
         "circumstances": {
             "date_missing": date_missing.isoformat() if date_missing is not None else None,
+        },
+        "management": {
+            "consent_sent": bool(consent_sent) if consent_sent is not None else False,
+            "consent_returned": bool(consent_returned) if consent_returned is not None else False,
+            "flyer_complete": bool(flyer_complete) if flyer_complete is not None else False,
+            "ottic": bool(ottic) if ottic is not None else False,
+            "csec_id": int(csec_id) if csec_id is not None else None,
+            "missing_status_id": int(missing_status_id) if missing_status_id is not None else None,
+            "classification_id": int(classification_id) if classification_id is not None else None,
+            "csec_code": csec_code,
+            "missing_status_code": missing_status_code,
+            "classification_code": classification_code,
+            "ncic_case_number": ncic_case_number,
+            "ncmec_case_number": ncmec_case_number,
+            "le_case_number": le_case_number,
+            "le_24hour_contact": le_24hour_contact,
+            "ss_case_number": ss_case_number,
+            "ss_24hour_contact": ss_24hour_contact,
+            "jpo_case_number": jpo_case_number,
+            "jpo_24hour_contact": jpo_24hour_contact,
         },
     }

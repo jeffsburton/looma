@@ -168,7 +168,6 @@ watch(
       optionValue="id"
       :filter="filter"
       filterBy="name,code"
-      :placeholder="placeholder"
       class="w-full"
       :disabled="disabled"
       @show="focusFilter"
@@ -179,12 +178,11 @@ watch(
           <small v-if="showCode && option.code" class="text-600 ml-2">{{ option.code }}</small>
         </div>
       </template>
-      <template #value="{ placeholder }">
+      <template #value="">
         <div v-if="selectedOption" class="flex align-items-center justify-content-between w-full">
           <span>{{ selectedOption.name }}</span>
           <small v-if="showCode && selectedOption.code" class="text-600 ml-2">{{ selectedOption.code }}</small>
         </div>
-        <span v-else>{{ placeholder }}</span>
       </template>
       <template v-if="add" #footer>
         <div class="p-2 border-top-1 surface-border">

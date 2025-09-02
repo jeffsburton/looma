@@ -16,8 +16,10 @@ const props = defineProps({
   subtab: { type: String, default: 'intake' },
   caseModel: { type: Object, default: () => ({}) },
   subjectModel: { type: Object, default: () => ({}) },
+  demographicsModel: { type: Object, default: () => ({}) },
+  managementModel: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel'])
+const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel','update:demographicsModel','update:managementModel'])
 
 const VALID_SUBTABS = ['intake','status','contacts','victimology','social','urgency']
 
@@ -82,8 +84,12 @@ watch(
           <IntakeTab
             :caseModel="props.caseModel"
             :subjectModel="props.subjectModel"
+            :demographicsModel="props.demographicsModel"
+            :managementModel="props.managementModel"
             @update:caseModel="(v) => emit('update:caseModel', v)"
             @update:subjectModel="(v) => emit('update:subjectModel', v)"
+            @update:demographicsModel="(v) => emit('update:demographicsModel', v)"
+            @update:managementModel="(v) => emit('update:managementModel', v)"
           />
         </TabPanel>
         <TabPanel value="status">
