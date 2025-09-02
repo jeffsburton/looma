@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Optional
+from datetime import date as Date
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy import select, asc, exists, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ from app.services.auth import user_has_permission
 from app.db.models.app_user import AppUser
 from app.db.models.case_demographics import CaseDemographics
 from app.db.models.case_circumstances import CaseCircumstances
+from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
 
 
 router = APIRouter(prefix="/cases")
@@ -143,6 +145,14 @@ async def get_case_by_number(
             Subject.profile_pic.isnot(None).label("has_pic"),
             CaseDemographics.age_when_missing,
             CaseDemographics.date_of_birth,
+            CaseDemographics.height,
+            CaseDemographics.weight,
+            CaseDemographics.hair_color,
+            CaseDemographics.hair_length,
+            CaseDemographics.eye_color,
+            CaseDemographics.identifying_marks,
+            CaseDemographics.sex_id,
+            CaseDemographics.race_id,
             CaseCircumstances.date_missing,
         )
         .join(Subject, Subject.id == Case.subject_id)
@@ -165,6 +175,14 @@ async def get_case_by_number(
         has_pic,
         age_when_missing,
         date_of_birth,
+        height,
+        weight,
+        hair_color,
+        hair_length,
+        eye_color,
+        identifying_marks,
+        sex_id,
+        race_id,
         date_missing,
     ) = row
 
@@ -190,6 +208,14 @@ async def get_case_by_number(
         "demographics": {
             "age_when_missing": int(age_when_missing) if age_when_missing is not None else None,
             "date_of_birth": date_of_birth.isoformat() if date_of_birth is not None else None,
+            "height": height,
+            "weight": weight,
+            "hair_color": hair_color,
+            "hair_length": hair_length,
+            "eye_color": eye_color,
+            "identifying_marks": identifying_marks,
+            "sex_id": int(sex_id) if sex_id is not None else None,
+            "race_id": int(race_id) if race_id is not None else None,
         },
         "circumstances": {
             "date_missing": date_missing.isoformat() if date_missing is not None else None,

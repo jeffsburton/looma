@@ -18,6 +18,7 @@ class CaseDemographicsRead(OpaqueIdMixin):
     eye_color: Optional[str] = None
     identifying_marks: Optional[str] = None
     sex_id: Optional[int] = None
+    race_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -36,3 +37,4 @@ class CaseDemographicsUpsert(BaseModel):
     eye_color: Optional[str] = None
     identifying_marks: Optional[str] = None
     sex_id: Optional[str] = None
+    race_id: Optional[str] = None
