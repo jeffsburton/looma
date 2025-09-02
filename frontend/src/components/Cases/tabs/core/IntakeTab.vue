@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, nextTick } from 'vue'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Fieldset from 'primevue/fieldset'
@@ -24,6 +24,12 @@ let saveTimer = null
 let saveDemoTimer = null
 let saveMgmtTimer = null
 let savePolTimer = null
+// Prevent autosaves until component fully initialized
+let autoSaveReady = false
+onMounted(() => {
+  // wait for initial render and any prop-driven syncing to settle
+  nextTick(() => { autoSaveReady = true })
+})
 async function saveSubjectToServer(subj) {
   try {
     if (!subj?.id) return
@@ -347,6 +353,7 @@ watch(mDemo, (v) => {
     // Normalize date to ISO string for parent if it's a Date
     date_of_birth: v?.date_of_birth instanceof Date ? v.date_of_birth.toISOString().slice(0,10) : v?.date_of_birth || null,
   })
+  if (!autoSaveReady) return
   if (saveDemoTimer) clearTimeout(saveDemoTimer)
   saveDemoTimer = setTimeout(() => saveDemographicsToServer(v), 700)
 }, { deep: true })
@@ -355,6 +362,7 @@ watch(mDemo, (v) => {
 watch(mPol, (v) => {
   if (syncingFromProps) return
   emit('update:patternOfLifeModel', v)
+  if (!autoSaveReady) return
   if (savePolTimer) clearTimeout(savePolTimer)
   savePolTimer = setTimeout(() => savePatternOfLifeToServer(v), 700)
 }, { deep: true })
@@ -363,6 +371,7 @@ watch(mPol, (v) => {
 watch(mMgmt, (v) => {
   if (syncingFromProps) return
   emit('update:managementModel', v)
+  if (!autoSaveReady) return
   if (saveMgmtTimer) clearTimeout(saveMgmtTimer)
   saveMgmtTimer = setTimeout(() => saveManagementToServer(v), 700)
 }, { deep: true })
@@ -406,6 +415,24 @@ watch(() => mDemo.value?.date_of_birth, (dob) => {
   // Only update if changed to avoid unnecessary saves
   if ((mDemo.value?.age_when_missing ?? null) !== (newAge ?? null)) {
     mDemo.value.age_when_missing = newAge
+  }
+})
+// Computed date adapter for intake date on case
+const intakeDate = computed({
+  get() {
+    return toDateOrNull(mCase.value?.date_intake) || null
+  },
+  set(v) {
+    if (!mCase.value) mCase.value = {}
+    if (v instanceof Date) {
+      mCase.value.date_intake = v.toISOString().slice(0,10)
+    } else if (!v) {
+      mCase.value.date_intake = null
+    } else {
+      // attempt to coerce
+      const d = new Date(v)
+      mCase.value.date_intake = isNaN(d.getTime()) ? null : d.toISOString().slice(0,10)
+    }
   }
 })
 </script>
@@ -532,6 +559,21 @@ watch(() => mDemo.value?.date_of_birth, (dob) => {
     </Fieldset>
 
         <Fieldset legend="Case Management" class="mt-3">
+          <!-- Row 0: C2R Case Number (read-only) and Intake Date (editable) -->
+          <div class="row row-2">
+            <div>
+              <FloatLabel variant="on">
+                <InputText id="cm-case-number" v-model="mCase.case_number" class="w-full" :readonly="true" />
+                <label for="cm-case-number">C2R Case Number</label>
+              </FloatLabel>
+            </div>
+            <div>
+              <FloatLabel variant="on">
+                <DatePicker id="cm-intake-date" v-model="intakeDate" date-format="yy-mm-dd" showIcon iconDisplay="input" class="w-full" />
+                <label for="cm-intake-date">Intake Date</label>
+              </FloatLabel>
+            </div>
+          </div>
           <!-- Row 1: consent_sent, consent_returned, flyer_complete -->
           <div class="row row-3">
             <div class="flex align-items-center gap-2">

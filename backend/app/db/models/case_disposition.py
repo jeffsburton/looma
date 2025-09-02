@@ -18,7 +18,7 @@ class CaseDisposition(Base):
     # ref_type CASE_CLASS
     class_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
-    # REF_TYPE STATUS
+    # ref_type STATUS
     status_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
     # ref_type LIVING
