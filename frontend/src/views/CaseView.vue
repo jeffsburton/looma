@@ -27,7 +27,7 @@ function goBackToList() {
 
         <!-- Main Content -->
         <div class="flex-1 min-w-0 flex flex-column" style="min-height: calc(100vh - 2rem)">
-          <div class="surface-card border-round p-2 flex-1 overflow-auto">
+          <div class="surface-card border-round p-2 flex-1 ">
             <!-- Header with back arrow -->
             <div class="flex align-items-center gap-2 mb-2">
               <button class="icon-button" @click="goBackToList" title="Back">

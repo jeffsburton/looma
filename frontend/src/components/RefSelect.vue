@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, computed, nextTick } from 'vue'
-import Dropdown from 'primevue/dropdown'
+import Select from 'primevue/select'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -159,7 +159,7 @@ watch(
 
 <template>
   <div class="flex flex-column gap-2">
-    <Dropdown
+    <Select
       ref="ddRef"
       v-model="selectedId"
       :options="visibleOptions"
@@ -167,7 +167,7 @@ watch(
       optionLabel="_filterLabel"
       optionValue="id"
       :filter="filter"
-      filterBy="name,code"
+      :filterFields="['name','code','_filterLabel']"
       class="w-full"
       :disabled="disabled"
       @show="focusFilter"
@@ -189,7 +189,7 @@ watch(
           <Button label="Add..." icon="pi pi-plus" size="small" text @click.stop.prevent="openAdd" />
         </div>
       </template>
-    </Dropdown>
+    </Select>
 
     <div v-if="isOTH" class="flex flex-column gap-1">
       <label class="text-sm">Please specify</label>
