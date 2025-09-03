@@ -9,13 +9,14 @@ class CaseSearchUrgencyRead(OpaqueIdMixin):
     OPAQUE_MODEL = "case_search_urgency"
     id: int
     case_id: int
-    age_id: int
-    physical_condition_id: int
-    medical_condition_id: int
-    personal_risk_id: int
-    online_risk_id: int
-    family_risk_id: int
-    behavioral_risk_id: int
+    age_id: Optional[int] = None
+    physical_condition_id: Optional[int] = None
+    medical_condition_id: Optional[int] = None
+    personal_risk_id: Optional[int] = None
+    online_risk_id: Optional[int] = None
+    family_risk_id: Optional[int] = None
+    behavioral_risk_id: Optional[int] = None
+    score: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -24,11 +25,12 @@ class CaseSearchUrgencyRead(OpaqueIdMixin):
 
 class CaseSearchUrgencyUpsert(BaseModel):
     id: Optional[str] = None
-    case_id: str
-    age_id: str
-    physical_condition_id: str
-    medical_condition_id: str
-    personal_risk_id: str
-    online_risk_id: str
-    family_risk_id: str
-    behavioral_risk_id: str
+    case_id: Optional[str] = None
+    age_id: Optional[str] = None
+    physical_condition_id: Optional[str] = None
+    medical_condition_id: Optional[str] = None
+    personal_risk_id: Optional[str] = None
+    online_risk_id: Optional[str] = None
+    family_risk_id: Optional[str] = None
+    behavioral_risk_id: Optional[str] = None
+    # score is computed server-side and not accepted from client

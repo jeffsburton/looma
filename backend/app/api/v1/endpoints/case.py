@@ -31,6 +31,8 @@ from app.db.models.victimology import victimology as Victimology
 from app.db.models.victimology_category import victimologyCategory as VictimologyCategory
 from app.db.models.subject_case import SubjectCase
 from app.db.models.person_case import PersonCase
+from app.db.models.case_search_urgency import CaseSearchUrgency
+from app.schemas.case_search_urgency import CaseSearchUrgencyUpsert
 from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
 from app.schemas.case_management import CaseManagementUpsert
 from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
@@ -755,6 +757,114 @@ async def get_case_circumstances(
         "voip_id": enc_ref(getattr(row, 'voip_id', None)),
         "wifi_only": bool(getattr(row, 'wifi_only', False)),
     }
+
+
+@router.get("/{case_id}/search-urgency", summary="Get case search urgency")
+async def get_case_search_urgency(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    row = (
+        await db.execute(select(CaseSearchUrgency).where(CaseSearchUrgency.case_id == int(case_db_id)))
+    ).scalar_one_or_none()
+    if row is None:
+        return {}
+
+    def enc_ref(v):
+        return encode_id("ref_value", int(v)) if v is not None else None
+
+    return {
+        "id": encode_id("case_search_urgency", int(row.id)) if getattr(row, 'id', None) is not None else None,
+        "case_id": encode_id("case", int(row.case_id)),
+        "age_id": enc_ref(getattr(row, 'age_id', None)),
+        "physical_condition_id": enc_ref(getattr(row, 'physical_condition_id', None)),
+        "medical_condition_id": enc_ref(getattr(row, 'medical_condition_id', None)),
+        "personal_risk_id": enc_ref(getattr(row, 'personal_risk_id', None)),
+        "online_risk_id": enc_ref(getattr(row, 'online_risk_id', None)),
+        "family_risk_id": enc_ref(getattr(row, 'family_risk_id', None)),
+        "behavioral_risk_id": enc_ref(getattr(row, 'behavioral_risk_id', None)),
+        "score": int(getattr(row, 'score', 0)) if getattr(row, 'score', None) is not None else None,
+    }
+
+
+@router.put("/{case_id}/search-urgency", summary="Upsert case search urgency")
+async def upsert_case_search_urgency(
+    case_id: str,
+    payload: CaseSearchUrgencyUpsert = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Decode and authorize
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Find existing or create new
+    res = await db.execute(select(CaseSearchUrgency).where(CaseSearchUrgency.case_id == int(case_db_id)))
+    row = res.scalar_one_or_none()
+
+    def _dec_ref(oid):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s)) if not s.isdigit() else int(s)
+        except Exception:
+            return None
+
+    updates = {
+        "age_id": _dec_ref(getattr(payload, 'age_id', None)) if hasattr(payload, 'age_id') else None,
+        "physical_condition_id": _dec_ref(getattr(payload, 'physical_condition_id', None)) if hasattr(payload, 'physical_condition_id') else None,
+        "medical_condition_id": _dec_ref(getattr(payload, 'medical_condition_id', None)) if hasattr(payload, 'medical_condition_id') else None,
+        "personal_risk_id": _dec_ref(getattr(payload, 'personal_risk_id', None)) if hasattr(payload, 'personal_risk_id') else None,
+        "online_risk_id": _dec_ref(getattr(payload, 'online_risk_id', None)) if hasattr(payload, 'online_risk_id') else None,
+        "family_risk_id": _dec_ref(getattr(payload, 'family_risk_id', None)) if hasattr(payload, 'family_risk_id') else None,
+        "behavioral_risk_id": _dec_ref(getattr(payload, 'behavioral_risk_id', None)) if hasattr(payload, 'behavioral_risk_id') else None,
+    }
+
+    if row is None:
+        row = CaseSearchUrgency(case_id=int(case_db_id), **updates)
+        db.add(row)
+    else:
+        for k, v in updates.items():
+            # Only set attribute if present in payload (allows partial updates)
+            if hasattr(payload, k):
+                setattr(row, k, v)
+
+    # Compute score if all seven selections present
+    sel_ids = [
+        getattr(row, 'age_id', None),
+        getattr(row, 'physical_condition_id', None),
+        getattr(row, 'medical_condition_id', None),
+        getattr(row, 'personal_risk_id', None),
+        getattr(row, 'online_risk_id', None),
+        getattr(row, 'family_risk_id', None),
+        getattr(row, 'behavioral_risk_id', None),
+    ]
+
+    score_val = None
+    if all(v is not None for v in sel_ids):
+        # Sum sort_order values for selected ref_values
+        vals = (
+            await db.execute(
+                select(RefValue.id, RefValue.sort_order).where(RefValue.id.in_([int(v) for v in sel_ids]))
+            )
+        ).all()
+        by_id = {int(i): (int(s) if s is not None else 0) for i, s in vals}
+        score_val = sum(by_id.get(int(v), 0) for v in sel_ids)
+        row.score = int(score_val)
+    else:
+        row.score = None
+
+    await db.commit()
+    return {"ok": True, "score": score_val}
 
 
 @router.put("/{case_id}/circumstances", summary="Upsert case circumstances")
