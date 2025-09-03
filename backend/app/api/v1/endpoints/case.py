@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.db.models.case import Case
 from app.db.models.subject import Subject
@@ -687,6 +687,76 @@ async def list_case_subjects(
         })
 
     return items
+
+
+class SubjectCaseCreate(BaseModel):
+    subject_id: str
+    relationship_id: Optional[str] = None
+    relationship_other: Optional[str] = None
+    legal_guardian: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+@router.post(
+    "/{case_id}/subjects",
+    summary="Create a subject_case row for a case",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def create_case_subject(
+    case_id: str,
+    payload: SubjectCaseCreate = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Decode and authorize
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Decode subject id
+    try:
+        subj_db_id = decode_id("subject", payload.subject_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    # Ensure subject exists
+    subj = (await db.execute(select(Subject.id).where(Subject.id == int(subj_db_id)))).scalar_one_or_none()
+    if subj is None:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    # Prevent duplicates (UniqueConstraint also exists)
+    exists_row = (await db.execute(select(SubjectCase.id).where(
+        SubjectCase.case_id == int(case_db_id),
+        SubjectCase.subject_id == int(subj_db_id),
+    ))).scalar_one_or_none()
+    if exists_row is not None:
+        # Treat as idempotent
+        return {"ok": True, "already_exists": True}
+
+    # Helper to decode optional ref_value id
+    def _dec_ref(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    row = SubjectCase(
+        case_id=int(case_db_id),
+        subject_id=int(subj_db_id),
+        relationship_id=_dec_ref(payload.relationship_id) if hasattr(payload, "relationship_id") else None,
+        relationship_other=getattr(payload, "relationship_other", None),
+        legal_guardian=bool(getattr(payload, "legal_guardian", False)),
+        notes=getattr(payload, "notes", None),
+    )
+    db.add(row)
+    await db.commit()
+
+    return {"ok": True}
 
 
 class SubjectCasePartial(BaseModel):

@@ -12,6 +12,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' }, // opaque id (person or subject)
   shepherds: { type: Boolean, default: true },
   nonShepherds: { type: Boolean, default: true },
+  subjectsOnly: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
 })
@@ -26,12 +27,34 @@ const options = ref([])
 const loading = ref(false)
 
 async function loadOptions() {
-  if (!props.shepherds && !props.nonShepherds) {
-    options.value = []
-    return
-  }
   loading.value = true
   try {
+    // If only subjects should be listed, skip loading persons entirely
+    if (props.subjectsOnly) {
+      try {
+        const sResp = await fetch('/api/v1/subjects/select')
+        if (!sResp.ok) throw new Error('Failed to load subjects')
+        const subs = await sResp.json()
+        options.value = (subs || []).map(s => ({
+          id: s.id, // opaque subject id like subj:...
+          name: s.name,
+          photo_url: s.photo_url,
+          is_shepherd: false,
+          organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
+          team_photo_urls: [],
+        }))
+      } catch (e) {
+        options.value = []
+      }
+      return
+    }
+
+    // If neither shepherds nor nonShepherds requested, nothing to load
+    if (!props.shepherds && !props.nonShepherds) {
+      options.value = []
+      return
+    }
+
     const qs = new URLSearchParams({ shepherds: String(!!props.shepherds), non_shepherds: String(!!props.nonShepherds) })
     const resp = await fetch(`/api/v1/persons/select?${qs.toString()}`)
     if (!resp.ok) throw new Error('Failed to load people')
@@ -63,7 +86,7 @@ async function loadOptions() {
   }
 }
 
-watch(() => [props.shepherds, props.nonShepherds], loadOptions, { immediate: true })
+watch(() => [props.shepherds, props.nonShepherds, props.subjectsOnly], loadOptions, { immediate: true })
 
 const selectedOption = computed(() => options.value.find(o => o.id === selectedId.value))
 
@@ -112,7 +135,7 @@ async function onCreated(created) {
     :filter="filter"
     :loading="loading"
     class="w-full"
-    :disabled="disabled || (!shepherds && !nonShepherds)"
+    :disabled="disabled || (!subjectsOnly && !shepherds && !nonShepherds)"
   >
     <template #option="{ option }">
       <div class="flex align-items-center gap-2 w-full">
@@ -147,7 +170,8 @@ async function onCreated(created) {
 
     <template v-if="filter && canModify" #footer>
       <div class="p-2 border-top-1 surface-border flex justify-content-end">
-        <Button v-if="shepherds && !nonShepherds" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddShepherd" />
+        <Button v-if="subjectsOnly" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddSubject" />
+        <Button v-else-if="shepherds && !nonShepherds" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddShepherd" />
         <SplitButton
           v-else
           label="Add"
