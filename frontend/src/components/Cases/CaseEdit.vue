@@ -307,13 +307,13 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
           <span class="material-symbols-outlined">calendar_month</span>
           <span class="ml-1">Timeline</span>
         </Tab>
-        <Tab value="files">
-          <span class="material-symbols-outlined">folder_open</span>
-          <span class="ml-1">Files</span>
-        </Tab>
         <Tab value="activity">
           <span class="material-symbols-outlined">skateboarding</span>
           <span class="ml-1">Activity</span>
+        </Tab>
+        <Tab value="files">
+          <span class="material-symbols-outlined">folder_open</span>
+          <span class="ml-1">Files</span>
         </Tab>
         <Tab value="messages">
           <span class="material-symbols-outlined">chat_bubble</span>

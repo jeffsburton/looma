@@ -111,7 +111,7 @@ watch(
           <CircumstancesTab :caseId="props.caseModel?.id || ''" />
         </TabPanel>
         <TabPanel value="urgency">
-          <SearchUrgencyTab />
+          <SearchUrgencyTab :caseId="props.caseModel?.id || ''" />
         </TabPanel>
       </TabPanels>
     </Tabs>
