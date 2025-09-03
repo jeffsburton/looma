@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime, Boolean
 from sqlalchemy.sql import func
 
 from app.db import Base
@@ -24,6 +24,8 @@ class SocialMedia(Base):
     investigated_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
     notes = Column(Text, nullable=True)
+
+    rule_out = Column(Boolean, nullable=False, server_default="false")
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

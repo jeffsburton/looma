@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-09-03 05:14:13.120611
+Create Date: 2025-09-03 05:36:38.177153
 
 """
 from typing import Sequence, Union
@@ -490,6 +490,7 @@ def upgrade() -> None:
     sa.Column('status_id', sa.Integer(), nullable=False),
     sa.Column('investigated_id', sa.Integer(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('rule_out', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
@@ -508,6 +509,7 @@ def upgrade() -> None:
     sa.Column('relationship_other', sa.String(length=255), nullable=True),
     sa.Column('legal_guardian', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('rule_out', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
@@ -570,6 +572,7 @@ def upgrade() -> None:
     sa.Column('case_management', sa.Text(), nullable=True),
     sa.Column('reported_to', sa.Integer(), nullable=True),
     sa.Column('on_eod_report', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('rule_out', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
@@ -769,6 +772,7 @@ def upgrade() -> None:
     sa.Column('where', sa.Text(), nullable=True),
     sa.Column('who_id', sa.Integer(), nullable=True),
     sa.Column('questions', sa.Text(), nullable=True),
+    sa.Column('rule_out', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),

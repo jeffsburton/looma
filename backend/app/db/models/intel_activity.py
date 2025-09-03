@@ -21,5 +21,7 @@ class IntelActivity(Base):
     reported_to  = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
     on_eod_report = Column(Boolean, nullable=False, server_default="false")
 
+    rule_out = Column(Boolean, nullable=False, server_default="false")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

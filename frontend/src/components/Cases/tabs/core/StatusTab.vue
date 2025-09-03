@@ -162,13 +162,13 @@ async function saveExploitation() {
         <div>
           <FloatLabel variant="on">
             <RefSelect id="scope" code="SCOPE" v-model="mDisp.scope_id" :currentCode="mDisp.scope_code" />
-            <label for="scope">Scope</label>
+            <label for="scope">Geographic Scope</label>
           </FloatLabel>
         </div>
         <div>
           <FloatLabel variant="on">
             <RefSelect id="class" code="CASE_CLASS" v-model="mDisp.class_id" :currentCode="mDisp.class_code" />
-            <label for="class">Class</label>
+            <label for="class">Case Classification</label>
           </FloatLabel>
         </div>
       </div>
@@ -177,13 +177,13 @@ async function saveExploitation() {
         <div>
           <FloatLabel variant="on">
             <RefSelect id="status" code="STATUS" v-model="mDisp.status_id" :currentCode="mDisp.status_code" />
-            <label for="status">Status</label>
+            <label for="status">Case Status</label>
           </FloatLabel>
         </div>
         <div>
           <FloatLabel variant="on">
             <RefSelect id="living" code="LIVING" v-model="mDisp.living_id" :currentCode="mDisp.living_code" />
-            <label for="living">Living</label>
+            <label for="living">Victim Living</label>
           </FloatLabel>
         </div>
         <div>

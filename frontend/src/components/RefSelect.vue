@@ -16,7 +16,7 @@ const props = defineProps({
   currentCode: { type: String, default: '' }, // stable code used to reconcile selection across requests
   showCode: { type: Boolean, default: false }, // controls whether the code is displayed next to the name
 })
-const emit = defineEmits(['update:modelValue', 'update:otherValue', 'change'])
+const emit = defineEmits(['update:modelValue', 'update:otherValue', 'change', 'otherCommit'])
 
 const allOptions = ref([]) // raw list from API [{id, name, description, code, inactive}]
 const loading = ref(false)
@@ -193,7 +193,7 @@ watch(
 
     <div v-if="isOTH" class="flex flex-column gap-1">
       <label class="text-sm">Please specify</label>
-      <InputText v-model="otherText" :class="['w-full', !otherText && 'p-invalid']" />
+      <InputText v-model="otherText" :class="['w-full', !otherText && 'p-invalid']" @change="$emit('otherCommit', otherText)" />
       <small v-if="!otherText" class="p-error">This field is required.</small>
     </div>
 

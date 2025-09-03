@@ -20,5 +20,7 @@ class SubjectCase(Base):
     legal_guardian = Column(Boolean, nullable=False, server_default="false")
     notes = Column(Text, nullable=True)
 
+    rule_out = Column(Boolean, nullable=False, server_default="false")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

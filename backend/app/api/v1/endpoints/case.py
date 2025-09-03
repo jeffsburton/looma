@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy import select, asc, exists, or_, and_
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 from app.api.dependencies import get_current_user
@@ -24,6 +25,7 @@ from app.db.models.case_pattern_of_life import CasePatternOfLife
 from app.db.models.ref_value import RefValue
 from app.db.models.case_disposition import CaseDisposition
 from app.db.models.case_exploitation import CaseExploitation
+from app.db.models.subject_case import SubjectCase
 from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
 from app.schemas.case_management import CaseManagementUpsert
 from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
@@ -600,6 +602,149 @@ async def upsert_case_management(
     else:
         for k, v in updates.items():
             setattr(row, k, v)
+
+    await db.commit()
+    return {"ok": True}
+
+
+
+@router.get("/{case_id}/subjects", summary="List investigatory subjects (subject_case rows) for a case")
+async def list_case_subjects(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Decode and authorize
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    RelRV = aliased(RefValue)
+    q = (
+        select(
+            SubjectCase.id.label("sc_id"),
+            SubjectCase.relationship_id,
+            RelRV.name.label("relationship_name"),
+            RelRV.code.label("relationship_code"),
+            SubjectCase.relationship_other,
+            SubjectCase.legal_guardian,
+            SubjectCase.notes,
+            SubjectCase.rule_out,
+            Subject.id.label("subj_id"),
+            Subject.first_name,
+            Subject.last_name,
+            Subject.nicknames,
+            Subject.phone,
+            Subject.email,
+            Subject.dangerous,
+            Subject.danger,
+        )
+        .join(Subject, Subject.id == SubjectCase.subject_id)
+        .join(RelRV, RelRV.id == SubjectCase.relationship_id, isouter=True)
+        .where(SubjectCase.case_id == int(case_db_id))
+        .order_by(asc(Subject.last_name), asc(Subject.first_name))
+    )
+
+    rows = (await db.execute(q)).all()
+    items = []
+    for (
+        sc_id,
+        rel_id,
+        rel_name,
+        rel_code,
+        rel_other,
+        legal_guardian,
+        notes,
+        rule_out,
+        subj_id,
+        first,
+        last,
+        nicks,
+        phone,
+        email,
+        dangerous,
+        danger,
+    ) in rows:
+        items.append({
+            "id": encode_id("subject_case", int(sc_id)),
+            "relationship_id": encode_id("ref_value", int(rel_id)) if rel_id is not None else None,
+            "relationship_name": rel_name,
+            "relationship_code": rel_code,
+            "relationship_other": rel_other,
+            "legal_guardian": bool(legal_guardian) if legal_guardian is not None else False,
+            "notes": notes,
+            "rule_out": bool(rule_out) if rule_out is not None else False,
+            "subject": {
+                "id": encode_id("subject", int(subj_id)),
+                "first_name": first,
+                "last_name": last,
+                "nicknames": nicks,
+                "phone": phone,
+                "email": email,
+                "dangerous": bool(dangerous) if dangerous is not None else False,
+                "danger": danger,
+            },
+        })
+
+    return items
+
+
+class SubjectCasePartial(BaseModel):
+    relationship_id: Optional[str] = None
+    relationship_other: Optional[str] = None
+    legal_guardian: Optional[bool] = None
+    notes: Optional[str] = None
+    rule_out: Optional[bool] = None
+
+
+@router.patch("/{case_id}/subjects/{subject_case_id}", summary="Update a subject_case row for a case")
+async def update_case_subject(
+    case_id: str,
+    subject_case_id: str,
+    payload: SubjectCasePartial = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Decode and authorize
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        sc_db_id = decode_id("subject_case", subject_case_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Subject link not found")
+
+    # Load row and ensure it belongs to the case
+    row = (await db.execute(select(SubjectCase).where(SubjectCase.id == int(sc_db_id), SubjectCase.case_id == int(case_db_id)))).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Subject link not found")
+
+    # Helper to decode optional ref_value id
+    def _dec_ref(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    # Update only fields explicitly provided in the payload
+    fields_set = getattr(payload, "model_fields_set", set())
+
+    if "relationship_id" in fields_set:
+        row.relationship_id = _dec_ref(payload.relationship_id)
+    if "relationship_other" in fields_set:
+        row.relationship_other = payload.relationship_other
+    if "legal_guardian" in fields_set:
+        row.legal_guardian = bool(payload.legal_guardian) if payload.legal_guardian is not None else False
+    if "notes" in fields_set:
+        row.notes = payload.notes
+    if "rule_out" in fields_set:
+        row.rule_out = bool(payload.rule_out) if payload.rule_out is not None else False
 
     await db.commit()
     return {"ok": True}
