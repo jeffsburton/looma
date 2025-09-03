@@ -46,8 +46,8 @@ class CaseCircumstancesRead(OpaqueIdMixin):
 
 class CaseCircumstancesUpsert(BaseModel):
     id: Optional[str] = None
-    case_id: str
-    action_id: str
+    case_id: Optional[str] = None
+    action_id: Optional[str] = None
     date_missing: Optional[datetime] = None
     time_missing: Optional[datetime] = None
     date_reported: Optional[datetime] = None

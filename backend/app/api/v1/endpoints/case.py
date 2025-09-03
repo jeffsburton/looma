@@ -34,6 +34,7 @@ from app.db.models.person_case import PersonCase
 from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
 from app.schemas.case_management import CaseManagementUpsert
 from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
+from app.schemas.case_circumstances import CaseCircumstancesUpsert
 
 
 router = APIRouter(prefix="/cases")
@@ -699,6 +700,128 @@ async def upsert_case_victimology(
             row.answer_id = _dec_ref(payload.answer_id)
         if hasattr(payload, "details"):
             row.details = payload.details
+
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/{case_id}/circumstances", summary="Get case circumstances")
+async def get_case_circumstances(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    row = (await db.execute(select(CaseCircumstances).where(CaseCircumstances.case_id == int(case_db_id)))).scalar_one_or_none()
+    if row is None:
+        return {}
+
+    def enc_ref(v):
+        return encode_id("ref_value", int(v)) if v is not None else None
+
+    return {
+        "id": encode_id("case_circumstances", int(row.id)) if getattr(row, 'id', None) is not None else None,
+        "case_id": encode_id("case", int(row.case_id)),
+        "date_missing": getattr(row, 'date_missing', None).isoformat() if getattr(row, 'date_missing', None) is not None else None,
+        "time_missing": getattr(row, 'time_missing', None).isoformat() if getattr(row, 'time_missing', None) is not None else None,
+        "date_reported": getattr(row, 'date_reported', None).isoformat() if getattr(row, 'date_reported', None) is not None else None,
+        "address": getattr(row, 'address', None),
+        "city": getattr(row, 'city', None),
+        "state_id": enc_ref(getattr(row, 'state_id', None)),
+        "point_last_seen": getattr(row, 'point_last_seen', None),
+        "have_id_id": enc_ref(getattr(row, 'have_id_id', None)),
+        "id_taken_id": enc_ref(getattr(row, 'id_taken_id', None)),
+        "have_money_id": enc_ref(getattr(row, 'have_money_id', None)),
+        "money_taken_id": enc_ref(getattr(row, 'money_taken_id', None)),
+        "have_cc_id": enc_ref(getattr(row, 'have_cc_id', None)),
+        "cc_taken_id": enc_ref(getattr(row, 'cc_taken_id', None)),
+        "vehicle_taken": bool(getattr(row, 'vehicle_taken', False)),
+        "vehicle_desc": getattr(row, 'vehicle_desc', None),
+        "with_whom": getattr(row, 'with_whom', None),
+        "what_happened": getattr(row, 'what_happened', None),
+        "clothing_top": getattr(row, 'clothing_top', None),
+        "clothing_bottom": getattr(row, 'clothing_bottom', None),
+        "clothing_shoes": getattr(row, 'clothing_shoes', None),
+        "clothing_outerwear": getattr(row, 'clothing_outerwear', None),
+        "clothing_innerwear": getattr(row, 'clothing_innerwear', None),
+        "bags": getattr(row, 'bags', None),
+        "other_items": getattr(row, 'other_items', None),
+        "devices": getattr(row, 'devices', None),
+        "mobile_carrier_id": enc_ref(getattr(row, 'mobile_carrier_id', None)),
+        "mobile_carrier_other": getattr(row, 'mobile_carrier_other', None),
+        "voip_id": enc_ref(getattr(row, 'voip_id', None)),
+        "wifi_only": bool(getattr(row, 'wifi_only', False)),
+    }
+
+
+@router.put("/{case_id}/circumstances", summary="Upsert case circumstances")
+async def upsert_case_circumstances(
+    case_id: str,
+    payload: CaseCircumstancesUpsert = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Decode and authorize
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Find existing or create new
+    res = await db.execute(select(CaseCircumstances).where(CaseCircumstances.case_id == int(case_db_id)))
+    row = res.scalar_one_or_none()
+
+    def _dec_ref(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s)) if not s.isdigit() else int(s)
+        except Exception:
+            return None
+
+    updates = {
+        "date_missing": getattr(payload, 'date_missing', None),
+        "time_missing": getattr(payload, 'time_missing', None),
+        "date_reported": getattr(payload, 'date_reported', None),
+        "address": getattr(payload, 'address', None),
+        "city": getattr(payload, 'city', None),
+        "state_id": _dec_ref(getattr(payload, 'state_id', None)) if hasattr(payload, 'state_id') else None,
+        "point_last_seen": getattr(payload, 'point_last_seen', None),
+        "have_id_id": _dec_ref(getattr(payload, 'have_id_id', None)) if hasattr(payload, 'have_id_id') else None,
+        "id_taken_id": _dec_ref(getattr(payload, 'id_taken_id', None)) if hasattr(payload, 'id_taken_id') else None,
+        "have_money_id": _dec_ref(getattr(payload, 'have_money_id', None)) if hasattr(payload, 'have_money_id') else None,
+        "money_taken_id": _dec_ref(getattr(payload, 'money_taken_id', None)) if hasattr(payload, 'money_taken_id') else None,
+        "have_cc_id": _dec_ref(getattr(payload, 'have_cc_id', None)) if hasattr(payload, 'have_cc_id') else None,
+        "cc_taken_id": _dec_ref(getattr(payload, 'cc_taken_id', None)) if hasattr(payload, 'cc_taken_id') else None,
+        "vehicle_taken": bool(getattr(payload, 'vehicle_taken', False)),
+        "vehicle_desc": getattr(payload, 'vehicle_desc', None),
+        "with_whom": getattr(payload, 'with_whom', None),
+        "what_happened": getattr(payload, 'what_happened', None),
+        "clothing_top": getattr(payload, 'clothing_top', None),
+        "clothing_bottom": getattr(payload, 'clothing_bottom', None),
+        "clothing_shoes": getattr(payload, 'clothing_shoes', None),
+        "clothing_outerwear": getattr(payload, 'clothing_outerwear', None),
+        "clothing_innerwear": getattr(payload, 'clothing_innerwear', None),
+        "bags": getattr(payload, 'bags', None),
+        "other_items": getattr(payload, 'other_items', None),
+        "devices": getattr(payload, 'devices', None),
+        "mobile_carrier_id": _dec_ref(getattr(payload, 'mobile_carrier_id', None)) if hasattr(payload, 'mobile_carrier_id') else None,
+        "mobile_carrier_other": getattr(payload, 'mobile_carrier_other', None),
+        "voip_id": _dec_ref(getattr(payload, 'voip_id', None)) if hasattr(payload, 'voip_id') else None,
+        "wifi_only": bool(getattr(payload, 'wifi_only', False)),
+    }
+
+    if row is None:
+        row = CaseCircumstances(case_id=int(case_db_id), **updates)
+        db.add(row)
+    else:
+        for k, v in updates.items():
+            setattr(row, k, v)
 
     await db.commit()
     return {"ok": True}

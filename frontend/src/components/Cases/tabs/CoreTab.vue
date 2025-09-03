@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
@@ -7,10 +7,9 @@ import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import IntakeTab from './core/IntakeTab.vue'
 import StatusTab from './core/StatusTab.vue'
-import ContactsTab from './core/ContactsTab.vue'
 import VictimologyTab from './core/VictimologyTab.vue'
 import SearchUrgencyTab from './core/SearchUrgencyTab.vue'
-import SocialMediaTab from './core/SocialMediaTab.vue'
+import CircumstancesTab from './core/CircumstancesTab.vue'
 
 const props = defineProps({
   subtab: { type: String, default: 'intake' },
@@ -23,7 +22,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel','update:demographicsModel','update:managementModel','update:patternOfLifeModel','update:dispositionModel'])
 
-const VALID_SUBTABS = ['intake','status','contacts','victimology','social','urgency']
+const VALID_SUBTABS = ['intake','status','victimology','circumstances','urgency']
 
 const active = ref('intake')
 
@@ -63,17 +62,13 @@ watch(
           <span class="material-symbols-outlined">check</span>
           <span class="ml-1">Status</span>
         </Tab>
-        <Tab value="contacts">
-          <span class="material-symbols-outlined">patient_list</span>
-          <span class="ml-1">People</span>
-        </Tab>
         <Tab value="victimology">
           <span class="material-symbols-outlined">heart_broken</span>
-          <span class="ml-1">victimology</span>
+          <span class="ml-1">Victimology</span>
         </Tab>
-        <Tab value="social">
-          <span class="material-symbols-outlined">share</span>
-          <span class="ml-1">Social Media</span>
+        <Tab value="circumstances">
+          <span class="material-symbols-outlined">info</span>
+          <span class="ml-1">Circumstances</span>
         </Tab>
         <Tab value="urgency">
           <span class="material-symbols-outlined">zone_person_urgent</span>
@@ -104,9 +99,6 @@ watch(
             @update:dispositionModel="(v) => emit('update:dispositionModel', v)"
           />
         </TabPanel>
-        <TabPanel value="contacts">
-          <ContactsTab :caseId="props.caseModel.id" />
-        </TabPanel>
         <TabPanel value="victimology">
           <template v-if="props.caseModel && props.caseModel.id">
             <VictimologyTab :caseId="props.caseModel.id" />
@@ -115,8 +107,8 @@ watch(
             <div class="p-3 text-500">Loading case...</div>
           </template>
         </TabPanel>
-        <TabPanel value="social">
-          <SocialMediaTab />
+        <TabPanel value="circumstances">
+          <CircumstancesTab :caseId="props.caseModel?.id || ''" />
         </TabPanel>
         <TabPanel value="urgency">
           <SearchUrgencyTab />

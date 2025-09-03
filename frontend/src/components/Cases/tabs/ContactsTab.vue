@@ -8,9 +8,9 @@ import Dialog from 'primevue/dialog'
 import ToggleSwitch from 'primevue/toggleswitch'
 import Textarea from 'primevue/textarea'
 
-import RefSelect from '../../../RefSelect.vue'
-import SubjectPanel from '../../../contacts/Subject.vue'
-import PersonSelect from '../../../PersonSelect.vue'
+import RefSelect from '../../RefSelect.vue'
+import SubjectPanel from '../../contacts/Subject.vue'
+import PersonSelect from '../../PersonSelect.vue'
 
 const props = defineProps({
   caseId: { type: String, default: '' }, // opaque case id; may be empty initially until case loads

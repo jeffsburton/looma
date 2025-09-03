@@ -19,7 +19,7 @@ const route = useRoute()
 const active = ref('core')
 const intakeSubActive = ref('intake')
 const filesSubActive = ref('images')
-const VALID_TABS = ['core','timeline','files','activity','messages']
+const VALID_TABS = ['core','contacts','social','timeline','files','activity','messages']
 const VALID_FILES_SUBTABS = ['images','ops','intel','rfis','eod','flyer','other']
 
 // Sync initial tab from route/prop and keep in sync
@@ -254,6 +254,8 @@ const daysMissing = computed(() => {
 
 // Lazy imports for tab components
 import IntakeTab from './tabs/CoreTab.vue'
+const ContactsTab = defineAsyncComponent(() => import('./tabs/ContactsTab.vue'))
+const SocialMediaTab = defineAsyncComponent(() => import('./tabs/SocialMediaTab.vue'))
 const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
 const FilesTab = defineAsyncComponent(() => import('./tabs/FilesTab.vue'))
 const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))
@@ -293,6 +295,14 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
           <span class="material-symbols-outlined">article</span>
           <span class="ml-1">Core</span>
         </Tab>
+        <Tab value="contacts">
+          <span class="material-symbols-outlined">patient_list</span>
+          <span class="ml-1">People</span>
+        </Tab>
+        <Tab value="social">
+          <span class="material-symbols-outlined">share</span>
+          <span class="ml-1">Social Media</span>
+        </Tab>
         <Tab value="timeline">
           <span class="material-symbols-outlined">calendar_month</span>
           <span class="ml-1">Timeline</span>
@@ -326,6 +336,26 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
               v-model:patternOfLifeModel="patternOfLifeModel"
               v-model:dispositionModel="dispositionModel"
             />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="contacts">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
+          <Suspense>
+            <ContactsTab :caseId="caseModel.id" />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="social">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
+          <Suspense>
+            <SocialMediaTab />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

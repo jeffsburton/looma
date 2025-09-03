@@ -52,6 +52,8 @@ class CaseCircumstances(Base):
     bags = Column(Text, nullable=True)
     other_items = Column(Text, nullable=True)
 
+    devices = Column(Text, nullable=True)
+
     # ref_type MOBILE
     mobile_carrier_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
     mobile_carrier_other = Column(Text, nullable=True)
