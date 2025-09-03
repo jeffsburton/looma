@@ -99,7 +99,8 @@ async function deleteMember(personId) {
           <PersonSelect
             v-model="newMemberId"
             :shepherds="true"
-            :nonShepherds="false"
+            :agency="false"
+            :subjects="false"
             @change="(v) => v && addMember(v)"
           />
           <label>Add person</label>

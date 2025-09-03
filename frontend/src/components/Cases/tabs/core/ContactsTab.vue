@@ -10,30 +10,90 @@ import Textarea from 'primevue/textarea'
 
 import RefSelect from '../../../RefSelect.vue'
 import SubjectPanel from '../../../contacts/Subject.vue'
+import PersonSelect from '../../../PersonSelect.vue'
 
 const props = defineProps({
   caseId: { type: String, default: '' }, // opaque case id; may be empty initially until case loads
 })
 
+// Subjects table state
 const loading = ref(false)
 const error = ref('')
 const rows = ref([]) // [{ id, relationship_id, relationship_name, relationship_code, relationship_other, legal_guardian, notes, rule_out, subject: {...} }]
 
-async function load() {
-  if (!props.caseId) { rows.value = []; return }
-  loading.value = true
-  error.value = ''
+// Persons table state
+const pplLoading = ref(false)
+const pplError = ref('')
+const pplRows = ref([]) // [{ id, relationship_id, relationship_name, relationship_code, relationship_other, notes, person: {...} }]
+
+// For adding a new subject via selector
+const newSubjectId = ref('')
+
+// For adding a new person via selector
+const newPersonId = ref('')
+
+async function addSubjectRowById(subjId) {
+  if (!subjId || !props.caseId) return
+  // prevent duplicates in current view by subject id
+  const exists = rows.value.some(r => r?.subject?.id === subjId)
+  if (exists) {
+    newSubjectId.value = ''
+    return
+  }
   try {
     const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/subjects`
-    const resp = await fetch(url, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    if (!resp.ok) throw new Error('Failed to load subjects')
-    rows.value = await resp.json()
+    const resp = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject_id: subjId }),
+    })
+    if (!resp.ok) {
+      // If backend treats duplicate as non-2xx, still try reload
+      console.error('Failed to create subject link')
+    }
+  } catch (e) {
+    console.error(e)
+  } finally {
+    // Reload from server to reflect the new row (or existing)
+    await load()
+    newSubjectId.value = ''
+  }
+}
+
+watch(newSubjectId, (v) => { if (v) addSubjectRowById(v) })
+watch(newPersonId, (v) => { if (v) addPersonRowById(v) })
+
+async function load() {
+  if (!props.caseId) { rows.value = []; pplRows.value = []; return }
+  loading.value = true
+  pplLoading.value = true
+  error.value = ''
+  pplError.value = ''
+  try {
+    const subjUrl = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/subjects`
+    const sResp = await fetch(subjUrl, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (!sResp.ok) throw new Error('Failed to load subjects')
+    rows.value = await sResp.json()
   } catch (e) {
     console.error(e)
     error.value = 'Failed to load investigatory subjects.'
     rows.value = []
   } finally {
     loading.value = false
+  }
+
+  try {
+    const pplUrl = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/persons`
+    const pResp = await fetch(pplUrl, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (!pResp.ok) throw new Error('Failed to load personnel')
+    pplRows.value = await pResp.json()
+  } catch (e) {
+    console.error(e)
+    pplError.value = 'Failed to load agency personnel.'
+    pplRows.value = []
+  } finally {
+    pplLoading.value = false
   }
 }
 
@@ -54,6 +114,50 @@ async function patchRow(row, patch) {
   } catch (e) {
     console.error(e)
     // On error, reload row list to resync
+    load()
+  }
+}
+
+async function addPersonRowById(personOpaqueId) {
+  if (!personOpaqueId || !props.caseId) return
+  // prevent duplicates in current view by person id
+  const exists = pplRows.value.some(r => r?.person?.id === personOpaqueId)
+  if (exists) {
+    newPersonId.value = ''
+    return
+  }
+  try {
+    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/persons`
+    const resp = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: personOpaqueId }),
+    })
+    if (!resp.ok) {
+      console.error('Failed to create person link')
+    }
+  } catch (e) {
+    console.error(e)
+  } finally {
+    await load()
+    newPersonId.value = ''
+  }
+}
+
+async function patchPersonRow(row, patch) {
+  if (!row?.id || !props.caseId) return
+  try {
+    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/persons/${encodeURIComponent(String(row.id))}`
+    const resp = await fetch(url, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!resp.ok) throw new Error('Failed to save change')
+  } catch (e) {
+    console.error(e)
     load()
   }
 }
@@ -177,10 +281,61 @@ function telHref(val) {
           </template>
         </Column>
       </DataTable>
+      <div class="mt-2 flex align-items-center gap-2">
+        <span class="text-600">Add a person:</span>
+        <PersonSelect v-model="newSubjectId" :shepherds="false" :agency="false" :subjects="true" />
+      </div>
     </Fieldset>
 
     <Fieldset legend="Agency Personnel">
-      <div class="text-600 p-2">No content yet.</div>
+      <div v-if="pplError" class="p-error mb-2">{{ pplError }}</div>
+      <DataTable :value="pplRows" :loading="pplLoading" dataKey="id" size="small" stripedRows :paginator="false" class="border-round surface-card">
+        <Column header="First Name" sortable>
+          <template #body="{ data }">
+            <span>{{ data.person.first_name }}</span>
+          </template>
+        </Column>
+        <Column header="Last Name" sortable>
+          <template #body="{ data }">
+            <span>{{ data.person.last_name }}</span>
+          </template>
+        </Column>
+        <Column header="Phone">
+          <template #body="{ data }">
+            <template v-if="data.person.phone">
+              <a :href="telHref(data.person.phone)" class="link-row" @click.stop>
+                <span class="icon">📞</span>
+                <span class="text">{{ data.person.phone }}</span>
+              </a>
+            </template>
+            <span v-else class="text-600">—</span>
+          </template>
+        </Column>
+        <Column header="Relationship">
+          <template #body="{ data }">
+            <div class="min-w-12rem" style="max-width: 16rem;">
+              <RefSelect
+                code="PER_REL"
+                v-model="data.relationship_id"
+                :currentCode="data.relationship_code || ''"
+                :otherValue="data.relationship_other || ''"
+                @update:otherValue="(v) => { data.relationship_other = v }"
+                @otherCommit="(v) => patchPersonRow(data, { relationship_other: v || null })"
+                @change="(v) => patchPersonRow(data, { relationship_id: v })"
+              />
+            </div>
+          </template>
+        </Column>
+        <Column header="Notes" style="min-width: 18rem;">
+          <template #body="{ data }">
+            <Textarea v-model="data.notes" autoResize rows="1" class="w-full" @change="() => patchPersonRow(data, { notes: data.notes || null })" />
+          </template>
+        </Column>
+      </DataTable>
+      <div class="mt-2 flex align-items-center gap-2">
+        <span class="text-600">Add agency person:</span>
+        <PersonSelect v-model="newPersonId" :shepherds="false" :agency="true" :subjects="false" />
+      </div>
     </Fieldset>
 
     <Dialog v-model:visible="editVisible" modal header="Edit Subject" :style="{ width: '640px' }">

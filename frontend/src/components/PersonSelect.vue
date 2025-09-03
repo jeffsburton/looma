@@ -10,9 +10,9 @@ import SubjectEditor from './contacts/Subject.vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' }, // opaque id (person or subject)
-  shepherds: { type: Boolean, default: true },
-  nonShepherds: { type: Boolean, default: true },
-  subjectsOnly: { type: Boolean, default: false },
+  shepherds: { type: Boolean, default: true }, // person records where organization_id = 1
+  agency: { type: Boolean, default: true },    // person records where organization_id > 1
+  subjects: { type: Boolean, default: false }, // subject records
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
 })
@@ -30,7 +30,7 @@ async function loadOptions() {
   loading.value = true
   try {
     // If only subjects should be listed, skip loading persons entirely
-    if (props.subjectsOnly) {
+    if (props.subjects && !props.shepherds && !props.agency) {
       try {
         const sResp = await fetch('/api/v1/subjects/select')
         if (!sResp.ok) throw new Error('Failed to load subjects')
@@ -49,21 +49,25 @@ async function loadOptions() {
       return
     }
 
-    // If neither shepherds nor nonShepherds requested, nothing to load
-    if (!props.shepherds && !props.nonShepherds) {
+    // If neither shepherds nor agency requested, and subjects isn't sole true, nothing to load
+    if (!props.shepherds && !props.agency && !props.subjects) {
       options.value = []
       return
     }
 
-    const qs = new URLSearchParams({ shepherds: String(!!props.shepherds), non_shepherds: String(!!props.nonShepherds) })
-    const resp = await fetch(`/api/v1/persons/select?${qs.toString()}`)
-    if (!resp.ok) throw new Error('Failed to load people')
-    const people = await resp.json()
+    // Fetch people according to shepherds/agency mapping (agency -> non_shepherds on server)
+    if (props.shepherds || props.agency) {
+      const qs = new URLSearchParams({ shepherds: String(!!props.shepherds), non_shepherds: String(!!props.agency) })
+      const resp = await fetch(`/api/v1/persons/select?${qs.toString()}`)
+      if (!resp.ok) throw new Error('Failed to load people')
+      const people = await resp.json()
+      options.value = Array.isArray(people) ? people : []
+    } else {
+      options.value = []
+    }
 
-    let items = Array.isArray(people) ? people : []
-
-    // If nonShepherds is allowed, include subjects as selectable options as well
-    if (props.nonShepherds) {
+    // Optionally include subjects in addition to people
+    if (props.subjects) {
       try {
         const sResp = await fetch('/api/v1/subjects/select')
         if (sResp.ok) {
@@ -76,17 +80,16 @@ async function loadOptions() {
             organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
             team_photo_urls: [],
           }))
-          items = [...items, ...mapped]
+          options.value = [...options.value, ...mapped]
         }
       } catch {}
     }
-    options.value = items
   } finally {
     loading.value = false
   }
 }
 
-watch(() => [props.shepherds, props.nonShepherds, props.subjectsOnly], loadOptions, { immediate: true })
+watch(() => [props.shepherds, props.agency, props.subjects], loadOptions, { immediate: true })
 
 const selectedOption = computed(() => options.value.find(o => o.id === selectedId.value))
 
@@ -135,7 +138,7 @@ async function onCreated(created) {
     :filter="filter"
     :loading="loading"
     class="w-full"
-    :disabled="disabled || (!subjectsOnly && !shepherds && !nonShepherds)"
+    :disabled="disabled || (!subjects && !shepherds && !agency)"
   >
     <template #option="{ option }">
       <div class="flex align-items-center gap-2 w-full">
@@ -170,8 +173,8 @@ async function onCreated(created) {
 
     <template v-if="filter && canModify" #footer>
       <div class="p-2 border-top-1 surface-border flex justify-content-end">
-        <Button v-if="subjectsOnly" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddSubject" />
-        <Button v-else-if="shepherds && !nonShepherds" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddShepherd" />
+        <Button v-if="subjects && !shepherds && !agency" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddSubject" />
+        <Button v-else-if="shepherds && !agency && !subjects" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddShepherd" />
         <SplitButton
           v-else
           label="Add"
@@ -180,10 +183,8 @@ async function onCreated(created) {
           text
           :model="[
             ...(shepherds ? [{ label: 'Shepherd', command: openAddShepherd }] : []),
-            ...(nonShepherds ? [
-              { label: 'Agency Personnel', command: openAddAgency },
-              { label: 'Investigatory Subject', command: openAddSubject },
-            ] : []),
+            ...(agency ? [{ label: 'Agency Personnel', command: openAddAgency }] : []),
+            ...(subjects ? [{ label: 'Investigatory Subject', command: openAddSubject }] : []),
           ]"
         />
       </div>

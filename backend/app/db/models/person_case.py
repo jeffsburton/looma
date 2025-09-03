@@ -15,7 +15,7 @@ class PersonCase(Base):
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
 
     # ref_type PER_REL
-    relationship_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)
+    relationship_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
     relationship_other = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
 
