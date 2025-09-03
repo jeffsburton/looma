@@ -355,7 +355,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="social">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <SocialMediaTab />
+            <SocialMediaTab :caseId="caseModel.id" :primarySubject="{ id: subjectModel.id, first_name: subjectModel.first_name, last_name: subjectModel.last_name }" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
