@@ -27,6 +27,10 @@ class CaseManagement(Base):
     # ref_type MCLASS
     classification_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
+    # ref_type REQ_BY
+    requested_by_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
+
+
     ncic_case_number = Column(String(30), nullable=True)
     ncmec_case_number = Column(String(30), nullable=True)
 

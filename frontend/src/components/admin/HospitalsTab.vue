@@ -232,7 +232,7 @@ onMounted(async () => {
           </div>
           <div class="flex-1">
             <FloatLabel variant="on">
-              <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" :class="['w-full', errors.state_id && 'p-invalid']" />
+              <RefSelect v-model="editModel.state_id" code="STATE" :showCode="true" :currentCode="editModel.state_code" :add="false" :class="['w-full', errors.state_id && 'p-invalid']" />
               <label class="block mb-1 text-sm">State</label>
             </FloatLabel>
             <small v-if="errors.state_id" class="p-error text-red-600">{{ errors.state_id }}</small>

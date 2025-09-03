@@ -26,6 +26,8 @@ let saveMgmtTimer = null
 let savePolTimer = null
 // Prevent autosaves until component fully initialized
 let autoSaveReady = false
+// Track whether user has interacted with the form to avoid initial autosaves
+const hasUserInteracted = ref(false)
 onMounted(() => {
   // wait for initial render and any prop-driven syncing to settle
   nextTick(() => { autoSaveReady = true })
@@ -120,6 +122,7 @@ async function saveManagementToServer(mgmt) {
       csec_id: mgmt?.csec_id || null,
       missing_status_id: mgmt?.missing_status_id || null,
       classification_id: mgmt?.classification_id || null,
+      requested_by_id: mgmt?.requested_by_id || null,
       ncic_case_number: mgmt?.ncic_case_number || '',
       ncmec_case_number: mgmt?.ncmec_case_number || '',
       le_case_number: mgmt?.le_case_number || '',
@@ -240,9 +243,11 @@ const mMgmt = ref({
   csec_id: '',
   missing_status_id: '',
   classification_id: '',
+  requested_by_id: '',
   csec_code: '',
   missing_status_code: '',
   classification_code: '',
+  requested_by_code: '',
   ncic_case_number: '',
   ncmec_case_number: '',
   le_case_number: '',
@@ -263,9 +268,11 @@ function syncMgmtFromProps(src){
     csec_id: m.csec_id != null ? String(m.csec_id) : '',
     missing_status_id: m.missing_status_id != null ? String(m.missing_status_id) : '',
     classification_id: m.classification_id != null ? String(m.classification_id) : '',
+    requested_by_id: m.requested_by_id != null ? String(m.requested_by_id) : '',
     csec_code: m.csec_code || '',
     missing_status_code: m.missing_status_code || '',
     classification_code: m.classification_code || '',
+    requested_by_code: m.requested_by_code || '',
     ncic_case_number: m.ncic_case_number || '',
     ncmec_case_number: m.ncmec_case_number || '',
     le_case_number: m.le_case_number || '',
@@ -353,7 +360,7 @@ watch(mDemo, (v) => {
     // Normalize date to ISO string for parent if it's a Date
     date_of_birth: v?.date_of_birth instanceof Date ? v.date_of_birth.toISOString().slice(0,10) : v?.date_of_birth || null,
   })
-  if (!autoSaveReady) return
+  if (!autoSaveReady || !hasUserInteracted.value) return
   if (saveDemoTimer) clearTimeout(saveDemoTimer)
   saveDemoTimer = setTimeout(() => saveDemographicsToServer(v), 700)
 }, { deep: true })
@@ -362,7 +369,7 @@ watch(mDemo, (v) => {
 watch(mPol, (v) => {
   if (syncingFromProps) return
   emit('update:patternOfLifeModel', v)
-  if (!autoSaveReady) return
+  if (!autoSaveReady || !hasUserInteracted.value) return
   if (savePolTimer) clearTimeout(savePolTimer)
   savePolTimer = setTimeout(() => savePatternOfLifeToServer(v), 700)
 }, { deep: true })
@@ -371,7 +378,7 @@ watch(mPol, (v) => {
 watch(mMgmt, (v) => {
   if (syncingFromProps) return
   emit('update:managementModel', v)
-  if (!autoSaveReady) return
+  if (!autoSaveReady || !hasUserInteracted.value) return
   if (saveMgmtTimer) clearTimeout(saveMgmtTimer)
   saveMgmtTimer = setTimeout(() => saveManagementToServer(v), 700)
 }, { deep: true })
@@ -438,7 +445,7 @@ const intakeDate = computed({
 </script>
 
 <template>
-  <div class="p-3">
+  <div class="p-3" @input.capture="hasUserInteracted = true">
     <Fieldset legend="Missing Person">
       <div class="mp-grid">
         <div>
@@ -676,6 +683,16 @@ const intakeDate = computed({
               <FloatLabel variant="on">
                 <InputText id="cm-jpo-24" v-model="mMgmt.jpo_24hour_contact" class="w-full" />
                 <label for="cm-jpo-24">JPO 24-hour Contact</label>
+              </FloatLabel>
+            </div>
+          </div>
+
+          <!-- Row 7: Requested By -->
+          <div class="row row-1">
+            <div>
+              <FloatLabel variant="on">
+                <RefSelect id="cm-requested-by" code="REQ_BY" v-model="mMgmt.requested_by_id" :currentCode="mMgmt.requested_by_code" />
+                <label for="cm-requested-by">Requested By</label>
               </FloatLabel>
             </div>
           </div>

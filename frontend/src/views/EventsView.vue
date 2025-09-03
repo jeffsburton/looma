@@ -341,7 +341,7 @@ watch(view, (val) => {
                   </div>
                   <div class="flex-1">
                     <FloatLabel variant="on">
-                    <RefSelect v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
+                    <RefSelect v-model="editModel.state_id" code="STATE" :showCode="true" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
                     <label class="block mb-1 text-sm">State</label>
                     </FloatLabel>
                   </div>

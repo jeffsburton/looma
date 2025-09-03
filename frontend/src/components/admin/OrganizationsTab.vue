@@ -144,7 +144,7 @@ onMounted(async () => {
         <div class="flex gap-2">
           <div class="flex-1">
             <FloatLabel variant="on">
-              <RefSelect id="o-state" v-model="editModel.state_id" code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
+              <RefSelect id="o-state" v-model="editModel.state_id" :showCode="true"  code="STATE" :currentCode="editModel.state_code" :add="false" placeholder="Select state..." />
               <label for="o-state" class="block mb-1 text-sm">State</label>
             </FloatLabel>
           </div>

@@ -22,7 +22,7 @@ def seed_0001():
                            ["CB", "Cyber Bullying", ""],
                            ["ST", "Sextortion", ""],
                            ["G", "Grooming", ""],
-                           ["ATR", "Addult Trafficking", ""]])
+                           ["ATR", "Adult Trafficking", ""]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Case Classfication", "code": "CASE_CLASS", "description": "Case Classification   "})
     seed_ref(ref_type_id, [["MIS", "Missing/Endangered", ""],

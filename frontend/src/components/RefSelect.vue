@@ -14,7 +14,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
   currentCode: { type: String, default: '' }, // stable code used to reconcile selection across requests
-  showCode: { type: Boolean, default: true }, // controls whether the code is displayed next to the name
+  showCode: { type: Boolean, default: false }, // controls whether the code is displayed next to the name
 })
 const emit = defineEmits(['update:modelValue', 'update:otherValue', 'change'])
 

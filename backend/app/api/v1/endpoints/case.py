@@ -22,6 +22,8 @@ from app.db.models.case_circumstances import CaseCircumstances
 from app.db.models.case_management import CaseManagement
 from app.db.models.case_pattern_of_life import CasePatternOfLife
 from app.db.models.ref_value import RefValue
+from app.db.models.case_disposition import CaseDisposition
+from app.db.models.case_exploitation import CaseExploitation
 from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
 from app.schemas.case_management import CaseManagementUpsert
 from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
@@ -138,18 +140,26 @@ async def get_case_by_number(
     if not await can_user_access_case(db, current_user.id, int(case_row.id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Fetch joins: subject, demographics, circumstances, management + ref codes
+    # Fetch joins: subject, demographics, circumstances, management, disposition + ref codes
     SexRV = aliased(RefValue)
     RaceRV = aliased(RefValue)
     CsecRV = aliased(RefValue)
     MstatRV = aliased(RefValue)
     MclassRV = aliased(RefValue)
+    ReqByRV = aliased(RefValue)
+    # Disposition ref aliases
+    ScopeRV = aliased(RefValue)
+    ClassRV = aliased(RefValue)
+    StatusRV = aliased(RefValue)
+    LivingRV = aliased(RefValue)
+    FoundByRV = aliased(RefValue)
 
     q = (
         select(
             Case.id.label("case_id"),
             Case.case_number,
             Case.date_intake,
+            Case.inactive,
             Subject.id.label("subject_id"),
             Subject.first_name,
             Subject.last_name,
@@ -176,9 +186,11 @@ async def get_case_by_number(
             CaseManagement.csec_id,
             CaseManagement.missing_status_id,
             CaseManagement.classification_id,
+            CaseManagement.requested_by_id,
             CsecRV.code.label("csec_code"),
             MstatRV.code.label("missing_status_code"),
             MclassRV.code.label("classification_code"),
+            ReqByRV.code.label("requested_by_code"),
             CaseManagement.ncic_case_number,
             CaseManagement.ncmec_case_number,
             CaseManagement.le_case_number,
@@ -198,6 +210,19 @@ async def get_case_by_number(
             CasePatternOfLife.work_hours,
             CasePatternOfLife.employer_address,
             CasePatternOfLife.confidants,
+            # Disposition
+            CaseDisposition.shepherds_contributed_intel,
+            CaseDisposition.date_found,
+            CaseDisposition.scope_id,
+            CaseDisposition.class_id,
+            CaseDisposition.status_id,
+            CaseDisposition.living_id,
+            CaseDisposition.found_by_id,
+            ScopeRV.code.label("scope_code"),
+            ClassRV.code.label("class_code"),
+            StatusRV.code.label("status_code"),
+            LivingRV.code.label("living_code"),
+            FoundByRV.code.label("found_by_code"),
         )
         .join(Subject, Subject.id == Case.subject_id)
         .join(CaseDemographics, CaseDemographics.case_id == Case.id, isouter=True)
@@ -208,7 +233,14 @@ async def get_case_by_number(
         .join(CsecRV, CsecRV.id == CaseManagement.csec_id, isouter=True)
         .join(MstatRV, MstatRV.id == CaseManagement.missing_status_id, isouter=True)
         .join(MclassRV, MclassRV.id == CaseManagement.classification_id, isouter=True)
+        .join(ReqByRV, ReqByRV.id == CaseManagement.requested_by_id, isouter=True)
         .join(CasePatternOfLife, CasePatternOfLife.case_id == Case.id, isouter=True)
+        .join(CaseDisposition, CaseDisposition.case_id == Case.id, isouter=True)
+        .join(ScopeRV, ScopeRV.id == CaseDisposition.scope_id, isouter=True)
+        .join(ClassRV, ClassRV.id == CaseDisposition.class_id, isouter=True)
+        .join(StatusRV, StatusRV.id == CaseDisposition.status_id, isouter=True)
+        .join(LivingRV, LivingRV.id == CaseDisposition.living_id, isouter=True)
+        .join(FoundByRV, FoundByRV.id == CaseDisposition.found_by_id, isouter=True)
         .where(Case.id == case_row.id)
     )
     row = (await db.execute(q)).first()
@@ -219,6 +251,7 @@ async def get_case_by_number(
         case_id,
         case_number_val,
         date_intake,
+        inactive,
         subject_id,
         first,
         last,
@@ -267,6 +300,20 @@ async def get_case_by_number(
         pol_work_hours,
         pol_employer_address,
         pol_confidants,
+        mgmt_requested_by_id,
+        mgmt_requested_by_code,
+        disp_shep_intel,
+        disp_date_found,
+        disp_scope_id,
+        disp_class_id,
+        disp_status_id,
+        disp_living_id,
+        disp_found_by_id,
+        disp_scope_code,
+        disp_class_code,
+        disp_status_code,
+        disp_living_code,
+        disp_found_by_code,
     ) = row
 
     subject_opaque = encode_id("subject", int(subject_id))
@@ -278,6 +325,7 @@ async def get_case_by_number(
             "raw_db_id": int(case_id),
             "case_number": case_number_val,
             "date_intake": date_intake.isoformat() if date_intake is not None else None,
+            "inactive": bool(inactive) if inactive is not None else False,
             "subject_id": subject_opaque,
         },
         "subject": {
@@ -314,9 +362,11 @@ async def get_case_by_number(
             "csec_id": int(csec_id) if csec_id is not None else None,
             "missing_status_id": int(missing_status_id) if missing_status_id is not None else None,
             "classification_id": int(classification_id) if classification_id is not None else None,
+            "requested_by_id": int(mgmt_requested_by_id) if mgmt_requested_by_id is not None else None,
             "csec_code": csec_code,
             "missing_status_code": missing_status_code,
             "classification_code": classification_code,
+            "requested_by_code": mgmt_requested_by_code,
             "ncic_case_number": ncic_case_number,
             "ncmec_case_number": ncmec_case_number,
             "le_case_number": le_case_number,
@@ -339,6 +389,20 @@ async def get_case_by_number(
             "employer_address": pol_employer_address,
             "confidants": pol_confidants,
         },
+        "disposition": {
+            "shepherds_contributed_intel": bool(disp_shep_intel) if disp_shep_intel is not None else False,
+            "date_found": disp_date_found.isoformat() if disp_date_found is not None else None,
+            "scope_id": int(disp_scope_id) if disp_scope_id is not None else None,
+            "class_id": int(disp_class_id) if disp_class_id is not None else None,
+            "status_id": int(disp_status_id) if disp_status_id is not None else None,
+            "living_id": int(disp_living_id) if disp_living_id is not None else None,
+            "found_by_id": int(disp_found_by_id) if disp_found_by_id is not None else None,
+            "scope_code": disp_scope_code,
+            "class_code": disp_class_code,
+            "status_code": disp_status_code,
+            "living_code": disp_living_code,
+            "found_by_code": disp_found_by_code,
+        }
     }
 
 
@@ -433,6 +497,60 @@ async def upsert_case_pattern_of_life(
     return {"ok": True}
 
 
+@router.get("/{case_id}/exploitation", summary="List selected exploitation refs for a case")
+async def get_case_exploitation(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    rows = (await db.execute(select(CaseExploitation.exploitation_id).where(CaseExploitation.case_id == int(case_db_id)))).all()
+    ids = [encode_id("ref_value", int(r[0])) for r in rows]
+    return {"exploitation_ids": ids}
+
+
+@router.put("/{case_id}/exploitation", summary="Sync case exploitation selections")
+async def upsert_case_exploitation(
+    case_id: str,
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    raw_ids = payload.get("exploitation_ids") or []
+    # decode opaque ids; ignore invalid
+    dec_ids = []
+    for oid in raw_ids:
+        try:
+            dec_ids.append(int(decode_id("ref_value", str(oid))))
+        except Exception:
+            continue
+    dec_set = set(dec_ids)
+
+    # Fetch existing
+    existing_rows = (await db.execute(select(CaseExploitation).where(CaseExploitation.case_id == int(case_db_id)))).scalars().all()
+    existing_ids = set([int(r.exploitation_id) for r in existing_rows])
+
+    # Delete removed
+    for r in existing_rows:
+        if int(r.exploitation_id) not in dec_set:
+            await db.delete(r)
+
+    # Insert new
+    to_add = dec_set - existing_ids
+    for rid in to_add:
+        db.add(CaseExploitation(case_id=int(case_db_id), exploitation_id=int(rid)))
+
+    await db.commit()
+    return {"ok": True}
+
+
 @router.put("/{case_id}/management", summary="Upsert case management")
 async def upsert_case_management(
     case_id: str,
@@ -465,6 +583,7 @@ async def upsert_case_management(
         "csec_id": _dec(payload.csec_id) if payload.csec_id is not None else None,
         "missing_status_id": _dec(payload.missing_status_id) if payload.missing_status_id is not None else None,
         "classification_id": _dec(payload.classification_id) if payload.classification_id is not None else None,
+        "requested_by_id": _dec(payload.requested_by_id) if getattr(payload, 'requested_by_id', None) is not None else None,
         "ncic_case_number": payload.ncic_case_number,
         "ncmec_case_number": payload.ncmec_case_number,
         "le_case_number": payload.le_case_number,

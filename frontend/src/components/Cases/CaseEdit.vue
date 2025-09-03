@@ -114,6 +114,7 @@ const subjectModel = ref({})
 const demographicsModel = ref({})
 const managementModel = ref({})
 const patternOfLifeModel = ref({})
+const dispositionModel = ref({})
 
 // Keep header subjectName reactive to edits in IntakeTab
 watch(subjectModel, (s) => {
@@ -149,9 +150,11 @@ async function loadCase() {
       csec_id: mgmt.csec_id ?? null,
       missing_status_id: mgmt.missing_status_id ?? null,
       classification_id: mgmt.classification_id ?? null,
+      requested_by_id: mgmt.requested_by_id ?? null,
       csec_code: mgmt.csec_code || '',
       missing_status_code: mgmt.missing_status_code || '',
       classification_code: mgmt.classification_code || '',
+      requested_by_code: mgmt.requested_by_code || '',
       ncic_case_number: mgmt.ncic_case_number || '',
       ncmec_case_number: mgmt.ncmec_case_number || '',
       le_case_number: mgmt.le_case_number || '',
@@ -206,6 +209,23 @@ async function loadCase() {
       subject_id: s.id || null,
       case_number: c.case_number || num,
       date_intake: c.date_intake || null,
+      inactive: !!c.inactive,
+    }
+
+    const disp = data.disposition || {}
+    dispositionModel.value = {
+      shepherds_contributed_intel: !!disp.shepherds_contributed_intel,
+      date_found: disp.date_found || null,
+      scope_id: disp.scope_id ?? null,
+      class_id: disp.class_id ?? null,
+      status_id: disp.status_id ?? null,
+      living_id: disp.living_id ?? null,
+      found_by_id: disp.found_by_id ?? null,
+      scope_code: disp.scope_code || '',
+      class_code: disp.class_code || '',
+      status_code: disp.status_code || '',
+      living_code: disp.living_code || '',
+      found_by_code: disp.found_by_code || '',
     }
     photoError.value = false
   } catch (e) {
@@ -304,6 +324,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
               v-model:demographicsModel="demographicsModel"
               v-model:managementModel="managementModel"
               v-model:patternOfLifeModel="patternOfLifeModel"
+              v-model:dispositionModel="dispositionModel"
             />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>

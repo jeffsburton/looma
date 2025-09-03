@@ -16,6 +16,7 @@ class CaseManagementRead(OpaqueIdMixin):
     csec_id: Optional[int] = None
     missing_status_id: Optional[int] = None
     classification_id: Optional[int] = None
+    requested_by_id: Optional[int] = None
     ncic_case_number: Optional[str] = None
     ncmec_case_number: Optional[str] = None
     le_case_number: Optional[str] = None
@@ -40,6 +41,7 @@ class CaseManagementUpsert(BaseModel):
     csec_id: Optional[str] = None
     missing_status_id: Optional[str] = None
     classification_id: Optional[str] = None
+    requested_by_id: Optional[str] = None
     ncic_case_number: Optional[str] = None
     ncmec_case_number: Optional[str] = None
     le_case_number: Optional[str] = None

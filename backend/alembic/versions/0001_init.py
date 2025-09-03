@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-09-01 06:53:38.492090
+Create Date: 2025-09-03 05:14:13.120611
 
 """
 from typing import Sequence, Union
@@ -82,6 +82,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('first_name', sa.String(length=120), nullable=False),
     sa.Column('last_name', sa.String(length=120), nullable=False),
+    sa.Column('middle_name', sa.String(length=120), nullable=True),
     sa.Column('nicknames', sa.String(length=255), nullable=True),
     sa.Column('phone', sa.String(length=20), nullable=True),
     sa.Column('email', sa.String(length=255), nullable=True),
@@ -145,13 +146,14 @@ def upgrade() -> None:
     op.create_table('case',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('subject_id', sa.Integer(), nullable=False),
-    sa.Column('case_number', sa.String(length=120), nullable=True),
+    sa.Column('case_number', sa.String(length=120), nullable=False),
     sa.Column('inactive', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('date_intake', sa.Date(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('case_number')
     )
     op.create_index(op.f('ix_case_id'), 'case', ['id'], unique=False)
     op.create_table('ref_value',
@@ -310,7 +312,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['exploitation_id'], ['ref_value.id'], ),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('case_id')
+    sa.UniqueConstraint('case_id', 'exploitation_id', name='uq_case_exploitation_case_exploitation')
     )
     op.create_index(op.f('ix_case_exploitation_id'), 'case_exploitation', ['id'], unique=False)
     op.create_table('case_management',
@@ -323,6 +325,7 @@ def upgrade() -> None:
     sa.Column('csec_id', sa.Integer(), nullable=True),
     sa.Column('missing_status_id', sa.Integer(), nullable=True),
     sa.Column('classification_id', sa.Integer(), nullable=True),
+    sa.Column('requested_by_id', sa.Integer(), nullable=True),
     sa.Column('ncic_case_number', sa.String(length=30), nullable=True),
     sa.Column('ncmec_case_number', sa.String(length=30), nullable=True),
     sa.Column('le_case_number', sa.String(length=30), nullable=True),
@@ -337,6 +340,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['classification_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['csec_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['missing_status_id'], ['ref_value.id'], ),
+    sa.ForeignKeyConstraint(['requested_by_id'], ['ref_value.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('case_id')
     )
@@ -479,7 +483,7 @@ def upgrade() -> None:
     op.create_table('social_media',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('person_id', sa.Integer(), nullable=True),
+    sa.Column('subject_id', sa.Integer(), nullable=True),
     sa.Column('platform_id', sa.Integer(), nullable=False),
     sa.Column('platform_other', sa.Text(), nullable=True),
     sa.Column('url', sa.Text(), nullable=False),
@@ -490,9 +494,9 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['investigated_id'], ['ref_value.id'], ),
-    sa.ForeignKeyConstraint(['person_id'], ['subject.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['platform_id'], ['ref_value.id'], ),
     sa.ForeignKeyConstraint(['status_id'], ['ref_value.id'], ),
+    sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_social_media_id'), 'social_media', ['id'], unique=False)
