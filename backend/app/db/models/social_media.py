@@ -13,12 +13,12 @@ class SocialMedia(Base):
 
 
     # ref_type SM_PLATFORM
-    platform_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)
+    platform_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
     platform_other = Column(Text, nullable=True)
-    url = Column(Text, nullable=False)
+    url = Column(Text, nullable=True)
 
     # ref_type SM_STAT
-    status_id = Column(Integer, ForeignKey("ref_value.id"), nullable=False)
+    status_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)
 
     # ref_type SM_INV
     investigated_id = Column(Integer, ForeignKey("ref_value.id"), nullable=True)

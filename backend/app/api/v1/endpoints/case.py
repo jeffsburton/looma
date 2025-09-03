@@ -23,6 +23,7 @@ from app.db.models.case_demographics import CaseDemographics
 from app.db.models.case_circumstances import CaseCircumstances
 from app.db.models.case_management import CaseManagement
 from app.db.models.case_pattern_of_life import CasePatternOfLife
+from app.db.models.social_media import SocialMedia
 from app.db.models.ref_value import RefValue
 from app.db.models.case_disposition import CaseDisposition
 from app.db.models.case_exploitation import CaseExploitation
@@ -1378,6 +1379,467 @@ async def update_case_person(
         row.relationship_other = payload.relationship_other
     if "notes" in fields_set:
         row.notes = payload.notes
+
+    await db.commit()
+    return {"ok": True}
+
+
+# -------- Social Media (social_media) --------
+from typing import Optional as _OptionalForSM
+class SocialMediaCreate(BaseModel):
+    subject_id: _OptionalForSM[str] = None
+    platform_id: _OptionalForSM[str] = None
+    platform_other: _OptionalForSM[str] = None
+    url: _OptionalForSM[str] = None
+    status_id: _OptionalForSM[str] = None
+    investigated_id: _OptionalForSM[str] = None
+    notes: _OptionalForSM[str] = None
+    rule_out: _OptionalForSM[bool] = None
+
+
+@router.get("/{case_id}/social-media", summary="List social media for a case")
+async def list_social_media(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    PlatRV = aliased(RefValue)
+    StatRV = aliased(RefValue)
+    InvRV = aliased(RefValue)
+    q = (
+        select(
+            SocialMedia.id.label("sm_id"),
+            SocialMedia.subject_id,
+            SocialMedia.platform_id,
+            PlatRV.name.label("platform_name"),
+            PlatRV.code.label("platform_code"),
+            SocialMedia.platform_other,
+            SocialMedia.url,
+            SocialMedia.status_id,
+            StatRV.name.label("status_name"),
+            StatRV.code.label("status_code"),
+            SocialMedia.investigated_id,
+            InvRV.name.label("investigated_name"),
+            InvRV.code.label("investigated_code"),
+            SocialMedia.notes,
+            SocialMedia.rule_out,
+            Subject.first_name,
+            Subject.last_name,
+        )
+        .join(Subject, Subject.id == SocialMedia.subject_id, isouter=True)
+        .join(PlatRV, PlatRV.id == SocialMedia.platform_id, isouter=True)
+        .join(StatRV, StatRV.id == SocialMedia.status_id, isouter=True)
+        .join(InvRV, InvRV.id == SocialMedia.investigated_id, isouter=True)
+        .where(SocialMedia.case_id == int(case_db_id))
+        .order_by(asc(Subject.last_name), asc(Subject.first_name), asc(SocialMedia.id))
+    )
+
+    rows = (await db.execute(q)).all()
+    items = []
+    for (
+        sm_id,
+        subj_id,
+        plat_id,
+        plat_name,
+        plat_code,
+        plat_other,
+        url,
+        stat_id,
+        stat_name,
+        stat_code,
+        inv_id,
+        inv_name,
+        inv_code,
+        notes,
+        rule_out,
+        first,
+        last,
+    ) in rows:
+        items.append({
+            "id": encode_id("social_media", int(sm_id)),
+            "subject": {
+                "id": encode_id("subject", int(subj_id)) if subj_id is not None else None,
+                "first_name": first,
+                "last_name": last,
+            },
+            "platform_id": encode_id("ref_value", int(plat_id)) if plat_id is not None else None,
+            "platform_name": plat_name,
+            "platform_code": plat_code,
+            "platform_other": plat_other,
+            "url": url,
+            "status_id": encode_id("ref_value", int(stat_id)) if stat_id is not None else None,
+            "status_name": stat_name,
+            "status_code": stat_code,
+            "investigated_id": encode_id("ref_value", int(inv_id)) if inv_id is not None else None,
+            "investigated_name": inv_name,
+            "investigated_code": inv_code,
+            "notes": notes,
+            "rule_out": bool(rule_out) if rule_out is not None else False,
+        })
+
+    return items
+
+
+@router.post(
+    "/{case_id}/social-media",
+    summary="Create a social media row for a case",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def create_social_media(
+    case_id: str,
+    payload: SocialMediaCreate = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    subj_db_id = None
+    if getattr(payload, "subject_id", None) not in (None, ""):
+        try:
+            subj_db_id = decode_id("subject", payload.subject_id)
+        except OpaqueIdError:
+            raise HTTPException(status_code=404, detail="Subject not found")
+
+        subj_exists = (await db.execute(select(Subject.id).where(Subject.id == int(subj_db_id)))).scalar_one_or_none()
+        if subj_exists is None:
+            raise HTTPException(status_code=404, detail="Subject not found")
+
+    def _dec_ref(oid: _OptionalForSM[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    row = SocialMedia(
+        case_id=int(case_db_id),
+        subject_id=(int(subj_db_id) if subj_db_id is not None else None),
+        platform_id=_dec_ref(getattr(payload, "platform_id", None)),
+        platform_other=getattr(payload, "platform_other", None),
+        url=getattr(payload, "url", None),
+        status_id=_dec_ref(getattr(payload, "status_id", None)),
+        investigated_id=_dec_ref(getattr(payload, "investigated_id", None)),
+        notes=getattr(payload, "notes", None),
+        rule_out=bool(getattr(payload, "rule_out", False)),
+    )
+    db.add(row)
+    await db.commit()
+
+    return {"ok": True}
+
+
+class SocialMediaPartial(BaseModel):
+    subject_id: _OptionalForSM[str] = None
+    platform_id: _OptionalForSM[str] = None
+    platform_other: _OptionalForSM[str] = None
+    url: _OptionalForSM[str] = None
+    status_id: _OptionalForSM[str] = None
+    investigated_id: _OptionalForSM[str] = None
+    notes: _OptionalForSM[str] = None
+    rule_out: _OptionalForSM[bool] = None
+
+
+@router.patch("/{case_id}/social-media/{social_media_id}", summary="Update a social media row for a case")
+async def update_social_media(
+    case_id: str,
+    social_media_id: str,
+    payload: SocialMediaPartial = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        sm_db_id = decode_id("social_media", social_media_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    row = (
+        await db.execute(
+            select(SocialMedia).where(SocialMedia.id == int(sm_db_id), SocialMedia.case_id == int(case_db_id))
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    def _dec_ref(oid: _OptionalForSM[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    fields_set = getattr(payload, "model_fields_set", set())
+
+    if "subject_id" in fields_set and payload.subject_id is not None:
+        try:
+            row.subject_id = int(decode_id("subject", payload.subject_id))
+        except Exception:
+            pass
+    if "platform_id" in fields_set:
+        row.platform_id = _dec_ref(payload.platform_id)
+    if "platform_other" in fields_set:
+        row.platform_other = payload.platform_other
+    if "url" in fields_set:
+        row.url = payload.url
+    if "status_id" in fields_set:
+        row.status_id = _dec_ref(payload.status_id)
+    if "investigated_id" in fields_set:
+        row.investigated_id = _dec_ref(payload.investigated_id)
+    if "notes" in fields_set:
+        row.notes = payload.notes
+    if "rule_out" in fields_set:
+        row.rule_out = bool(payload.rule_out) if payload.rule_out is not None else False
+
+    await db.commit()
+    return {"ok": True}
+
+
+# -------- Social Media Aliases (social_media_alias) --------
+from app.db.models.social_media_alias import SocialMediaAlias
+from app.db.models.ref_type import RefType
+
+class SocialMediaAliasCreate(BaseModel):
+    alias_status_id: Optional[str] = None
+    alias: Optional[str] = None
+    alias_owner_id: Optional[str] = None
+
+class SocialMediaAliasPartial(BaseModel):
+    alias_status_id: Optional[str] = None
+    alias: Optional[str] = None
+    alias_owner_id: Optional[str] = None
+
+@router.get("/{case_id}/social-media/{social_media_id}/aliases", summary="List aliases for a social media record")
+async def list_social_media_aliases(
+    case_id: str,
+    social_media_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        sm_db_id = decode_id("social_media", social_media_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    # Ensure the social media record belongs to this case
+    sm_row = (
+        await db.execute(select(SocialMedia.id).where(SocialMedia.id == int(sm_db_id), SocialMedia.case_id == int(case_db_id)))
+    ).scalar_one_or_none()
+    if sm_row is None:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    StatRV = aliased(RefValue)
+    q = (
+        select(
+            SocialMediaAlias.id.label("alias_id"),
+            SocialMediaAlias.alias_status_id,
+            StatRV.name.label("alias_status_name"),
+            StatRV.code.label("alias_status_code"),
+            SocialMediaAlias.alias,
+            SocialMediaAlias.alias_owner_id,
+        )
+        .join(StatRV, StatRV.id == SocialMediaAlias.alias_status_id, isouter=True)
+        .where(SocialMediaAlias.social_media_id == int(sm_db_id))
+        .order_by(asc(SocialMediaAlias.id))
+    )
+
+    rows = (await db.execute(q)).all()
+    items = []
+    for alias_id, status_id, status_name, status_code, alias, alias_owner_id in rows:
+        items.append({
+            "id": encode_id("social_media_alias", int(alias_id)),
+            "alias_status_id": encode_id("ref_value", int(status_id)) if status_id is not None else None,
+            "alias_status_name": status_name,
+            "alias_status_code": status_code,
+            "alias": alias,
+            "alias_owner_id": encode_id("person", int(alias_owner_id)) if alias_owner_id is not None else None,
+        })
+    return items
+
+@router.post(
+    "/{case_id}/social-media/{social_media_id}/aliases",
+    summary="Create an alias for a social media record",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def create_social_media_alias(
+    case_id: str,
+    social_media_id: str,
+    payload: SocialMediaAliasCreate = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        sm_db_id = decode_id("social_media", social_media_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    sm_row = (
+        await db.execute(select(SocialMedia).where(SocialMedia.id == int(sm_db_id), SocialMedia.case_id == int(case_db_id)))
+    ).scalar_one_or_none()
+    if sm_row is None:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    # Decode optional fields
+    def _dec_ref(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    def _dec_person(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("person", s))
+        except Exception:
+            return None
+
+    status_id = _dec_ref(getattr(payload, "alias_status_id", None))
+
+    # If no status provided, default to SM_ALIAS:NA
+    if status_id is None:
+        # Find the ref value for SM_ALIAS code 'NA'
+        rv = (
+            await db.execute(
+                select(RefValue.id)
+                .join(RefType, RefType.id == RefValue.ref_type_id)
+                .where(RefValue.code == "NA", RefType.code == "SM_ALIAS")
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        # Fallback: first SM_ALIAS value if NA is not found
+        if rv is None:
+            rv = (
+                await db.execute(
+                    select(RefValue.id)
+                    .join(RefType, RefType.id == RefValue.ref_type_id)
+                    .where(RefType.code == "SM_ALIAS")
+                    .order_by(asc(RefValue.sort_order), asc(RefValue.id))
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        status_id = int(rv) if rv is not None else None
+
+    if status_id is None:
+        # As a last resort, reject if we couldn't resolve a default
+        raise HTTPException(status_code=400, detail="Unable to resolve default alias status")
+
+    owner_id = _dec_person(getattr(payload, "alias_owner_id", None))
+
+    row = SocialMediaAlias(
+        social_media_id=int(sm_db_id),
+        alias_status_id=int(status_id),
+        alias=getattr(payload, "alias", None),
+        alias_owner_id=(int(owner_id) if owner_id is not None else None),
+    )
+    db.add(row)
+    await db.commit()
+
+    return {"ok": True}
+
+@router.patch(
+    "/{case_id}/social-media/{social_media_id}/aliases/{alias_id}",
+    summary="Update an alias for a social media record",
+)
+async def update_social_media_alias(
+    case_id: str,
+    social_media_id: str,
+    alias_id: str,
+    payload: SocialMediaAliasPartial = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        sm_db_id = decode_id("social_media", social_media_id)
+        alias_db_id = decode_id("social_media_alias", alias_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    # Ensure the social media record belongs to this case
+    sm_row = (
+        await db.execute(select(SocialMedia.id).where(SocialMedia.id == int(sm_db_id), SocialMedia.case_id == int(case_db_id)))
+    ).scalar_one_or_none()
+    if sm_row is None:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    # Load alias row and ensure it belongs to the social media record
+    alias_row = (
+        await db.execute(
+            select(SocialMediaAlias).where(
+                SocialMediaAlias.id == int(alias_db_id),
+                SocialMediaAlias.social_media_id == int(sm_db_id),
+            )
+        )
+    ).scalar_one_or_none()
+    if alias_row is None:
+        raise HTTPException(status_code=404, detail="Alias not found")
+
+    def _dec_ref(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    def _dec_person(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("person", s))
+        except Exception:
+            return None
+
+    fields_set = getattr(payload, "model_fields_set", set())
+
+    if "alias_status_id" in fields_set:
+        alias_row.alias_status_id = _dec_ref(payload.alias_status_id) or alias_row.alias_status_id
+    if "alias" in fields_set:
+        alias_row.alias = payload.alias
+    if "alias_owner_id" in fields_set:
+        alias_row.alias_owner_id = _dec_person(payload.alias_owner_id)
 
     await db.commit()
     return {"ok": True}
