@@ -8,7 +8,7 @@ import TabPanel from 'primevue/tabpanel'
 import IntakeTab from './core/IntakeTab.vue'
 import StatusTab from './core/StatusTab.vue'
 import ContactsTab from './core/ContactsTab.vue'
-import VictomologyTab from './core/VictomologyTab.vue'
+import VictimologyTab from './core/VictimologyTab.vue'
 import SearchUrgencyTab from './core/SearchUrgencyTab.vue'
 import SocialMediaTab from './core/SocialMediaTab.vue'
 
@@ -108,7 +108,12 @@ watch(
           <ContactsTab :caseId="props.caseModel.id" />
         </TabPanel>
         <TabPanel value="victimology">
-          <VictomologyTab />
+          <template v-if="props.caseModel && props.caseModel.id">
+            <VictimologyTab :caseId="props.caseModel.id" />
+          </template>
+          <template v-else>
+            <div class="p-3 text-500">Loading case...</div>
+          </template>
         </TabPanel>
         <TabPanel value="social">
           <SocialMediaTab />

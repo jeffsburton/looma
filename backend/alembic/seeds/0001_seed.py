@@ -358,52 +358,52 @@ def seed_0001():
                            ["MIN", "Ministry"],
                            ["OTH", "Other"]])
 
-    vc_id:int = seed("victimology_category", {"category": "General Questions"})
+    vc_id:int = seed("victimology_category", {"category": "General Questions", "sort_order": 1})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "Do neighbors have cameras?", "follow_up": "Location? Address? Contacts?"},
-        {"victimology_category_id": vc_id, "question": "Have they run before?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Has there been a note found?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Do they have favorite places they like to go, or eat, hangout at?", "follow_up": ""}])
+        {"victimology_category_id": vc_id, "sort_order": 1, "question": "Do neighbors have cameras?", "follow_up": "Location? Address? Contacts?"},
+        {"victimology_category_id": vc_id, "sort_order": 2, "question": "Have they run before?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 3, "question": "Has there been a note found?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 4, "question": "Do they have favorite places they like to go, or eat, hangout at?", "follow_up": ""}])
 
-    vc_id:int = seed("victimology_category", {"category": "Are there any known"})
+    vc_id:int = seed("victimology_category", {"category": "Are there any known", "sort_order": 2})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "Mental health issues?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Medical issues?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Prescription medications?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Is your child Sexually Active?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Illicit drugs or Alcohol?", "follow_up": ""}])
+        {"victimology_category_id": vc_id, "sort_order": 1, "question": "Mental health issues?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 2, "question": "Medical issues?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 3, "question": "Prescription medications?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 4, "question": "Is your child Sexually Active?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 5, "question": "Illicit drugs or Alcohol?", "follow_up": ""}])
 
-    vc_id:int = seed("victimology_category", {"category": "Have they experienced"})
+    vc_id:int = seed("victimology_category", {"category": "Have they experienced", "sort_order": 3})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "Any sort of trauma", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Major catastrophy i.e. fire, MVA, Severe injury, natural disaster", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Loss of a loved one", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Break up", "follow_up": "With whom?"},
-        {"victimology_category_id": vc_id, "question": "Abuse", "follow_up": ""}])
+        {"victimology_category_id": vc_id, "sort_order": 1, "question": "Any sort of trauma", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 2, "question": "Major catastrophy i.e. fire, MVA, Severe injury, natural disaster", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 3, "question": "Loss of a loved one", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 4, "question": "Break up", "follow_up": "With whom?"},
+        {"victimology_category_id": vc_id, "sort_order": 5, "question": "Abuse", "follow_up": ""}])
 
-    vc_id:int = seed("victimology_category", {"category": "Behavior"})
+    vc_id:int = seed("victimology_category", {"category": "Behavior", "sort_order": 4})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "Have they ever talked about  hurting themselves?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Any changes in behavior; more docile, more unwilling to disagree or make eye contact?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Have they been acting recklessly or overly aggressive lately?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Have they been withdrawing from activities they were fond of, or been spending less time with friends than is normal?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Have their sleeping habits changed; are they sleeping too much or too little?", "follow_up": ""}])
+        {"victimology_category_id": vc_id, "sort_order": 1, "question": "Have they ever talked about  hurting themselves?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 2, "question": "Any changes in behavior; more docile, more unwilling to disagree or make eye contact?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 3, "question": "Have they been acting recklessly or overly aggressive lately?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 4, "question": "Have they been withdrawing from activities they were fond of, or been spending less time with friends than is normal?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 5, "question": "Have their sleeping habits changed; are they sleeping too much or too little?", "follow_up": ""}])
 
-    vc_id:int = seed("victimology_category", {"category": "Is it possible"})
+    vc_id:int = seed("victimology_category", {"category": "Is it possible", "sort_order": 5})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "They may have used any electronics they have access to, for interacting with someone that you have never met, or are unaware of?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Your child has received or transmitted sexual images on the internet?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "They had been sexually exploited/trafficked in the past?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Do they have friends/ acquaintances who may have been exploited/trafficked?", "follow_up": "Who?"},
-        {"victimology_category_id": vc_id, "question": "Have they been showing up with items (phones, clothing, make up, etc) that they do not seem to have the money to buy themselves?", "follow_up": ""}])
+        {"victimology_category_id": vc_id, "sort_order": 1, "question": "They may have used any electronics they have access to, for interacting with someone that you have never met, or are unaware of?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 2, "question": "Your child has received or transmitted sexual images on the internet?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 3, "question": "They had been sexually exploited/trafficked in the past?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 4, "question": "Do they have friends/ acquaintances who may have been exploited/trafficked?", "follow_up": "Who?"},
+        {"victimology_category_id": vc_id, "sort_order": 5, "question": "Have they been showing up with items (phones, clothing, make up, etc) that they do not seem to have the money to buy themselves?", "follow_up": ""}])
 
-    vc_id:int = seed("victimology_category", {"category": "Interests and Likes"})
+    vc_id:int = seed("victimology_category", {"category": "Interests and Likes", "sort_order":6})
     seed("victimology", [
-        {"victimology_category_id": vc_id, "question": "Are they a gamer?", "follow_up": "What games?"},
-        {"victimology_category_id": vc_id, "question": "Goth, cheerleader, artsy, outdoorsy?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Do they belong to any clubs?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Free spirit, questioning/confused over their sexuality?", "follow_up": ""},
-        {"victimology_category_id": vc_id, "question": "Have they ever mentioned places they would like to travel to?", "follow_up": ""}])
+        {"victimology_category_id": vc_id, "sort_order": 1, "question": "Are they a gamer?", "follow_up": "What games?"},
+        {"victimology_category_id": vc_id, "sort_order": 2, "question": "Goth, cheerleader, artsy, outdoorsy?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 3, "question": "Do they belong to any clubs?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 4, "question": "Free spirit, questioning/confused over their sexuality?", "follow_up": ""},
+        {"victimology_category_id": vc_id, "sort_order": 5, "question": "Have they ever mentioned places they would like to travel to?", "follow_up": ""}])
 
 
     seed("qualification", [

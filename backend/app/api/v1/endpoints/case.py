@@ -3,6 +3,7 @@ from datetime import date as Date
 
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy import select, asc, exists, or_, and_
+import sqlalchemy as sa
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -25,6 +26,9 @@ from app.db.models.case_pattern_of_life import CasePatternOfLife
 from app.db.models.ref_value import RefValue
 from app.db.models.case_disposition import CaseDisposition
 from app.db.models.case_exploitation import CaseExploitation
+from app.db.models.case_victimology import CaseVictimology
+from app.db.models.victimology import victimology as Victimology
+from app.db.models.victimology_category import victimologyCategory as VictimologyCategory
 from app.db.models.subject_case import SubjectCase
 from app.db.models.person_case import PersonCase
 from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
@@ -549,6 +553,152 @@ async def upsert_case_exploitation(
     to_add = dec_set - existing_ids
     for rid in to_add:
         db.add(CaseExploitation(case_id=int(case_db_id), exploitation_id=int(rid)))
+
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/victimology/catalog", summary="List victimology categories with questions")
+async def get_victimology_catalog(
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Categories sorted by sort_order (nulls last), then category name
+    q_cat = (
+        select(VictimologyCategory)
+        .order_by(
+            sa.case((VictimologyCategory.sort_order.is_(None), 1), else_=0).asc(),
+            VictimologyCategory.sort_order.asc(),
+            VictimologyCategory.category.asc(),
+        )
+    )
+    cats = (await db.execute(q_cat)).scalars().all()
+
+    # Preload all victimology rows and bucket by category
+    q_vic = (
+        select(Victimology)
+        .order_by(
+            sa.case((Victimology.sort_order.is_(None), 1), else_=0).asc(),
+            Victimology.sort_order.asc(),
+            Victimology.id.asc(),
+        )
+    )
+    vics = (await db.execute(q_vic)).scalars().all()
+    by_cat = {}
+    for v in vics:
+        by_cat.setdefault(int(getattr(v, 'victimology_category_id')), []).append(v)
+
+    def enc(model, val):
+        return encode_id(model, int(val)) if val is not None else None
+
+    items = []
+    for c in cats:
+        items.append({
+            "id": enc("victimology_category", c.id),
+            "category": c.category,
+            "sort_order": int(c.sort_order) if c.sort_order is not None else None,
+            "questions": [
+                {
+                    "id": enc("victimology", v.id),
+                    "question": v.question,
+                    "follow_up": getattr(v, "follow_up", None),
+                    "sort_order": int(v.sort_order) if v.sort_order is not None else None,
+                }
+                for v in by_cat.get(int(c.id), [])
+            ]
+        })
+
+    return items
+
+
+@router.get("/{case_id}/victimology", summary="List case victimology answers")
+async def get_case_victimology(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    rows = (
+        await db.execute(
+            select(CaseVictimology).where(CaseVictimology.case_id == int(case_db_id))
+        )
+    ).scalars().all()
+
+    def enc(model, val):
+        return encode_id(model, int(val)) if val is not None else None
+
+    # Return a normalized list
+    return [
+        {
+            "id": enc("case_victimology", r.id),
+            "victimology_id": enc("victimology", r.victimology_id),
+            "answer_id": enc("ref_value", r.answer_id) if r.answer_id is not None else None,
+            "details": r.details,
+        }
+        for r in rows
+    ]
+
+
+class CaseVictimologyUpsertPayload(BaseModel):
+    answer_id: Optional[str] = None
+    details: Optional[str] = None
+
+
+@router.put("/{case_id}/victimology/{victimology_id}", summary="Upsert case victimology answer")
+async def upsert_case_victimology(
+    case_id: str,
+    victimology_id: str,
+    payload: CaseVictimologyUpsertPayload = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        vic_db_id = decode_id("victimology", victimology_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    # Decode optional ref_value id
+    def _dec_ref(oid: Optional[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return None
+
+    # Find existing
+    row = (
+        await db.execute(
+            select(CaseVictimology).where(
+                CaseVictimology.case_id == int(case_db_id),
+                CaseVictimology.victimology_id == int(vic_db_id),
+            )
+        )
+    ).scalar_one_or_none()
+
+    if row is None:
+        row = CaseVictimology(
+            case_id=int(case_db_id),
+            victimology_id=int(vic_db_id),
+            answer_id=_dec_ref(getattr(payload, "answer_id", None)),
+            details=getattr(payload, "details", None),
+        )
+        db.add(row)
+    else:
+        if hasattr(payload, "answer_id"):
+            row.answer_id = _dec_ref(payload.answer_id)
+        if hasattr(payload, "details"):
+            row.details = payload.details
 
     await db.commit()
     return {"ok": True}
