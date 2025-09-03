@@ -65,7 +65,7 @@ watch(
         </Tab>
         <Tab value="contacts">
           <span class="material-symbols-outlined">patient_list</span>
-          <span class="ml-1">Contacts</span>
+          <span class="ml-1">People</span>
         </Tab>
         <Tab value="victimology">
           <span class="material-symbols-outlined">heart_broken</span>
@@ -105,7 +105,7 @@ watch(
           />
         </TabPanel>
         <TabPanel value="contacts">
-          <ContactsTab />
+          <ContactsTab :caseId="props.caseModel.id" />
         </TabPanel>
         <TabPanel value="victimology">
           <VictomologyTab />

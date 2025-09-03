@@ -253,7 +253,7 @@ const daysMissing = computed(() => {
 })
 
 // Lazy imports for tab components
-const IntakeTab = defineAsyncComponent(() => import('./tabs/CoreTab.vue'))
+import IntakeTab from './tabs/CoreTab.vue'
 const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
 const FilesTab = defineAsyncComponent(() => import('./tabs/FilesTab.vue'))
 const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))
