@@ -257,7 +257,7 @@ import IntakeTab from './tabs/CoreTab.vue'
 const ContactsTab = defineAsyncComponent(() => import('./tabs/ContactsTab.vue'))
 const SocialMediaTab = defineAsyncComponent(() => import('./tabs/SocialMediaTab.vue'))
 const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
-const FilesTab = defineAsyncComponent(() => import('./tabs/FilesTab.vue'))
+import FilesTab from './tabs/FilesTab.vue'
 const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))
 const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
 </script>
@@ -375,7 +375,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="files">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <FilesTab :subtab="filesSubActive" @update:subtab="(v) => (filesSubActive = v)" />
+            <FilesTab :caseId="caseModel.id" :subtab="filesSubActive" @update:subtab="(v) => (filesSubActive = v)" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

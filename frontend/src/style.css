@@ -77,3 +77,5 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+.p-tooltip .p-tooltip-text { max-width: 480px !important; }

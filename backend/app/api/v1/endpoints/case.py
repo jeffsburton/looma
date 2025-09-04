@@ -39,6 +39,14 @@ from app.schemas.case_management import CaseManagementUpsert
 from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
 from app.schemas.case_circumstances import CaseCircumstancesUpsert
 
+# Images
+from app.db.models.image import File as Image
+from app.db.models.rfi import Rfi
+from app.db.models.person import Person as PersonModel
+from app.schemas.image import ImageRead
+from app.services.s3 import get_download_link, create_file
+from fastapi import UploadFile, File as UploadFileParam, Form
+
 
 router = APIRouter(prefix="/cases")
 
@@ -2285,3 +2293,244 @@ async def create_activity(
     await db.commit()
 
     return {"ok": True}
+
+
+# ---------------- Images (list and upload) ----------------
+@router.get("/{case_id}/images", summary="List images for a case")
+async def list_images(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    # Access control
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Join to gather creator/rfi names
+    P = PersonModel
+    R = Rfi
+    I = Image
+    q = (
+        select(
+            I.id,
+            I.case_id,
+            I.file_name,
+            I.created_by_id,
+            I.source_url,
+            I.where,
+            I.notes,
+            I.rfi_id,
+            I.created_at,
+            I.updated_at,
+            (P.first_name + sa.literal(" ") + P.last_name).label("created_by_name"),
+            R.name.label("rfi_name"),
+        )
+        .select_from(I)
+        .join(P, P.id == I.created_by_id, isouter=True)
+        .join(R, R.id == I.rfi_id, isouter=True)
+        .where(I.case_id == pk)
+        .order_by(sa.desc(I.created_at))
+    )
+
+    rows = (await db.execute(q)).all()
+    items = []
+    for r in rows:
+        rid = int(r.id)
+        items.append({
+            "id": rid,
+            "case_id": int(r.case_id),
+            "file_name": r.file_name,
+            "created_by_id": int(r.created_by_id) if r.created_by_id is not None else None,
+            "source_url": r.source_url,
+            "where": r.where,
+            "notes": r.notes,
+            "rfi_id": int(r.rfi_id) if r.rfi_id is not None else None,
+            "created_at": r.created_at,
+            "updated_at": r.updated_at,
+            # presigned link to S3 object named image-<id>
+            "url": get_download_link("image", rid, file_type=None),
+            "storage_slug": None,
+            # extras for UI display
+            "created_by_name": r.created_by_name if getattr(r, "created_by_name", None) else None,
+            "rfi_name": r.rfi_name if getattr(r, "rfi_name", None) else None,
+        })
+    return items
+
+
+@router.post("/{case_id}/images/upload", summary="Upload image for a case")
+async def upload_image(
+    case_id: str,
+    file: UploadFile = UploadFileParam(...),
+    source_url: Optional[str] = Form(None),
+    where: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    rfi_id: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    # Access control
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Decode optional rfi_id if provided (opaque)
+    rid: Optional[int] = None
+    if rfi_id:
+        try:
+            rid = decode_id("rfi", rfi_id)
+        except OpaqueIdError:
+            rid = None
+
+    # Resolve current user's person.id via Person.app_user_id
+    person_id = None
+    try:
+        res = await db.execute(select(PersonModel.id).where(PersonModel.app_user_id == current_user.id))
+        person_id = res.scalar()
+    except Exception:
+        person_id = None
+
+    # Create DB row first to get the ID
+    img = Image(
+        case_id=pk,
+        file_name=file.filename or "upload",
+        created_by_id=int(person_id) if person_id is not None else None,
+        source_url=source_url,
+        where=where,
+        notes=notes,
+        rfi_id=rid,
+    )
+    db.add(img)
+    await db.flush()  # assign PK
+
+    # Store file in S3 under key image-<id>
+    # Ensure we can read file bytes. UploadFile exposes .file as SpooledTemporaryFile
+    file.file.seek(0)
+    create_file("image", img.id, file.file, content_type=file.content_type or "application/octet-stream")
+
+    await db.commit()
+    await db.refresh(img)
+
+    # Build response payload with presigned URL
+    payload = {
+        "id": int(img.id),
+        "case_id": int(img.case_id),
+        "file_name": img.file_name,
+        "created_by_id": int(img.created_by_id) if img.created_by_id is not None else None,
+        "source_url": img.source_url,
+        "where": img.where,
+        "notes": img.notes,
+        "rfi_id": int(img.rfi_id) if img.rfi_id is not None else None,
+        "created_at": img.created_at,
+        "updated_at": img.updated_at,
+        "url": get_download_link("image", int(img.id), file_type=file.content_type or None),
+        "storage_slug": None,
+    }
+    return payload
+
+
+@router.patch("/{case_id}/images/{image_id}", summary="Update image fields for a case")
+async def update_image(
+    case_id: str,
+    image_id: str,
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Update editable fields on an image: source_url, where, notes, rfi_id (opaque).
+    Returns the updated record in the same shape used by list_images.
+    """
+    pk = _decode_or_404("case", case_id)
+    # Access control
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        iid = decode_id("image", image_id) if not str(image_id).isdigit() else int(image_id)
+    except OpaqueIdError:
+        # Allow numeric IDs as well
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Fetch image and validate ownership to case
+    result = await db.execute(select(Image).where(Image.id == iid, Image.case_id == pk))
+    img: Optional[Image] = result.scalars().first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Apply updates
+    if payload is None:
+        payload = {}
+    source_url = payload.get("source_url")
+    where = payload.get("where")
+    notes = payload.get("notes")
+    rfi_eid = payload.get("rfi_id")
+
+    # Decode rfi opaque ID if provided
+    rid: Optional[int] = img.rfi_id
+    if rfi_eid is not None:
+        if rfi_eid == "" or rfi_eid is None:
+            rid = None
+        else:
+            try:
+                rid = decode_id("rfi", rfi_eid) if not str(rfi_eid).isdigit() else int(rfi_eid)
+            except OpaqueIdError:
+                rid = None
+
+    # Only set provided fields (allow nulls)
+    if "source_url" in payload:
+        img.source_url = source_url
+    if "where" in payload:
+        img.where = where
+    if "notes" in payload:
+        img.notes = notes
+    if "rfi_id" in payload:
+        img.rfi_id = rid
+
+    await db.commit()
+    await db.refresh(img)
+
+    # Join to get names for response
+    P = PersonModel
+    R = Rfi
+    I = Image
+    q = (
+        select(
+            I.id,
+            I.case_id,
+            I.file_name,
+            I.created_by_id,
+            I.source_url,
+            I.where,
+            I.notes,
+            I.rfi_id,
+            I.created_at,
+            I.updated_at,
+            (P.first_name + sa.literal(" ") + P.last_name).label("created_by_name"),
+            R.name.label("rfi_name"),
+        )
+        .select_from(I)
+        .join(P, P.id == I.created_by_id, isouter=True)
+        .join(R, R.id == I.rfi_id, isouter=True)
+        .where(I.id == img.id)
+    )
+    row = (await db.execute(q)).first()
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to load updated image")
+
+    return {
+        "id": int(row.id),
+        "case_id": int(row.case_id),
+        "file_name": row.file_name,
+        "created_by_id": int(row.created_by_id) if row.created_by_id is not None else None,
+        "source_url": row.source_url,
+        "where": row.where,
+        "notes": row.notes,
+        "rfi_id": int(row.rfi_id) if row.rfi_id is not None else None,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "url": get_download_link("image", int(row.id), file_type=None),
+        "storage_slug": None,
+        "created_by_name": row.created_by_name if getattr(row, "created_by_name", None) else None,
+        "rfi_name": row.rfi_name if getattr(row, "rfi_name", None) else None,
+    }

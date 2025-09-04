@@ -22,7 +22,7 @@ from .models import event_hospital_er  # noqa: F401
 from .models import file  # noqa: F401
 from .models import hospital_er  # noqa: F401
 from .models import image  # noqa: F401
-from .models import image_person  # noqa: F401
+from .models import image_subject  # noqa: F401
 from .models import intel_activity  # noqa: F401
 from .models import intel_summary  # noqa: F401
 from .models import message  # noqa: F401

@@ -12,11 +12,9 @@ class File(Base):
 
     file_name = Column(String(255), nullable=False)
     created_by_id = Column(Integer, ForeignKey("person.id", ondelete="SET NULL"), nullable=True)
-    source_url = Column(String(255), nullable=True)
+    source_url = Column(Text, nullable=True)
     where = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    url = Column(Text, nullable=True)
-    storage_slug = Column(String(100), nullable=True)
 
     rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
 

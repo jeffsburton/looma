@@ -14,6 +14,7 @@ import MissingFlyerTab from './files/MissingFlyerTab.vue'
 import OtherTab from './files/OtherTab.vue'
 
 const props = defineProps({
+  caseId: { type: [String, Number], required: false },
   subtab: { type: String, default: 'images' }
 })
 const emit = defineEmits(['update:subtab'])
@@ -46,7 +47,7 @@ watch(
 
 <template>
   <div class="files">
-    <Tabs :value="active" @update:value="(v) => (active = v)">
+    <Tabs v-model:value="active">
       <TabList class="mb-2">
         <Tab value="images">
           <span class="material-symbols-outlined">imagesmode</span>
@@ -80,7 +81,7 @@ watch(
 
       <TabPanels>
         <TabPanel value="images">
-          <ImagesTab />
+          <ImagesTab :caseId="caseId" />
         </TabPanel>
         <TabPanel value="ops">
           <OpsPlansTab />

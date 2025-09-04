@@ -5,7 +5,7 @@ from app.db import Base
 
 
 class ImagePerson(Base):
-    __tablename__ = "image_person"
+    __tablename__ = "image_subject"
 
     id = Column(Integer, primary_key=True, index=True)
     image_id = Column(Integer, ForeignKey("image.id", ondelete="CASCADE"), nullable=False)

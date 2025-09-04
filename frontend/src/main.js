@@ -7,6 +7,8 @@ import 'primeicons/primeicons.css'
 import 'primeflex/primeflex.css'
 import './assets/theme.css'
 
+import './assets/override.css'
+
 import ToastService from 'primevue/toastservice'
 import Tooltip from 'primevue/tooltip'
 import router from './router'

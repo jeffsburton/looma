@@ -11,7 +11,6 @@ class Rfi(Base):
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
 
     name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=False)
 
     created_by = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
 
