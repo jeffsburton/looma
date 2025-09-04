@@ -385,7 +385,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="activity">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <ActivityTab />
+            <ActivityTab :caseId="caseModel.id" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
