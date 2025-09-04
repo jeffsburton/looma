@@ -10,15 +10,14 @@ import SelectButton from 'primevue/selectbutton'
 import Popover from 'primevue/popover'
 import { getLocaleDateFormat } from '../../../lib/util.js'
 
-
-// Calendar components and styles
-import { CalendarView, CalendarViewHeader } from 'vue-simple-calendar'
-import 'vue-simple-calendar/dist/vue-simple-calendar.css'
-import 'vue-simple-calendar/dist/css/default.css'
-import 'vue-simple-calendar/dist/css/holidays-us.css'
-
 import CaseSubjectSelect from '../CaseSubjectSelect.vue'
 import DatePicker from "primevue/datepicker";
+
+import { VueCal } from 'vue-cal'
+import 'vue-cal/style'
+import { addDatePrototypes } from 'vue-cal'
+
+addDatePrototypes()
 
 const props = defineProps({
   caseId: { type: String, default: '' },
@@ -30,13 +29,11 @@ const error = ref('')
 const rows = ref([])
 
 // View selector for list/calendar-week/calendar-month
-const view = ref('list')
+const curView = ref('list')
 const viewOptions = [
   { label: 'table_rows', value: 'list' },
-  { label: 'view_week', value: 'calendar_week' },
-  { label: 'calendar_month', value: 'calendar_month' },
+  { label: 'calendar_month', value: 'calendar' },
 ]
-const calendarUom = computed(() => (view.value === 'calendar_week' ? 'week' : 'month'))
 
 // Calendar state
 const showDate = ref(new Date())
@@ -61,32 +58,46 @@ watch([rows, earliestDate], () => {
 
 // Calendar items mapping
 const calendarItems = computed(() => {
-  return (rows.value || []).map(e => ({
-    id: e.id,
-    startDate: e.date ? new Date(e.date + (e.time ? " " + e.time : "")) : null,
-    endDate: e.date ? new Date(e.date) : null,
-    title: e.details || e.type_id || 'Event',
-    classes: [e.id.replace(/[^a-zA-Z0-9]/g, '')
-]
-  })).filter(it => it.startDate)
+  let events = (rows.value || [])
+    .filter(e => e.date !== null)  // Filter out null dates first
+    .map(e => ({
+      start: new Date(e.date + (e.time ? " " + e.time : "")),
+      end: new Date(e.date + (e.time ? " " + e.time : "")).addHours(1),
+      allDay : !e.time ? true : false,
+      title: e.details || e.type_id || 'Event',
+      dbId: e.id,
+    }))
+  return events;
 })
+
+const curCalView = ref("week")
+const showAllDayEvents = ref(true)
+
+function calendarViewChanged(event, vueCal) {
+  showAllDayEvents.value = (event.id !== 'month');
+  if (event.id !== "month"){
+        setTimeout(() => {
+          vueCal.view.scrollToTime(360);
+        }, 300);
+
+    }
+  }
+
 
 // Popover for calendar item click
 const pop = ref()
 const popTarget = ref()
 const selectedItem = ref(null)
-function onClickItem(payload) {
-  console.log(payload)
-  const item = payload && payload.item ? payload.item : payload
-  const id = item && (item.id ?? item.key ?? item.value)
-  const row = (rows.value || []).find(r => String(r.id) === String(id))
+
+const onClickItem = ({ event }) => {
+  console.log(event);
+  console.log(event._.$el)
+  let anchorEl = event._.$el
+
+  const row = (rows.value || []).find(r => String(r.id) === String(event.dbId))
   selectedItem.value = row || null
 
   if (!pop?.value) return
-
-  // Prefer anchoring to the actual clicked calendar item element
-  let els = document.getElementsByClassName(payload.id.replace(/[^a-zA-Z0-9]/g, ''))
-  let anchorEl = els.length ? els[0] : null
 
   if (anchorEl) {
     pop.value.hide()
@@ -209,7 +220,7 @@ async function addRow() {
   <div class="p-2 flex flex-column gap-2" style="min-height: 400px;">
     <div class="flex align-items-center justify-content-between">
       <div />
-      <SelectButton v-model="view" :options="viewOptions" optionValue="value" optionLabel="label">
+      <SelectButton v-model="curView" :options="viewOptions" optionValue="value" optionLabel="label">
         <template #option="{ option }">
           <span class="material-symbols-outlined">{{ option.label }}</span>
         </template>
@@ -221,18 +232,24 @@ async function addRow() {
     <div v-if="loading" class="p-2 text-600">Loading...</div>
 
     <!-- Calendar view -->
-    <div v-else-if="view === 'calendar_week' || view === 'calendar_month'" class="calendar-container">
-      <CalendarView
-        :items="calendarItems"
-        :show-date="showDate"
-        @click-item="onClickItem"
-        :display-period-uom="calendarUom"
-        class="theme-default holiday-us-traditional holiday-us-official"
-      >
-        <template #header="{ headerProps }">
-          <calendar-view-header slot="header" :header-props="headerProps" @input="setShowDate" />
-        </template>
-      </CalendarView>
+    <div v-else-if="curView === 'calendar'" class="calendar-container">
+      <vue-cal sm
+               ref="vuecal"
+               :views="['day', 'days', 'week', 'month']"
+               v-model:view="curCalView"
+               start-week-on-sunday
+               events-on-month-view
+               :all-day-events="showAllDayEvents"
+               :view-date="earliestDate"
+               @ready="({ view }) => view.scrollToTime(360)"
+               @view-change="calendarViewChanged($event, $refs.vuecal)"
+               @event-click="onClickItem"
+               :events="calendarItems">
+          <template #event="{ event }">
+            <span>{{ event.title }}</span>
+          </template>
+      </vue-cal>
+
       <!-- Invisible anchor element used to position the Popover -->
       <span ref="popTarget" style="position: fixed; left: -9999px; top: -9999px; width: 0; height: 0; pointer-events: none;"></span>
       <Popover ref="pop">
@@ -336,10 +353,10 @@ async function addRow() {
         <Divider v-if="idx < sortedRows.length - 1" class="my-1 divider" />
       </template>
 
-    </div>
       <div class="mt-2 flex ">
         <Button label="Add" size="small" icon="pi pi-plus" @click="addRow" />
       </div>
+    </div>
   </div>
 </template>
 

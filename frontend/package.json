@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babel/runtime": "^7.25.0",
     "@fontsource-variable/inter": "^5.2.6",
     "@primeuix/themes": "^1.2.3",
     "axios": "^1.11.0",
@@ -18,9 +19,9 @@
     "primevue": "^4.3.7",
     "vue": "^3.5.18",
     "vue-avatar-cropper": "^6.1.1",
+    "vue-cal": "^5.0.1-rc.28",
     "vue-router": "^4.5.1",
-    "vue-simple-calendar": "^7.2.1",
-    "@babel/runtime": "^7.25.0"
+    "vue-simple-calendar": "^7.2.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.1",
