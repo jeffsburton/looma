@@ -13,11 +13,13 @@ class IntelActivity(Base):
     entered_by_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
     what = Column(Text, nullable=True)
 
-    # rev_type
+    # ref_type ACT_SOURCE
     source_id = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
     source_other = Column(String(255), nullable=True)
     findings = Column(Text, nullable=True)
     case_management = Column(Text, nullable=True)
+
+    # ref_type ACT_REP
     reported_to  = Column(Integer, ForeignKey("ref_value.id", ondelete="CASCADE"), nullable=True)
     on_eod_report = Column(Boolean, nullable=False, server_default="false")
 

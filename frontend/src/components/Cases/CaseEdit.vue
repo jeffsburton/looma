@@ -365,7 +365,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="timeline">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <TimelineTab />
+            <TimelineTab :caseId="caseModel.id" :primarySubject="{ id: subjectModel.id, first_name: subjectModel.first_name, last_name: subjectModel.last_name }" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

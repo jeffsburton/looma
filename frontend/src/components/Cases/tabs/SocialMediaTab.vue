@@ -8,7 +8,7 @@ import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
 
 import RefSelect from '../../RefSelect.vue'
-import CasePersonSelect from '../CasePersonSelect.vue'
+import CaseSubjectSelect from '../CaseSubjectSelect.vue'
 import PersonSelect from '../../PersonSelect.vue'
 
 const props = defineProps({
@@ -292,7 +292,7 @@ watch(newSubjectId, async (v) => {
 
     <div class="mt-2 flex align-items-center gap-2">
       <span class="text-600">Add for subject:</span>
-      <CasePersonSelect v-model="newSubjectId" :caseId="caseId" :primarySubject="primarySubject" />
+      <CaseSubjectSelect v-model="newSubjectId" :caseId="caseId" :primarySubject="primarySubject" />
     </div>
   </div>
 </template>

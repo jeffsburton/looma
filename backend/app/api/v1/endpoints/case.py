@@ -1843,3 +1843,191 @@ async def update_social_media_alias(
 
     await db.commit()
     return {"ok": True}
+
+
+# -------- Timeline (timeline) --------
+from datetime import date as _Date, time as _Time
+from typing import Optional as _OptionalForTL
+from app.db.models.timeline import Timeline
+
+
+@router.get("/{case_id}/timeline", summary="List timeline entries for a case")
+async def list_timeline(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Join Subject for who display
+    q = (
+        select(
+            Timeline.id,
+            Timeline.date,
+            Timeline.time,
+            Timeline.who_id,
+            Timeline.where,
+            Timeline.details,
+            Timeline.rule_out,
+            Subject.first_name,
+            Subject.last_name,
+        )
+        .join(Subject, Subject.id == Timeline.who_id, isouter=True)
+        .where(Timeline.case_id == int(case_db_id))
+        .order_by(asc(Timeline.date), asc(Timeline.time), asc(Timeline.id))
+    )
+
+    rows = (await db.execute(q)).all()
+    items = []
+    for (
+        tl_id,
+        dt,
+        tm,
+        who_id,
+        where,
+        details,
+        rule_out,
+        first,
+        last,
+    ) in rows:
+        items.append({
+            "id": encode_id("timeline", int(tl_id)),
+            "date": dt,
+            "time": tm,
+            "who_id": encode_id("subject", int(who_id)) if who_id is not None else None,
+            "who_name": (f"{first or ''} {last or ''}".strip() if (first or last) else None),
+            "where": where,
+            "details": details,
+            "rule_out": bool(rule_out) if rule_out is not None else False,
+        })
+
+    return items
+
+
+class TimelinePartial(BaseModel):
+    date: _OptionalForTL[str] = None  # YYYY-MM-DD
+    time: _OptionalForTL[str] = None  # HH:MM[:SS]
+    who_id: _OptionalForTL[str] = None  # opaque subject id or null/empty to clear
+    where: _OptionalForTL[str] = None
+    details: _OptionalForTL[str] = None
+    rule_out: _OptionalForTL[bool] = None
+
+
+@router.patch("/{case_id}/timeline/{timeline_id}", summary="Update a timeline row for a case")
+async def update_timeline(
+    case_id: str,
+    timeline_id: str,
+    payload: TimelinePartial = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        tl_db_id = decode_id("timeline", timeline_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Timeline record not found")
+
+    row = (
+        await db.execute(
+            select(Timeline).where(Timeline.id == int(tl_db_id), Timeline.case_id == int(case_db_id))
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Timeline record not found")
+
+    def _parse_date(s: _OptionalForTL[str]):
+        if s is None:
+            return row.date
+        if str(s) == "":
+            return None
+        try:
+            return _Date.fromisoformat(str(s))
+        except Exception:
+            return row.date
+
+    def _parse_time(s: _OptionalForTL[str]):
+        if s is None:
+            return row.time
+        if str(s) == "":
+            return None
+        try:
+            return _Time.fromisoformat(str(s))
+        except Exception:
+            return row.time
+
+    def _dec_subject(oid: _OptionalForTL[str]):
+        if oid is None:
+            return row.who_id
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("subject", s))
+        except Exception:
+            return row.who_id
+
+    fields_set = getattr(payload, "model_fields_set", set())
+
+    if "date" in fields_set:
+        row.date = _parse_date(payload.date)
+    if "time" in fields_set:
+        row.time = _parse_time(payload.time)
+    if "who_id" in fields_set:
+        row.who_id = _dec_subject(payload.who_id)
+    if "where" in fields_set:
+        row.where = payload.where
+    if "details" in fields_set:
+        row.details = payload.details
+    if "rule_out" in fields_set:
+        row.rule_out = bool(payload.rule_out) if payload.rule_out is not None else False
+
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post(
+    "/{case_id}/timeline",
+    summary="Create a timeline row for a case",
+    dependencies=[Depends(require_permission("CONTACTS.MODIFY"))],
+)
+async def create_timeline(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Pick an arbitrary person linked to the case to satisfy entered_by_id
+    pc = (
+        await db.execute(
+            select(PersonCase.person_id).where(PersonCase.case_id == int(case_db_id)).order_by(asc(PersonCase.id)).limit(1)
+        )
+    ).scalar_one_or_none()
+    if pc is None:
+        raise HTTPException(status_code=400, detail="No person linked to case to attribute entry")
+
+    row = Timeline(
+        case_id=int(case_db_id),
+        entered_by_id=int(pc),
+        date=None,
+        time=None,
+        type_id=None,
+        type_other=None,
+        details=None,
+        comments=None,
+        where=None,
+        who_id=None,
+        questions=None,
+        rule_out=False,
+    )
+    db.add(row)
+    await db.commit()
+
+    return {"ok": True}

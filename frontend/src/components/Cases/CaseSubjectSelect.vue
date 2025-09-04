@@ -9,7 +9,6 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-  placeholder: { type: String, default: 'Select subject...' },
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
 })
@@ -75,7 +74,6 @@ const selectedOption = computed(() => options.value.find(o => o.id === selected.
     optionLabel="name"
     optionValue="id"
     :filter="filter"
-    :placeholder="placeholder"
     class="w-20rem max-w-full"
     :disabled="disabled"
   />
