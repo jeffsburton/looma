@@ -39,10 +39,6 @@ const viewOptions = [
   { label: 'table_rows', value: 'list' }
 ]
 
-// Calendar state
-const showDate = ref(new Date())
-function setShowDate(d) { showDate.value = d }
-
 const editDialogVisible = ref(false)
 const editModel = reactive({
   id: null,
@@ -116,6 +112,12 @@ function toLongDate(val) {
   } catch { return String(val) }
 }
 
+/*  ===================== calendar view stuff ========================*/
+
+// Calendar state
+const showDate = ref(new Date())
+function setShowDate(d) { showDate.value = d }
+
 // Calendar items mapping
 const calendarItems = computed(() => {
   return (events.value || []).map(e => ({
@@ -126,6 +128,8 @@ const calendarItems = computed(() => {
     classes: e.inactive ? ['cv-item-inactive'] : []
   })).filter(it => it.startDate)
 })
+
+/*  ===================== end calendar stuff ========================*/
 
 async function fetchEvents() {
   loading.value = true
