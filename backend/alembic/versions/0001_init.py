@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-09-03 05:36:38.177153
+Create Date: 2025-09-04 11:12:27.385314
 
 """
 from typing import Sequence, Union
@@ -108,6 +108,7 @@ def upgrade() -> None:
     sa.Column('victimology_category_id', sa.Integer(), nullable=False),
     sa.Column('question', sa.Text(), nullable=False),
     sa.Column('follow_up', sa.Text(), nullable=True),
+    sa.Column('sort_order', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['victimology_category_id'], ['victimology.id'], ondelete='CASCADE'),
@@ -117,6 +118,7 @@ def upgrade() -> None:
     op.create_table('victimology_category',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('category', sa.Text(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
@@ -241,6 +243,7 @@ def upgrade() -> None:
     sa.Column('clothing_innerwear', sa.Text(), nullable=True),
     sa.Column('bags', sa.Text(), nullable=True),
     sa.Column('other_items', sa.Text(), nullable=True),
+    sa.Column('devices', sa.Text(), nullable=True),
     sa.Column('mobile_carrier_id', sa.Integer(), nullable=True),
     sa.Column('mobile_carrier_other', sa.Text(), nullable=True),
     sa.Column('voip_id', sa.Integer(), nullable=True),
@@ -484,10 +487,10 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('subject_id', sa.Integer(), nullable=True),
-    sa.Column('platform_id', sa.Integer(), nullable=False),
+    sa.Column('platform_id', sa.Integer(), nullable=True),
     sa.Column('platform_other', sa.Text(), nullable=True),
-    sa.Column('url', sa.Text(), nullable=False),
-    sa.Column('status_id', sa.Integer(), nullable=False),
+    sa.Column('url', sa.Text(), nullable=True),
+    sa.Column('status_id', sa.Integer(), nullable=True),
     sa.Column('investigated_id', sa.Integer(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
     sa.Column('rule_out', sa.Boolean(), server_default='false', nullable=False),
@@ -571,6 +574,7 @@ def upgrade() -> None:
     sa.Column('findings', sa.Text(), nullable=True),
     sa.Column('case_management', sa.Text(), nullable=True),
     sa.Column('reported_to', sa.Integer(), nullable=True),
+    sa.Column('reported_to_other', sa.String(length=255), nullable=True),
     sa.Column('on_eod_report', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('rule_out', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -674,7 +678,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('person_id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('relationship_id', sa.Integer(), nullable=False),
+    sa.Column('relationship_id', sa.Integer(), nullable=True),
     sa.Column('relationship_other', sa.String(length=255), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -744,7 +748,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['alias_owner_id'], ['person.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['alias_status_id'], ['ref_value.id'], ),
-    sa.ForeignKeyConstraint(['social_media_id'], ['case.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['social_media_id'], ['social_media.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_social_media_alias_id'), 'social_media_alias', ['id'], unique=False)
@@ -763,9 +767,9 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('entered_by_id', sa.Integer(), nullable=False),
-    sa.Column('date', sa.Date(), nullable=False),
+    sa.Column('date', sa.Date(), nullable=True),
     sa.Column('time', sa.Time(), nullable=True),
-    sa.Column('type_id', sa.Integer(), nullable=False),
+    sa.Column('type_id', sa.Integer(), nullable=True),
     sa.Column('type_other', sa.Text(), nullable=True),
     sa.Column('details', sa.Text(), nullable=True),
     sa.Column('comments', sa.Text(), nullable=True),
@@ -778,7 +782,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['entered_by_id'], ['person.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['type_id'], ['ref_value.id'], ),
-    sa.ForeignKeyConstraint(['who_id'], ['person.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['who_id'], ['subject.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_timeline_id'), 'timeline', ['id'], unique=False)

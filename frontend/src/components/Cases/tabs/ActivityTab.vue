@@ -8,6 +8,8 @@ import FloatLabel from 'primevue/floatlabel'
 import DatePicker from 'primevue/datepicker'
 
 import RefSelect from '../../RefSelect.vue'
+import Divider from "primevue/divider";
+import {getLocaleDateFormat} from "../../../lib/util.js";
 
 const props = defineProps({
   caseId: { type: String, default: '' },
@@ -86,14 +88,14 @@ async function addRow() {
               </template>
               <template v-else>
                 <FloatLabel variant="on">
-                  <DatePicker v-model="data.date" class="w-full" @change="() => patchRow(data, { date: data.date || null })" />
+                  <DatePicker :date-format="getLocaleDateFormat()" v-model="data.date" class="w-full" @change="() => patchRow(data, { date: data.date || null })" />
                   <label>Date</label>
                 </FloatLabel>
               </template>
             </div>
 
             <!-- Source -->
-            <div class="field w-12 md:w-3">
+            <div class="field" style="min-width: 250px;max-width: 250px">
               <template v-if="data.rule_out">
                 <label class="block text-sm text-600">Source</label>
                 <div :style="'text-decoration: line-through;'">{{ data.source_name || data.source_other || '—' }}</div>
@@ -115,10 +117,10 @@ async function addRow() {
             </div>
 
             <!-- Reported To -->
-            <div class="field w-12 md:w-3">
+            <div class="field" style="min-width: 250px;max-width: 250px">
               <template v-if="data.rule_out">
                 <label class="block text-sm text-600">Reported To</label>
-                <div :style="'text-decoration: line-through;'">{{ data.reported_to_name || '—' }}</div>
+                <div :style="'text-decoration: line-through;'">{{ data.reported_to_name || data.reported_to_other || '—' }}</div>
               </template>
               <template v-else>
                 <FloatLabel variant="on">
@@ -126,6 +128,9 @@ async function addRow() {
                     code="ACT_REP"
                     v-model="data.reported_to"
                     :currentCode="data.reported_to_code || ''"
+                    :otherValue="data.reported_to_other || ''"
+                    @update:otherValue="(v) => { data.reported_to_other = v }"
+                    @otherCommit="(v) => patchRow(data, { reported_to_other: v || null })"
                     @change="(v) => patchRow(data, { reported_to: v })"
                   />
                   <label>Reported To</label>
@@ -133,22 +138,8 @@ async function addRow() {
               </template>
             </div>
 
-            <!-- On EOD Report & Rule Out -->
-            <div class="field w-12 md:w-3">
-              <div class="flex align-items-center gap-3">
-                <div class="flex align-items-center gap-2 nowrap">
-                  <label class="text-sm text-600">On EOD Report</label>
-                  <ToggleSwitch v-model="data.on_eod_report" @update:modelValue="(v) => patchRow(data, { on_eod_report: v })" />
-                </div>
-                <div class="flex align-items-center gap-2 nowrap">
-                  <label class="text-sm text-600">Rule Out</label>
-                  <ToggleSwitch v-model="data.rule_out" @update:modelValue="(v) => patchRow(data, { rule_out: v })" />
-                </div>
-              </div>
-            </div>
-
             <!-- What -->
-            <div class="field w-12">
+            <div class="field">
               <template v-if="data.rule_out">
                 <label class="block text-sm text-600">What</label>
                 <div :style="'text-decoration: line-through;'">{{ data.what || '—' }}</div>
@@ -162,7 +153,7 @@ async function addRow() {
             </div>
 
             <!-- Findings -->
-            <div class="field w-12">
+            <div class="field">
               <template v-if="data.rule_out">
                 <label class="block text-sm text-600">Findings</label>
                 <div :style="'text-decoration: line-through;'">{{ data.findings || '—' }}</div>
@@ -176,7 +167,7 @@ async function addRow() {
             </div>
 
             <!-- Case Management -->
-            <div class="field w-12">
+            <div class="field">
               <template v-if="data.rule_out">
                 <label class="block text-sm text-600">Case Management</label>
                 <div :style="'text-decoration: line-through;'">{{ data.case_management || '—' }}</div>
@@ -188,12 +179,30 @@ async function addRow() {
                 </FloatLabel>
               </template>
             </div>
+
+
+
+            <!-- On EOD Report & Rule Out -->
+            <div class="field">
+              <div class="flex align-items-center gap-3">
+                <div class="flex align-items-center gap-2 nowrap">
+                  <label class="text-sm text-600  text-right" style="max-width: 70px;">On EOD Report</label>
+                  <ToggleSwitch v-model="data.on_eod_report" @update:modelValue="(v) => patchRow(data, { on_eod_report: v })" />
+                </div>
+                <div class="flex align-items-center gap-2 nowrap">
+                  <label class="text-sm text-600  text-right" style="max-width: 50px">Rule Out</label>
+                  <ToggleSwitch v-model="data.rule_out" @update:modelValue="(v) => patchRow(data, { rule_out: v })" />
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
+        <Divider  class="my-1 divider" />
     </template>
 
-    <div class="mt-2 flex justify-content-end">
+    <div class="mt-2">
       <Button label="Add" size="small" icon="pi pi-plus" @click="addRow" />
     </div>
   </div>

@@ -11,6 +11,7 @@ import Popover from 'primevue/popover'
 import { getLocaleDateFormat } from '../../../lib/util.js'
 
 import CaseSubjectSelect from '../CaseSubjectSelect.vue'
+import RefSelect from '../../RefSelect.vue'
 import DatePicker from "primevue/datepicker";
 
 import { VueCal } from 'vue-cal'
@@ -90,8 +91,6 @@ const popTarget = ref()
 const selectedItem = ref(null)
 
 const onClickItem = ({ event }) => {
-  console.log(event);
-  console.log(event._.$el)
   let anchorEl = event._.$el
 
   const row = (rows.value || []).find(r => String(r.id) === String(event.dbId))
@@ -259,7 +258,10 @@ async function addRow() {
           <div v-if="selectedItem.time"><span class="text-600">Time:</span> <span class="text-900">{{ selectedItem.time }}</span></div>
           <div v-if="selectedItem.who_display || selectedItem.who_name"><span class="text-600">Who:</span> <span class="text-900">{{ selectedItem.who_display || selectedItem.who_name }}</span></div>
           <div v-if="selectedItem.where"><span class="text-600">Where:</span> <span class="text-900">{{ selectedItem.where }}</span></div>
+          <div v-if="selectedItem.type_name || selectedItem.type_other"><span class="text-600">Type:</span> <span class="text-900">{{ selectedItem.type_name || selectedItem.type_other }}</span></div>
           <div v-if="selectedItem.details"><span class="text-600">Details:</span> <span class="text-900">{{ selectedItem.details }}</span></div>
+          <div v-if="selectedItem.comments"><span class="text-600">Comments:</span> <span class="text-900">{{ selectedItem.comments }}</span></div>
+          <div v-if="selectedItem.questions"><span class="text-600">Questions:</span> <span class="text-900">{{ selectedItem.questions }}</span></div>
         </div>
       </Popover>
     </div>
@@ -321,8 +323,30 @@ async function addRow() {
                 </template>
                 <template v-else>
                   <FloatLabel variant="on" class="w-full">
-                    <InputText v-model="data.where" class="w-full" @change="() => patchRow(data, { where: data.where || null })" />
+                    <Textarea v-model="data.where" class="w-full" @change="() => patchRow(data, { where: data.where || null })" />
                     <label>Where</label>
+                  </FloatLabel>
+                </template>
+              </div>
+
+              <!-- Type -->
+              <div class="field" style="min-width: 100px;max-width: 120px">
+                <template v-if="data.rule_out">
+                  <label class="block text-sm text-600">Type</label>
+                  <div :style="'text-decoration: line-through;'">{{ data.type_name || data.type_other || '—' }}</div>
+                </template>
+                <template v-else>
+                  <FloatLabel variant="on">
+                    <RefSelect
+                      code="TL_TYPE"
+                      v-model="data.type_id"
+                      :currentCode="data.type_code || ''"
+                      :otherValue="data.type_other || ''"
+                      @update:otherValue="(v) => { data.type_other = v }"
+                      @otherCommit="(v) => patchRow(data, { type_other: v || null })"
+                      @change="(v) => patchRow(data, { type_id: v })"
+                    />
+                    <label>Type</label>
                   </FloatLabel>
                 </template>
               </div>
@@ -335,8 +359,36 @@ async function addRow() {
                 </template>
                 <template v-else>
                   <FloatLabel variant="on" class="w-full">
-                    <InputText v-model="data.details" class="w-full" @change="() => patchRow(data, { details: data.details || null })" />
+                    <Textarea v-model="data.details" class="w-full" @change="() => patchRow(data, { details: data.details || null })" />
                     <label>Details</label>
+                  </FloatLabel>
+                </template>
+              </div>
+
+              <!-- Comments -->
+              <div class="field">
+                <template v-if="data.rule_out">
+                  <label class="block text-sm text-600">Comments</label>
+                  <div :style="'text-decoration: line-through;'">{{ data.comments || '—' }}</div>
+                </template>
+                <template v-else>
+                  <FloatLabel variant="on" class="w-full">
+                    <Textarea v-model="data.comments"  class="w-full" @change="() => patchRow(data, { comments: data.comments || null })" />
+                    <label>Comments</label>
+                  </FloatLabel>
+                </template>
+              </div>
+
+              <!-- Questions -->
+              <div class="field">
+                <template v-if="data.rule_out">
+                  <label class="block text-sm text-600">Questions</label>
+                  <div :style="'text-decoration: line-through;'">{{ data.questions || '—' }}</div>
+                </template>
+                <template v-else>
+                  <FloatLabel variant="on" class="w-full">
+                    <Textarea v-model="data.questions" class="w-full" @change="() => patchRow(data, { questions: data.questions || null })" />
+                    <label>Questions</label>
                   </FloatLabel>
                 </template>
               </div>
@@ -350,7 +402,7 @@ async function addRow() {
             </div>
           </div>
         </div>
-        <Divider v-if="idx < sortedRows.length - 1" class="my-1 divider" />
+        <Divider  class="my-1 divider" />
       </template>
 
       <div class="mt-2 flex ">
@@ -371,4 +423,8 @@ async function addRow() {
 /* Calendar container: grow to fill */
 .calendar-container { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 400px; }
 .calendar-container :deep(.cv-wrapper) { width: 100%; height: 100%; }
+
+.vuecal {
+  --vuecal-height: content-fit;
+}
 </style>

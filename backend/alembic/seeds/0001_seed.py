@@ -207,7 +207,7 @@ def seed_0001():
                            ["GV", "Google Voice"],
                            ["ZM", "Zoom"],
                            ["GM", "Google Meet"],
-                           ["O", "Other"]])
+                           ["Oth", "Other"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "CSEC", "code": "CSEC", "description": "Commercial Sexual Exploitation of a Child"})
     seed_ref(ref_type_id, [["CON", "Confirmed"],
@@ -308,7 +308,7 @@ def seed_0001():
                            ["TEX", "Text Message"],
                            ["TIP", "Tip"],
                            ["TV", "TV"],
-                           ["O", "Other"]])
+                           ["Oth", "Other"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Activity reported to", "code": "ACT_REP", "description": "Who was intelligence reported to?"})
     seed_ref(ref_type_id, [["BV", "Incident Commander"],
@@ -319,7 +319,7 @@ def seed_0001():
                            ["IS", "Shannon"],
                            ["LE", "Law Enforcement"],
                            ["NEWS", "Case Lead"],
-                           ["O", "Other"]])
+                           ["Oth", "Other"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Timeline entry type", "code": "TL_TYPE", "description": "Type of timeline entry."})
     seed_ref(ref_type_id, [["F", "Fact"],

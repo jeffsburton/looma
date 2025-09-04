@@ -62,7 +62,7 @@ const selectedOption = computed(() => {
   const sel = selectedId.value != null ? String(selectedId.value) : ''
   return allOptions.value.find(o => String(o.id) === sel)
 })
-const isOTH = computed(() => (selectedOption.value?.code || '').toUpperCase() === 'OTH')
+const isOTH = computed(() => ['OTH'].includes((selectedOption.value?.code || '').toUpperCase()))
 
 const visibleOptions = computed(() => {
   // Hide inactive unless it is the selected option and build a combined label for filtering by name or code

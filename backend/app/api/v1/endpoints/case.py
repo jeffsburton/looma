@@ -2104,6 +2104,7 @@ async def list_activity(
             IntelActivity.findings,
             IntelActivity.case_management,
             IntelActivity.reported_to,
+            IntelActivity.reported_to_other,
             IntelActivity.on_eod_report,
             IntelActivity.rule_out,
             src.name,
@@ -2128,6 +2129,7 @@ async def list_activity(
         findings,
         case_management,
         reported_to,
+        reported_to_other,
         on_eod_report,
         rule_out,
         source_name,
@@ -2148,6 +2150,7 @@ async def list_activity(
             "reported_to": encode_id("ref_value", int(reported_to)) if reported_to is not None else None,
             "reported_to_name": reported_to_name,
             "reported_to_code": reported_to_code,
+            "reported_to_other": reported_to_other,
             "on_eod_report": bool(on_eod_report) if on_eod_report is not None else False,
             "rule_out": bool(rule_out) if rule_out is not None else False,
         })
@@ -2163,6 +2166,7 @@ class IntelActivityPartial(BaseModel):
     findings: _OptionalForIA[str] = None
     case_management: _OptionalForIA[str] = None
     reported_to: _OptionalForIA[str] = None  # opaque ref_value id
+    reported_to_other: _OptionalForIA[str] = None
     on_eod_report: _OptionalForIA[bool] = None
     rule_out: _OptionalForIA[bool] = None
 
@@ -2229,6 +2233,8 @@ async def update_activity(
         row.case_management = payload.case_management
     if "reported_to" in fields_set:
         row.reported_to = _dec_ref(payload.reported_to, row.reported_to)
+    if "reported_to_other" in fields_set:
+        row.reported_to_other = payload.reported_to_other
     if "on_eod_report" in fields_set:
         row.on_eod_report = bool(payload.on_eod_report) if payload.on_eod_report is not None else False
     if "rule_out" in fields_set:
@@ -2271,6 +2277,7 @@ async def create_activity(
         findings=None,
         case_management=None,
         reported_to=None,
+        reported_to_other=None,
         on_eod_report=False,
         rule_out=False,
     )
