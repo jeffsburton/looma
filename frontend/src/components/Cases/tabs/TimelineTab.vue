@@ -213,6 +213,59 @@ async function addRow() {
     await load()
   }
 }
+const rowEls = ref({})
+const highlighted = ref({})
+const highlightTimeouts = new Map()
+
+function setRowRef(id, el) {
+  if (!id) return
+  if (el) {
+    rowEls.value[id] = el
+  } else {
+    delete rowEls.value[id]
+  }
+}
+
+function isElementInViewport(el) {
+  if (!el) return true
+  const rect = el.getBoundingClientRect()
+  const vh = window.innerHeight || document.documentElement.clientHeight
+  const vw = window.innerWidth || document.documentElement.clientWidth
+  const verticallyVisible = rect.top >= 0 && rect.bottom <= vh
+  const horizontallyVisible = rect.left >= 0 && rect.right <= vw
+  return verticallyVisible && horizontallyVisible
+}
+
+function triggerRowAttention(id) {
+  if (!id) return
+  // Mark highlighted for CSS animation
+  highlighted.value[id] = true
+  // Force reactivity for object change
+  highlighted.value = { ...highlighted.value }
+  // Clear previous timeout if any
+  const prev = highlightTimeouts.get(id)
+  if (prev) clearTimeout(prev)
+  const to = setTimeout(() => {
+    delete highlighted.value[id]
+    highlighted.value = { ...highlighted.value }
+    highlightTimeouts.delete(id)
+  }, 3000)
+  highlightTimeouts.set(id, to)
+  // Scroll into view after DOM updates/resort
+  nextTick(() => {
+    const el = rowEls.value[id]
+    if (!el) return
+    if (!isElementInViewport(el)) {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) } catch {}
+    }
+  })
+}
+
+function onSortAffectingChange(row) {
+  if (!row) return
+  triggerRowAttention(row.id)
+}
+
 </script>
 
 <template>
@@ -269,7 +322,7 @@ async function addRow() {
     <!-- List (existing) view -->
     <div v-else class="cards">
       <template v-for="(data, idx) in sortedRows" :key="data.id">
-        <div class="card surface-card border-round p-1">
+        <div class="card surface-card border-round p-1" :class="{ 'row-highlight': highlighted[data.id] }" :ref="el => setRowRef(data.id, el)">
           <div class="flex flex-column gap-1">
 
             <div class="form-grid">
@@ -281,7 +334,7 @@ async function addRow() {
                 </template>
                 <template v-else>
                   <FloatLabel variant="on">
-                    <DatePicker v-model="data.date" :date-format="getLocaleDateFormat()" class="" @update:modelValue="(v) => patchRow(data, { date: v || null })"  />
+                    <DatePicker v-model="data.date" :date-format="getLocaleDateFormat()" class="" @update:modelValue="(v) => { onSortAffectingChange(data); patchRow(data, { date: v || null }) }"  />
                     <label>Date</label>
                   </FloatLabel>
                 </template>
@@ -295,7 +348,7 @@ async function addRow() {
                 </template>
                 <template v-else>
                   <FloatLabel variant="on">
-                    <DatePicker v-model="data.time" class="w-full" @update:modelValue="(v) => patchRow(data, { time: v || null })" timeOnly hourFormat="24" showTime />
+                    <DatePicker v-model="data.time" class="w-full" @update:modelValue="(v) => { onSortAffectingChange(data); patchRow(data, { time: v || null }) }" timeOnly hourFormat="24" showTime />
                     <label>Time</label>
                   </FloatLabel>
                 </template>
@@ -414,11 +467,22 @@ async function addRow() {
 
 <style scoped>
 .cards { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start; }
-.card { flex: 0 0 auto; width: auto; max-width: 100%; }
+.card { flex: 0 0 auto; width: auto; max-width: 100%; position: relative; }
 .form-grid { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; }
 .field { min-width: 12rem; }
 :deep(.p-divider) { margin: 0.25rem 0; }
 @media (max-width: 640px) { .field { min-width: 100%; } }
+
+/* Highlight ring that fades out over 6s */
+.row-highlight {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 1); /* blue band */
+  animation: row-highlight-fade 6s ease-out forwards;
+  border-radius: 8px;
+}
+@keyframes row-highlight-fade {
+  0% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 1); }
+  100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0); }
+}
 
 /* Calendar container: grow to fill */
 .calendar-container { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 400px; }
