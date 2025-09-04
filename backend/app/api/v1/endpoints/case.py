@@ -1862,7 +1862,8 @@ async def list_timeline(
     if not await can_user_access_case(db, current_user.id, int(case_db_id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Join Subject for who display
+    # Join Subject for who display and RefValue for type
+    type_ref = aliased(RefValue)
     q = (
         select(
             Timeline.id,
@@ -1872,10 +1873,17 @@ async def list_timeline(
             Timeline.where,
             Timeline.details,
             Timeline.rule_out,
+            Timeline.type_id,
+            Timeline.type_other,
+            Timeline.comments,
+            Timeline.questions,
             Subject.first_name,
             Subject.last_name,
+            type_ref.name,
+            type_ref.code,
         )
         .join(Subject, Subject.id == Timeline.who_id, isouter=True)
+        .join(type_ref, type_ref.id == Timeline.type_id, isouter=True)
         .where(Timeline.case_id == int(case_db_id))
         .order_by(asc(Timeline.date), asc(Timeline.time), asc(Timeline.id))
     )
@@ -1890,8 +1898,14 @@ async def list_timeline(
         where,
         details,
         rule_out,
+        type_id,
+        type_other,
+        comments,
+        questions,
         first,
         last,
+        type_name,
+        type_code,
     ) in rows:
         items.append({
             "id": encode_id("timeline", int(tl_id)),
@@ -1902,6 +1916,12 @@ async def list_timeline(
             "where": where,
             "details": details,
             "rule_out": bool(rule_out) if rule_out is not None else False,
+            "type_id": encode_id("ref_value", int(type_id)) if type_id is not None else None,
+            "type_other": type_other,
+            "type_name": type_name,
+            "type_code": type_code,
+            "comments": comments,
+            "questions": questions,
         })
 
     return items
@@ -1913,6 +1933,10 @@ class TimelinePartial(BaseModel):
     who_id: _OptionalForTL[str] = None  # opaque subject id or null/empty to clear
     where: _OptionalForTL[str] = None
     details: _OptionalForTL[str] = None
+    comments: _OptionalForTL[str] = None
+    questions: _OptionalForTL[str] = None
+    type_id: _OptionalForTL[str] = None  # opaque ref_value id or empty/null to clear
+    type_other: _OptionalForTL[str] = None
     rule_out: _OptionalForTL[bool] = None
 
 
@@ -1972,6 +1996,17 @@ async def update_timeline(
         except Exception:
             return row.who_id
 
+    def _dec_ref(oid: _OptionalForTL[str], current_val: _OptionalForTL[int]):
+        if oid is None:
+            return current_val
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("ref_value", s))
+        except Exception:
+            return current_val
+
     fields_set = getattr(payload, "model_fields_set", set())
 
     if "date" in fields_set:
@@ -1984,6 +2019,14 @@ async def update_timeline(
         row.where = payload.where
     if "details" in fields_set:
         row.details = payload.details
+    if "comments" in fields_set:
+        row.comments = payload.comments
+    if "questions" in fields_set:
+        row.questions = payload.questions
+    if "type_id" in fields_set:
+        row.type_id = _dec_ref(payload.type_id, row.type_id)
+    if "type_other" in fields_set:
+        row.type_other = payload.type_other
     if "rule_out" in fields_set:
         row.rule_out = bool(payload.rule_out) if payload.rule_out is not None else False
 

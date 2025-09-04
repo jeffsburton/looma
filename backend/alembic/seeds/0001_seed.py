@@ -322,7 +322,7 @@ def seed_0001():
                            ["O", "Other"]])
 
     ref_type_id: int = seed("ref_type", {"name" : "Timeline entry type", "code": "TL_TYPE", "description": "Type of timeline entry."})
-    seed_ref(ref_type_id, [["F", "Fact)"],
+    seed_ref(ref_type_id, [["F", "Fact"],
                            ["T", "Tip"],
                            ["R", "Rumor"],
                            ["OTH", "Other"]])
