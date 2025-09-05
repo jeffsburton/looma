@@ -1,16 +1,18 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import Select from 'primevue/select'
+import api from '@/lib/api'
 
 const props = defineProps({
   caseId: { type: String, required: true },
-  modelValue: { default: '' }, // opaque subject id or null (Unknown)
+  modelValue: { default: '' }, // opaque subject id or null (Unknown) if includeUnknown=true
   primarySubject: { // optional: { id, first_name, last_name }
     type: Object,
     default: null,
   },
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
+  includeUnknown: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:modelValue','change'])
 
@@ -38,8 +40,8 @@ async function load() {
   try {
     // Load subjects linked via subject_case
     const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/subjects`
-    const resp = await fetch(url, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    const arr = resp.ok ? (await resp.json()) : []
+    const { data } = await api.get(url, { headers: { 'Accept': 'application/json' } })
+    const arr = Array.isArray(data) ? data : []
     const fromSC = (arr || []).map(r => ({ id: r?.subject?.id || '', name: `${r?.subject?.first_name || ''} ${r?.subject?.last_name || ''}`.trim() }))
 
     // Include primary subject if provided and not already present
@@ -50,18 +52,21 @@ async function load() {
     }
 
     const list = dedupeById([...fromSC, ...prim])
-    // Add Unknown at the top
-    const unknown = { id: null, name: 'Unknown' }
-    options.value = [unknown, ...list]
+    if (props.includeUnknown) {
+      const unknown = { id: null, name: 'Unknown' }
+      options.value = [unknown, ...list]
+    } else {
+      options.value = list
+    }
   } catch (e) {
     console.error(e)
-    options.value = [{ id: null, name: 'Unknown' }]
+    options.value = props.includeUnknown ? [{ id: null, name: 'Unknown' }] : []
   } finally {
     loading.value = false
   }
 }
 
-watch(() => [props.caseId, props.primarySubject?.id, props.primarySubject?.first_name, props.primarySubject?.last_name], () => load(), { immediate: true })
+watch(() => [props.caseId, props.primarySubject?.id, props.primarySubject?.first_name, props.primarySubject?.last_name, props.includeUnknown], () => load(), { immediate: true })
 
 const selectedOption = computed(() => options.value.find(o => o.id === selected.value))
 </script>

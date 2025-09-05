@@ -79,9 +79,8 @@ async function loadOptions() {
   if (!props.code) return
   loading.value = true
   try {
-    const resp = await fetch(`/api/v1/reference/${encodeURIComponent(props.code)}/values`)
-    if (!resp.ok) throw new Error('Failed to load reference values')
-    const data = await resp.json()
+    const { getReferenceValues } = await import('../lib/referenceValues')
+    const data = await getReferenceValues(props.code)
     allOptions.value = data
     // Reconcile selection when opaque id tokens don't match across responses
     const upperCode = (props.currentCode || '').toUpperCase().trim()
@@ -122,21 +121,25 @@ async function saveAdd() {
     return
   }
   const payload = { name: newName.value.trim(), code: newCode.value.trim(), description: newDescription.value.trim() }
-  const resp = await fetch(`/api/v1/reference/${encodeURIComponent(props.code)}/values`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}))
-    addError.value = err?.detail || 'Failed to add value'
-    return
+  try {
+    const [{ default: api }, { invalidateReferenceValues }] = await Promise.all([
+      import('../lib/api'),
+      import('../lib/referenceValues'),
+    ])
+    const res = await api.post(`/api/v1/reference/${encodeURIComponent(props.code)}/values`, payload)
+    const created = res?.data
+    // Invalidate cache for this code so subsequent reads include the new value
+    invalidateReferenceValues(props.code)
+    addVisible.value = false
+    await loadOptions()
+    // select the newly created option
+    if (created && created.id != null) {
+      selectedId.value = created.id
+    }
+  } catch (e) {
+    const detail = e?.response?.data?.detail
+    addError.value = detail || 'Failed to add value'
   }
-  const created = await resp.json()
-  addVisible.value = false
-  await loadOptions()
-  // select the newly created option
-  selectedId.value = created.id
 }
 
 // Reconcile when currentCode changes and options are already loaded

@@ -14,11 +14,16 @@ import ProgressBar from 'primevue/progressbar'
 import Message from 'primevue/message'
 import Badge from 'primevue/badge'
 import Toast from 'primevue/toast'
+import CaseSubjectSelect from '@/components/cases/CaseSubjectSelect.vue'
+import SubjectPanel from '@/components/contacts/Subject.vue'
 
 import api from '@/lib/api'
 
 import { usePrimeVue } from 'primevue/config';
 import { useToast } from "primevue/usetoast";
+
+const toast = useToast();
+const $primevue = usePrimeVue();
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false }
@@ -39,9 +44,103 @@ const items = ref([])
 const showDialog = ref(false)
 const editing = ref(null)
 
+// Image subjects management
+const imgSubjects = ref([])
+const subjectsLoading = ref(false)
+const newSubjectId = ref('')
+
+// Subject detail dialog
+const subjectDialogVisible = ref(false)
+const subjectModel = ref(null)
+const subjectLoading = ref(false)
+
+async function openSubject(opaqueId) {
+  if (!opaqueId) return
+  subjectLoading.value = true
+  try {
+    // Load visible subjects and find matching by opaque id
+    const { data } = await api.get(`/api/v1/subjects`, { headers: { 'Accept': 'application/json' } })
+    const arr = Array.isArray(data) ? data : []
+    const subj = arr.find(s => s?.id === opaqueId)
+    if (!subj) {
+      try { toast.add({ severity: 'warn', summary: 'Not found', detail: 'Subject not found.', life: 2500 }) } catch (_) {}
+      return
+    }
+    subjectModel.value = {
+      id: subj.id,
+      first_name: subj.first_name || '',
+      last_name: subj.last_name || '',
+      phone: subj.phone || '',
+      email: subj.email || '',
+      dangerous: !!subj.dangerous,
+      danger: subj.danger || '',
+    }
+    subjectDialogVisible.value = true
+  } catch (e) {
+    console.error(e)
+    try { toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load subject details.', life: 3000 }) } catch (_) {}
+  } finally {
+    subjectLoading.value = false
+  }
+}
+
+async function loadImageSubjects() {
+  if (!props.caseId || !editing.value?.id) return
+  subjectsLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects`)
+    imgSubjects.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    imgSubjects.value = []
+  } finally {
+    subjectsLoading.value = false
+  }
+}
+
+async function addImageSubject(subjectId) {
+  const sid = subjectId || newSubjectId.value
+  if (!props.caseId || !editing.value?.id || !sid) return
+  try {
+    await api.post(
+      `/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects`,
+      { subject_id: sid },
+      { headers: { 'Accept': 'application/json' } }
+    )
+    // reset selection after adding
+    newSubjectId.value = ''
+    await loadImageSubjects()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function onSelectNewSubject(v) {
+  if (!v) return
+  // Prevent duplicate selection of the same subject
+  const alreadyLinked = imgSubjects.value?.some(s => s.subject_id === v)
+  if (alreadyLinked) {
+    try { toast.add({ severity: 'info', summary: 'Already added', detail: 'This subject is already linked to the image.', life: 2500 }) } catch (_) {}
+    newSubjectId.value = ''
+    return
+  }
+  addImageSubject(v)
+}
+
+async function deleteImageSubject(linkId) {
+  if (!props.caseId || !editing.value?.id || !linkId) return
+  try {
+    await api.delete(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects/${encodeURIComponent(linkId)}`)
+    imgSubjects.value = imgSubjects.value.filter(s => s.id !== linkId)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 function openEdit(item) {
   editing.value = { ...item }
   showDialog.value = true
+  // Load image-subject links for this image
+  loadImageSubjects()
 }
 
 const saving = ref(false)
@@ -276,8 +375,6 @@ const previewSrc = (file) => {
   return posters.get(keyOf(file))
 };
 
-const $primevue = usePrimeVue();
-const toast = useToast();
 
 const totalSize = ref(0);
 const amountCompleted = ref(0);
@@ -361,6 +458,16 @@ function tooltipOptions(item) {
   const sourceUrl = item.source_url || '—'
   const notes = item.notes || '-'
   const createdAt = formatDate(item.created_at)
+  const subjects = Array.isArray(item.subjects) ? item.subjects : []
+
+  const subjectsHtml = subjects.length
+    ? `<div style='margin-top:.25rem;'><strong>People:</strong><div style='margin-top:.25rem;'>${subjects.map(s => `
+          <div style='display:flex;align-items:center;gap:.5rem;margin:.125rem 0;'>
+            <img src="${s.photo_url}" alt="${s.name}" style="width:20px;height:20px;border-radius:999px;object-fit:cover;" />
+            <span>${s.name}</span>
+          </div>`).join('')}</div></div>`
+    : ''
+
   const html = `
     <div style="">
       <div><strong>Notes:</strong> ${notes}</div>
@@ -370,6 +477,7 @@ function tooltipOptions(item) {
       <div><strong>Source URL:</strong> ${sourceUrl !== '—' ? sourceUrl : '—'}</div>
       <div><strong>RFI:</strong> ${rfi}</div>
       ${createdAt ? `<div style='margin-top: .25rem;'><strong>Created At:</strong> ${createdAt}</div>` : ''}
+      ${subjectsHtml}
     </div>
   `
   return { value: html, escape: false, class: "wide-tip"}
@@ -548,13 +656,15 @@ function downloadItem(item) {
             <span>{{ data.where || '' }}</span>
           </template>
         </Column>
-        <Column field="url" header="Source">
+        <Column header="People">
           <template #body="{ data }">
-            <span v-if="data.source_url">
-              <a :href="data.source_url" target="_blank">
-                {{data.source_url}}
-               </a>
-            </span>
+            <div v-if="data.subjects && data.subjects.length" class="people-cell">
+              <div v-for="s in data.subjects" :key="s.id" class="people-row clickable" @click.stop="openSubject(s.subject_id)">
+                <img :src="s.photo_url" :alt="s.name" class="subject-avatar" />
+                <span class="subject-name">{{ s.name }}</span>
+              </div>
+            </div>
+            <span v-else class="text-600">—</span>
           </template>
         </Column>
         <Column header="" :exportable="false" style="width:64px; text-align:right;">
@@ -600,6 +710,36 @@ function downloadItem(item) {
           <div class="readonly">{{ editing.rfi_name || '—' }}</div>
         </div>
       </div>
+
+      <!-- Subjects list and add -->
+      <div class="field mt-3">
+        <div class="label mb-2">Subjects in Image</div>
+        <div v-if="subjectsLoading" class="text-600 text-sm mb-2">Loading…</div>
+        <ul v-else class="subject-list">
+          <li v-for="s in imgSubjects" :key="s.id" class="subject-row">
+            <div class="subject-info clickable" @click.stop="openSubject(s.subject_id)">
+              <img :src="s.photo_url" :alt="s.name" class="subject-avatar" />
+              <span class="subject-name">{{ s.name }}</span>
+            </div>
+            <Button icon="pi pi-trash" text size="small" @click="deleteImageSubject(s.id)" />
+          </li>
+          <li v-if="imgSubjects.length === 0" class="text-600 text-sm">No subjects linked.</li>
+        </ul>
+        <div class="mt-2">
+          <FloatLabel variant="on">
+            <CaseSubjectSelect
+              v-model="newSubjectId"
+              :caseId="String(props.caseId || '')"
+              :filter="true"
+              :includeUnknown="false"
+              class="w-full"
+              @change="onSelectNewSubject"
+            />
+            <label>Add Subject</label>
+          </FloatLabel>
+        </div>
+      </div>
+
       <template #footer>
         <button class="btn" @click="showDialog=false" :disabled="saving">Cancel</button>
         <button class="btn primary" @click="saveEdit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
@@ -620,6 +760,15 @@ function downloadItem(item) {
         </div>
       </div>
     </div>
+
+    <!-- Subject Dialog -->
+    <Dialog v-model:visible="subjectDialogVisible" modal header="Subject" :style="{ width: '640px' }">
+      <div v-if="subjectLoading" class="p-3 text-600">Loading…</div>
+      <SubjectPanel v-else-if="subjectModel" v-model="subjectModel" :isNew="false" :canModify="true" @updated="() => {}" @avatarChanged="() => {}" />
+      <template #footer>
+        <Button label="Close" text @click="subjectDialogVisible=false" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -764,5 +913,18 @@ function downloadItem(item) {
   padding-inline-start: 8px;
   padding-inline-end: 8px;
 }
+
+.subject-list { list-style: none; padding: 0; margin: 0; }
+.subject-row { display: flex; align-items: center; justify-content: space-between; padding: .25rem 0; border-bottom: 1px solid var(--p-surface-200); }
+.subject-row:last-child { border-bottom: 0; }
+.subject-info { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1 1 auto; }
+.subject-avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; }
+.subject-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* List-view People cell */
+.people-cell { display: flex; flex-direction: column; gap: .25rem; }
+.people-row { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.clickable { cursor: pointer; }
+.clickable:hover .subject-name { text-decoration: underline; }
 
 </style>
