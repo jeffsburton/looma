@@ -49,7 +49,9 @@ router.beforeEach((to) => {
     const flag = typeof window !== 'undefined' && window.localStorage?.getItem('is_authenticated') === '1'
 
     if (!token && !flag) {
-        return { name: 'login', query: { redirect: to.fullPath } }
+        const wantsCase = typeof to?.path === 'string' && to.path.startsWith('/cases')
+        const message = wantsCase ? 'Please log in to view that case.' : 'Please log in to view that page.'
+        return { name: 'login', query: { redirect: to.fullPath, message } }
     }
 })
 

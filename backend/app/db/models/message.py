@@ -9,6 +9,8 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
+
+    # to a specific person (someone not on the case)
     person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=True)
     message = Column(Text, nullable=False)
     reply_to_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)
@@ -16,6 +18,7 @@ class Message(Base):
     rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
     intel_summary_id = Column(Integer, ForeignKey("intel_summary.id", ondelete="SET NULL"), nullable=True)
     ops_plan_id = Column(Integer, ForeignKey("ops_plan.id", ondelete="SET NULL"), nullable=True)
+    task_id = Column(Integer, ForeignKey("task.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

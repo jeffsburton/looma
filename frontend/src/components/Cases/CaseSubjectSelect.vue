@@ -18,7 +18,7 @@ const emit = defineEmits(['update:modelValue','change'])
 
 const selected = ref(props.modelValue)
 watch(() => props.modelValue, v => { selected.value = v })
-watch(selected, v => { emit('update:modelValue', v); emit('change', v) })
+watch(selected, v => { emit('update:modelValue', v) })
 
 const options = ref([])
 const loading = ref(false)
@@ -81,5 +81,6 @@ const selectedOption = computed(() => options.value.find(o => o.id === selected.
     :filter="filter"
     class="w-20rem max-w-full"
     :disabled="disabled"
+    @update:modelValue="(v) => emit('change', v)"
   />
 </template>

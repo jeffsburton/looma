@@ -73,6 +73,17 @@ api.interceptors.response.use(
                     }
                     clearPermissions()
                 } catch (_) { /* noop */ }
+
+                // Redirect to login with return URL when unauthorized
+                try {
+                    const current = router?.currentRoute?.value
+                    const currentPath = current?.fullPath || '/'
+                    const isOnCase = typeof current?.path === 'string' && current.path.startsWith('/cases')
+                    const message = isOnCase ? 'Please log in to view that case.' : 'Please log in to view that page.'
+                    if (current?.name !== 'login') {
+                        router.push({ name: 'login', query: { redirect: currentPath, message } })
+                    }
+                } catch (_) { /* noop */ }
             }
 
             if (status === 403) {
@@ -90,6 +101,21 @@ api.interceptors.response.use(
                     status: 403
                 }
                 showServerError({ message, details })
+
+                // If user is on a case URL and hit 403 likely due to auth/session issues, redirect to login with return URL
+                try {
+                    const current = router?.currentRoute?.value
+                    const currentPath = current?.fullPath || '/'
+                    const isOnCase = typeof current?.path === 'string' && current.path.startsWith('/cases')
+                    if (isOnCase && current?.name !== 'login') {
+                        if (typeof window !== 'undefined') {
+                            window.localStorage?.removeItem('is_authenticated')
+                        }
+                        clearPermissions()
+                        const message = 'Please log in to view that case.'
+                        router.push({ name: 'login', query: { redirect: currentPath, message } })
+                    }
+                } catch (_) { /* noop */ }
             }
 
             if (status === 419) {
@@ -107,9 +133,21 @@ api.interceptors.response.use(
                         }))
                     }
 
-                    // Redirect to login
+                    // Clear auth hints and redirect to login with return URL
                     try {
-                        router.push('/login') // or whatever your login route is
+                        if (typeof window !== 'undefined') {
+                            window.localStorage?.removeItem('is_authenticated')
+                        }
+                        clearPermissions()
+                    } catch (_) { /* noop */ }
+
+                    try {
+                        const current = router?.currentRoute?.value
+                        const currentPath = current?.fullPath || '/'
+                        const message = 'Your session has expired. Please log in to continue.'
+                        if (current?.name !== 'login') {
+                            router.push({ name: 'login', query: { redirect: currentPath, message } })
+                        }
                     } catch (_) { /* noop */ }
                 }
 
