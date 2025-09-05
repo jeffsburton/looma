@@ -12,6 +12,10 @@ import './assets/override.css'
 import ToastService from 'primevue/toastservice'
 import Tooltip from 'primevue/tooltip'
 import router from './router'
+import { installGlobalFetch } from './lib/fetchWrapper'
+
+// Ensure all fetch() calls go through our axios api wrapper and interceptors
+installGlobalFetch()
 
 const app = createApp(App)
 

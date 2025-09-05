@@ -9,6 +9,14 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import FloatLabel from 'primevue/floatlabel'
 import Button from "primevue/button";
+import { reactive } from 'vue';
+import ProgressBar from 'primevue/progressbar'
+import Message from 'primevue/message'
+import Badge from 'primevue/badge'
+import Toast from 'primevue/toast'
+
+import { usePrimeVue } from 'primevue/config';
+import { useToast } from "primevue/usetoast";
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false }
@@ -88,6 +96,7 @@ async function onUploadFiles(event) {
   }
   // Refresh from server to populate created_by_name, rfi_name, etc.
   await loadImages()
+  toast.add({ severity: "info", summary: "Success", detail: "File Uploaded", life: 3000 });
 }
 
 // Extract a frame at `timeSec` (default nudges off 0 to avoid black frames).
@@ -159,11 +168,12 @@ async function extractFrameFromFile(file, timeSec = 0.1, type = 'image/jpeg', qu
 
 const onUploadSelect = async (e) => {
   for (const f of e.files) {
+    totalSize.value += parseInt(formatSize(f.size));
     if (f.type.startsWith('video/')) {
       try {
         const blob = await extractFrameFromFile(f, 0.12, 'image/jpeg', 0.9, 640); // 640px wide poster
         const thumbUrl = URL.createObjectURL(blob);
-
+        posters.set(keyOf(f), thumbUrl);
 
         console.log(thumbUrl);
         f.objectURL = thumbUrl;
@@ -176,8 +186,70 @@ const onUploadSelect = async (e) => {
   }
 };
 
+// Map File -> poster URL (blob)
+const posters = reactive(new Map());
+const keyOf = (f) => `${f.name}-${f.size}-${f.type}-${f.lastModified || 0}`;
+
+const previewSrc = (file) => {
+  // use our poster for videos; for images, keep PrimeVue’s default objectURL
+
+  console.log(`preview: {file}`)
+  return file.type.startsWith('video/')
+    ? posters.get(keyOf(file))
+    : file.objectURL;
+};
 
 
+
+const $primevue = usePrimeVue();
+const toast = useToast();
+
+const totalSize = ref(0);
+const totalSizePercent = ref(0);
+const files = ref([]);
+
+const onRemoveTemplatingFile = (file, removeFileCallback, index) => {
+    removeFileCallback(index);
+    totalSize.value -= parseInt(formatSize(file.size));
+    totalSizePercent.value = totalSize.value / 10;
+};
+
+const onClearTemplatingUpload = (clear) => {
+    clear();
+    totalSize.value = 0;
+    totalSizePercent.value = 0;
+};
+
+const onSelectedFiles = (event) => {
+    files.value = event.files;
+    files.value.forEach((file) => {
+        totalSize.value += parseInt(formatSize(file.size));
+    });
+};
+
+const uploadEvent = (callback) => {
+    totalSizePercent.value = totalSize.value / 10;
+    callback();
+};
+
+const onTemplatedUpload = () => {
+    toast.add({ severity: "info", summary: "Success", detail: "File Uploaded", life: 3000 });
+};
+
+const formatSize = (bytes) => {
+    const k = 1024;
+    const dm = 3;
+    const sizes = $primevue.config.locale.fileSizeTypes;
+
+    if (bytes === 0) {
+        return `0 ${sizes[0]}`;
+    }
+
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const formattedSize = parseFloat((bytes / Math.pow(k, i)).toFixed(dm));
+
+    return `${formattedSize} ${sizes[i]}`;
+};
 
 
 function isHighlighted(item) {
@@ -244,26 +316,74 @@ watch(() => props.caseId, () => { loadImages() })
     <div class="flex align-items-center gap-3 mb-3 wrap">
 
       <!-- PrimeVue FileUpload -->
-      <div class="flex-1 min-w-0">
-        <FileUpload
-          name="images[]"
-          mode="advanced"
-          :multiple="true"
-          :maxFileSize="1000000000"
-          accept="image/*,video/*"
-          :auto="false"
-          customUpload
-          @uploader="onUploadFiles"
-          @select="onUploadSelect"
-          chooseLabel="Choose"
-          uploadLabel="Upload"
-          cancelLabel="Clear"
-        >
-        <template #empty>
-          <span>Drag and drop files to here to upload.</span>
-        </template>
-        </FileUpload>
-      </div>
+          <div class="flex-shrink-0">
+            <Toast />
+            <FileUpload name="demo[]"
+                        url="/api/upload"
+                        @upload="onTemplatedUpload($event)"
+                        :multiple="true"
+                        accept="image/*,video/*"
+                        :auto="false"
+                        :maxFileSize="1000000"
+                        @select="onSelectedFiles">
+                <template #header="{ chooseCallback, uploadCallback, clearCallback, files }">
+                    <div class="flex flex-wrap justify-between items-center flex-1 gap-4">
+                        <div class="flex gap-2">
+                            <Button @click="chooseCallback()" icon="pi pi-images" rounded variant="outlined" severity="secondary"></Button>
+                            <Button @click="uploadEvent(uploadCallback)" icon="pi pi-cloud-upload" rounded variant="outlined" severity="success" :disabled="!files || files.length === 0"></Button>
+                            <Button @click="clearCallback()" icon="pi pi-times" rounded variant="outlined" severity="danger" :disabled="!files || files.length === 0"></Button>
+                        </div>
+                        <ProgressBar :value="totalSizePercent" :showValue="false" class="md:w-20rem h-1 w-full md:ml-auto">
+                            <span class="whitespace-nowrap">{{ totalSize }}B / 1Mb</span>
+                        </ProgressBar>
+                    </div>
+                </template>
+                <template #content="{ files, uploadedFiles, removeUploadedFileCallback, removeFileCallback }">
+                    <div class="w-full">
+                        <div v-if="files.length > 0">
+                            <h5>Pending</h5>
+                            <div v-for="(file, index) of files" :key="file.name + file.type + file.size" class="flex">
+                              <div class="basis-xs">
+                                  <img role="presentation" :alt="file.name" :src="file.objectURL" :height="50" />
+                              </div>
+                              <div class="basis-lg">
+                                  <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
+                                  <div class="text-sm text-gray-600">{{ formatSize(file.size) }}</div>
+                              </div>
+                              <div class="basis-xs">
+                                  <Badge value="Pending" severity="warn" />
+                                  <Button icon="pi pi-times" @click="onRemoveTemplatingFile(file, removeFileCallback, index)" variant="outlined" rounded severity="danger" size="small" />
+                              </div>
+                            </div>
+                        </div>
+                        <div v-if="uploadedFiles.length > 0">
+                            <h5>Completed</h5>
+                              <div class="flex flex-wrap gap-1">
+                                  <div v-for="(file, index) of uploadedFiles" :key="file.name + file.type + file.size" class="p-1 rounded-border border border-surface w-full">
+                                      <div class="flex items-center gap-2">
+                                          <div class="flex-shrink-0">
+                                              <img role="presentation" :alt="file.name" :src="file.objectURL" height="50" />
+                                          </div>
+                                          <div class="flex-1 min-w-0">
+                                              <span class="font-semibold text-ellipsis max-w-60 whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
+                                              <div>{{ formatSize(file.size) }}</div>
+                                          </div>
+                                          <div class="flex items-center gap-2 ml-auto">
+                                              <Badge value="Completed" severity="success" />
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                        </div>
+                    </div>
+                </template>
+                <template #empty>
+                    <div class="flex items-center justify-center flex-col">
+                        <p class="mt-1 mb-0">Drag and drop files to here to upload.</p>
+                    </div>
+                </template>
+            </FileUpload>
+        </div>
 
       <!-- View mode SelectButton -->
       <div class="flex-shrink-0 ml-auto">

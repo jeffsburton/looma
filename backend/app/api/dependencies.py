@@ -53,17 +53,19 @@ async def get_bearer_or_cookie_token(
     Preference: Authorization header > cookie.
     """
     if credentials and credentials.scheme.lower() == "bearer" and credentials.credentials:
+        print(f"Token from header: {credentials.credentials}")
         return credentials.credentials
 
     # Fallback to cookie
     token = request.cookies.get(getattr(settings, "cookie_name", "access_token"))
+    print(f"Token from cookie: {token}")
     if token:
         return token
 
     # No token found
     raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        status_code=419,    # EXPIRED TOKEN
+        detail="No token found in header or cookie. Please authenticate with a valid token.",
         headers={"WWW-Authenticate": "Bearer"},
     )
 

@@ -2,6 +2,7 @@ import axios from 'axios'
 import { getCookie } from './cookies'
 import { showServerError } from './serverErrorStore'
 import { clearPermissions } from './permissions'
+import router from '../router'
 
 // Resolve API base URL:
 // Priority (production):
@@ -79,6 +80,28 @@ api.interceptors.response.use(
                 }
                 showServerError({ message, details })
             }
+
+            if (status === 419) {
+                    const message = 'Your session has expired. You are required login again.'
+
+                    // Notify app to show toast
+                    if (typeof window !== 'undefined' && window.dispatchEvent) {
+                        window.dispatchEvent(new CustomEvent('app:toast', {
+                            detail: {
+                                severity: 'warn',
+                                summary: 'Session Expired',
+                                detail: message,
+                                life: 5000
+                            }
+                        }))
+                    }
+
+                    // Redirect to login
+                    try {
+                        router.push('/login') // or whatever your login route is
+                    } catch (_) { /* noop */ }
+                }
+
 
             if (status === 500) {
                 const data = res.data || {}
