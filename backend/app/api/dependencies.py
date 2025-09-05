@@ -53,14 +53,14 @@ async def get_bearer_or_cookie_token(
     Preference: Authorization header > cookie.
     """
     if credentials and credentials.scheme.lower() == "bearer" and credentials.credentials:
-        print(f"Token from header: {credentials.credentials}")
         return credentials.credentials
 
     # Fallback to cookie
     token = request.cookies.get(getattr(settings, "cookie_name", "access_token"))
-    print(f"Token from cookie: {token}")
     if token:
         return token
+
+    print (token)
 
     # No token found
     raise HTTPException(

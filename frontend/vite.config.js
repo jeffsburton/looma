@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { fileURLToPath, URL } from 'node:url'
 
 // Prefer LOOMA_API_URL for proxy target in development.
 // Fallbacks: VITE_PROXY_TARGET, PROXY_TARGET, default 'http://127.0.0.1:8000'
@@ -22,6 +23,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       // No alias for regenerator to allow optimized ESM wrapper to be used
     }
   },

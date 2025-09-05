@@ -26,10 +26,21 @@ const api = axios.create({
     withCredentials: true, // send and receive cookies (required for HttpOnly session cookies)
 })
 
-// Attach token from secure cookie if present
+// Attach token from secure cookie if present and add CSRF header for mutating requests (if available)
 api.interceptors.request.use((config) => {
     const token = getCookie('access_token')
     if (token) config.headers.Authorization = `Bearer ${token}`
+
+    try {
+        const method = (config.method || 'get').toUpperCase()
+        if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+            const csrf = getCookie('csrf_token')
+            if (csrf) {
+                config.headers['X-CSRF-Token'] = csrf
+            }
+        }
+    } catch (_) { /* noop */ }
+
     return config
 })
 

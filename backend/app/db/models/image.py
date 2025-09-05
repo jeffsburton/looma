@@ -16,6 +16,11 @@ class File(Base):
     where = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
 
+    mime_type = Column(Text, nullable=True)
+
+    # if the image was copied, original id (so we don't have to duplicate the file in s3)
+    copied_id = Column(Integer, nullable=True)
+
     rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
