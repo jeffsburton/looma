@@ -43,6 +43,7 @@ from app.schemas.case_circumstances import CaseCircumstancesUpsert
 from app.db.models.image import File as Image
 from app.db.models.rfi import Rfi
 from app.db.models.person import Person as PersonModel
+from app.db.models.image_subject import ImageSubject
 from app.schemas.image import ImageRead
 from app.services.s3 import get_download_link, create_file
 from fastapi import UploadFile, File as UploadFileParam, Form
@@ -2340,8 +2341,10 @@ async def list_images(
 
     rows = (await db.execute(q)).all()
     items = []
+    image_ids: list[int] = []
     for r in rows:
         rid = int(r.id)
+        image_ids.append(rid)
         items.append({
             "id": rid,
             "case_id": int(r.case_id),
@@ -2362,6 +2365,54 @@ async def list_images(
             "created_by_name": r.created_by_name if getattr(r, "created_by_name", None) else None,
             "rfi_name": r.rfi_name if getattr(r, "rfi_name", None) else None,
         })
+
+    # Attach subjects per image
+    if image_ids:
+        IS = ImageSubject
+        S = Subject
+        subj_rows = (
+            await db.execute(
+                select(
+                    IS.image_id,
+                    IS.id.label("link_id"),
+                    S.id.label("sid"),
+                    S.first_name,
+                    S.last_name,
+                    S.nicknames,
+                    S.profile_pic,
+                ).join(S, S.id == IS.subject_id).where(IS.image_id.in_(image_ids))
+            )
+        ).all()
+
+        # Helper to compose display name
+        def _name(first: str | None, last: str | None, nick: str | None) -> str:
+            first = (first or "").strip()
+            last = (last or "").strip()
+            nick_part = f' "{nick.strip()}"' if nick and str(nick).strip() else ""
+            return f"{first}{nick_part} {last}".strip()
+
+        by_image: dict[int, list[dict]] = {}
+        for row in subj_rows:
+            img_id = int(row.image_id)
+            sid = int(row.sid)
+            photo_url = f"/api/v1/media/pfp/subject/{encode_id('subject', sid)}?s=sm" if getattr(row, 'profile_pic', None) else "/images/pfp-generic.png"
+            by_image.setdefault(img_id, []).append({
+                "id": int(row.link_id),  # link id
+                "subject_id": encode_id("subject", sid),
+                "name": _name(row.first_name, row.last_name, row.nicknames),
+                "photo_url": photo_url,
+            })
+
+        # merge back into items
+        by_id = {it["id"]: it for it in items}
+        for img_id, subs in by_image.items():
+            if img_id in by_id:
+                by_id[img_id]["subjects"] = subs
+        # ensure others have empty list
+        for it in items:
+            if "subjects" not in it:
+                it["subjects"] = []
+
     return items
 
 
@@ -2557,3 +2608,143 @@ async def update_image(
         "created_by_name": row.created_by_name if getattr(row, "created_by_name", None) else None,
         "rfi_name": row.rfi_name if getattr(row, "rfi_name", None) else None,
     }
+
+
+
+# ---------------- Image Subjects ----------------
+from pydantic import BaseModel as _BaseModel_IS
+from typing import Optional as _Optional_IS
+
+class ImageSubjectCreate(_BaseModel_IS):
+    subject_id: str
+
+@router.get("/{case_id}/images/{image_id}/subjects", summary="List subjects linked to an image")
+async def list_image_subjects(
+    case_id: str,
+    image_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    # Access control
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve image id and ensure it belongs to the case
+    try:
+        iid = decode_id("image", image_id) if not str(image_id).isdigit() else int(image_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    img_row = (await db.execute(select(Image.id).where(Image.id == iid, Image.case_id == pk))).scalar_one_or_none()
+    if img_row is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Join to Subject for display
+    IS = ImageSubject
+    S = Subject
+    rows = (
+        await db.execute(
+            select(
+                IS.id,
+                S.first_name,
+                S.last_name,
+                S.nicknames,
+                S.id.label("sid"),
+                S.profile_pic,
+            ).join(S, S.id == IS.subject_id).where(IS.image_id == iid)
+        )
+    ).all()
+
+    def _name(first: str, last: str, nick: _Optional_IS[str]) -> str:
+        nick_part = f' "{nick.strip()}"' if nick and str(nick).strip() else ""
+        return f"{first}{nick_part} {last}".strip()
+
+    items = []
+    for r in rows:
+        sid = int(r.sid)
+        photo_url = f"/api/v1/media/pfp/subject/{encode_id('subject', sid)}?s=sm" if getattr(r, 'profile_pic', None) else "/images/pfp-generic.png"
+        items.append({
+            "id": int(r.id),
+            "subject_id": encode_id("subject", sid),
+            "name": _name(r.first_name, r.last_name, r.nicknames),
+            "photo_url": photo_url,
+        })
+    return items
+
+
+@router.post("/{case_id}/images/{image_id}/subjects", summary="Add a subject to an image", dependencies=[Depends(require_permission("CONTACTS.MODIFY"))])
+async def add_image_subject(
+    case_id: str,
+    image_id: str,
+    payload: ImageSubjectCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve image id and ensure it belongs to the case
+    try:
+        iid = decode_id("image", image_id) if not str(image_id).isdigit() else int(image_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    img_row = (await db.execute(select(Image.id).where(Image.id == iid, Image.case_id == pk))).scalar_one_or_none()
+    if img_row is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Decode subject id
+    try:
+        sid = decode_id("subject", payload.subject_id) if not str(payload.subject_id).isdigit() else int(payload.subject_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=400, detail="Invalid subject_id")
+
+    # Upsert-like: avoid duplicates
+    exists_row = (
+        await db.execute(select(ImageSubject.id).where(ImageSubject.image_id == iid, ImageSubject.subject_id == sid).limit(1))
+    ).scalar_one_or_none()
+    if exists_row is not None:
+        return {"id": int(exists_row)}
+
+    link = ImageSubject(image_id=iid, subject_id=sid)
+    db.add(link)
+    await db.commit()
+    await db.refresh(link)
+
+    return {"id": int(link.id)}
+
+
+@router.delete("/{case_id}/images/{image_id}/subjects/{link_id}", summary="Remove a subject from an image", dependencies=[Depends(require_permission("CONTACTS.MODIFY"))])
+async def delete_image_subject(
+    case_id: str,
+    image_id: str,
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve image id and ensure it belongs to the case
+    try:
+        iid = decode_id("image", image_id) if not str(image_id).isdigit() else int(image_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    img_row = (await db.execute(select(Image.id).where(Image.id == iid, Image.case_id == pk))).scalar_one_or_none()
+    if img_row is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Delete the link constrained to this image
+    try:
+        lid = int(link_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Link not found")
+
+    await db.execute(sa.delete(ImageSubject).where(ImageSubject.id == lid, ImageSubject.image_id == iid))
+    await db.commit()
+
+    return {"ok": True}

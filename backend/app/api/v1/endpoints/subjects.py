@@ -19,6 +19,8 @@ from app.db.models.team_case import TeamCase
 from app.db.models.case import Case
 from app.db.models.app_user import AppUser
 from app.services.auth import user_has_permission
+from app.db.models.image_subject import ImageSubject
+from app.db.models.image import File as Image
 
 # Simple authenticated listing for subjects
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -65,7 +67,10 @@ def _subject_visibility_filter(person_id: int):
     """
     Build SQLAlchemy filter so that a Subject is included if it is attached to any case
     related to the given person via either person_case or team_case.
-    Subject linkage to a case can be direct (case.subject_id) or via subject_case.
+    Subject linkage to a case can be:
+      - direct (case.subject_id)
+      - via subject_case
+      - via image_subject on any image belonging to those cases
     """
     # Cases related directly to the person
     pc_case_ids = select(PersonCase.case_id).where(PersonCase.person_id == person_id)
@@ -82,7 +87,18 @@ def _subject_visibility_filter(person_id: int):
     # Subjects directly attached on the case.subject_id
     direct_subject_ids = select(Case.subject_id).where(Case.id.in_(union_case_ids))
 
-    return or_(Subject.id.in_(sc_subject_ids), Subject.id.in_(direct_subject_ids))
+    # Subjects appearing in images for those cases (image_subject join image)
+    img_subject_ids = (
+        select(ImageSubject.subject_id)
+        .join(Image, Image.id == ImageSubject.image_id)
+        .where(Image.case_id.in_(union_case_ids))
+    )
+
+    return or_(
+        Subject.id.in_(sc_subject_ids),
+        Subject.id.in_(direct_subject_ids),
+        Subject.id.in_(img_subject_ids),
+    )
 
 
 @router.get("/subjects", response_model=List[SubjectRead], summary="List subjects")

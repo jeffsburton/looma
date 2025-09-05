@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 from app.db import Base
 
 
-class ImagePerson(Base):
+class ImageSubject(Base):
     __tablename__ = "image_subject"
 
     id = Column(Integer, primary_key=True, index=True)
