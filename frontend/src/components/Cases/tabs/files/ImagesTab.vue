@@ -390,6 +390,42 @@ async function loadImages() {
 
 onMounted(loadImages)
 watch(() => props.caseId, () => { loadImages() })
+
+// Lightbox state and actions
+const showLightbox = ref(false)
+const lightboxItem = ref(null)
+
+function openLightbox(item) {
+  lightboxItem.value = item
+  showLightbox.value = true
+}
+function closeLightbox() {
+  showLightbox.value = false
+  lightboxItem.value = null
+}
+
+function isVideo(item) {
+  const mt = item?.mime_type || ''
+  return typeof mt === 'string' && mt.toLowerCase().startsWith('video')
+}
+
+function downloadItem(item) {
+  try {
+    const href = item?.url
+    if (!href) return
+    const a = document.createElement('a')
+    a.href = href
+    // Suggest a filename if available
+    a.download = item?.file_name || 'download'
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } catch (e) {
+    // Fallback: open in a new tab
+    try { window.open(item?.url, '_blank', 'noopener') } catch (_) { /* noop */ }
+  }
+}
 </script>
 <template>
 
@@ -477,9 +513,18 @@ watch(() => props.caseId, () => { loadImages() })
         :key="item.id"
         class="image-tile"
         :class="{ highlighted: isHighlighted(item) }"
-        @click="openEdit(item)"
+        @click="openLightbox(item)"
         role="button"
       >
+        <!-- Hover action icons -->
+        <div class="tile-actions" @click.stop>
+          <button class="tile-icon" type="button" @click="openEdit(item)" v-tooltip.left="'Edit'">
+            <i class="pi pi-pencil"></i>
+          </button>
+          <button class="tile-icon" type="button" @click="downloadItem(item)" v-tooltip.left="'Download'">
+            <i class="pi pi-download"></i>
+          </button>
+        </div>
         <img :src="viewMode === 'large' && (!item.mime_type || !item.mime_type.includes('video')) ? item.url : item.thumb" alt="image" v-tooltip.bottom="tooltipOptions(item)" />
       </div>
 
@@ -490,7 +535,7 @@ watch(() => props.caseId, () => { loadImages() })
       <DataTable :value="items" dataKey="id" tableStyle="min-width: 680px" :rows="items?.length || 0">
         <Column header="Thumbnail" :exportable="false" style="width:120px">
           <template #body="{ data }">
-            <img :src="data.thumb || data.url" alt="thumb" class="thumb" v-tooltip.bottom="tooltipOptions(data)" />
+            <img :src="data.thumb || data.url" alt="thumb" class="thumb" v-tooltip.bottom="tooltipOptions(data)" @click="openLightbox(data)" role="button" />
           </template>
         </Column>
         <Column field="notes" header="Notes">
@@ -515,6 +560,7 @@ watch(() => props.caseId, () => { loadImages() })
         <Column header="" :exportable="false" style="width:64px; text-align:right;">
           <template #body="{ data }">
             <Button icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
+            <Button icon="pi pi-download" size="small" text @click="downloadItem(data)" style="margin-left: .25rem;" />
           </template>
         </Column>
         <template #empty>
@@ -559,6 +605,21 @@ watch(() => props.caseId, () => { loadImages() })
         <button class="btn primary" @click="saveEdit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
       </template>
     </Dialog>
+
+    <!-- Lightbox Overlay -->
+    <div v-if="showLightbox" class="lightbox" @click.self="closeLightbox">
+      <button class="lightbox-close" type="button" @click="closeLightbox" aria-label="Close">
+        <i class="pi pi-times"></i>
+      </button>
+      <div class="lightbox-center">
+        <div class="lightbox-content">
+          <template v-if="lightboxItem">
+            <video v-if="isVideo(lightboxItem)" :src="lightboxItem.url" controls class="lightbox-media"></video>
+            <img v-else :src="lightboxItem.url" alt="preview" class="lightbox-media" />
+          </template>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -609,6 +670,80 @@ watch(() => props.caseId, () => { loadImages() })
 
 
 
+
+/* Tile hover actions */
+.tile-actions {
+  position: absolute;
+  top: .4rem;
+  right: .4rem;
+  display: flex;
+  gap: .35rem;
+  opacity: 0;
+  transition: opacity .15s ease-in-out;
+  z-index: 2;
+}
+.image-tile:hover .tile-actions { opacity: 1; }
+.tile-icon {
+  background: rgba(255,255,255,0.9);
+  border: 1px solid var(--p-surface-300);
+  border-radius: .5rem;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--p-text-color);
+}
+.tile-icon:hover { background: #fff; }
+.tile-icon .pi { font-size: 14px; }
+
+/* Lightbox */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+}
+.lightbox-close {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(0,0,0,0.4);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1001;
+}
+.lightbox-close .pi { font-size: 18px; }
+.lightbox-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vw;
+}
+.lightbox-content {
+  max-width: 80vw;
+  max-height: 90vh;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-media {
+  max-width: 80vw;
+  max-height: 90vh;
+  object-fit: contain;
+  display: block;
+}
 
 /* Dialog */
 .field { margin-bottom: .75rem; }
