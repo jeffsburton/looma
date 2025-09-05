@@ -2611,6 +2611,236 @@ async def update_image(
 
 
 
+# ---------------- Files (list and upload) ----------------
+from app.db.models.file import File as OtherFile
+
+@router.get("/{case_id}/files", summary="List files for a case")
+async def list_files(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await user_has_permission(db, current_user.id, "CASES.ALL_CASES"):
+        if not await can_user_access_case(db, current_user.id, pk):
+            raise HTTPException(status_code=404, detail="Case not found")
+
+    P = PersonModel
+    R = Rfi
+    F = OtherFile
+    q = (
+        select(
+            F.id,
+            F.case_id,
+            F.file_name,
+            F.created_by_id,
+            F.source,
+            F.notes,
+            F.rfi_id,
+            F.created_at,
+            F.updated_at,
+            F.mime_type,
+            (P.first_name + sa.literal(" ") + P.last_name).label("created_by_name"),
+            R.name.label("rfi_name"),
+        )
+        .select_from(F)
+        .join(P, P.id == F.created_by_id, isouter=True)
+        .join(R, R.id == F.rfi_id, isouter=True)
+        .where(F.case_id == pk)
+        .order_by(sa.desc(F.created_at))
+    )
+
+    rows = (await db.execute(q)).all()
+    items = []
+    for r in rows:
+        rid = int(r.id)
+        items.append({
+            "id": rid,
+            "case_id": int(r.case_id),
+            "file_name": r.file_name,
+            "created_by_id": int(r.created_by_id) if r.created_by_id is not None else None,
+            "source": r.source,
+            "notes": r.notes,
+            "rfi_id": int(r.rfi_id) if r.rfi_id is not None else None,
+            "created_at": r.created_at,
+            "updated_at": r.updated_at,
+            "mime_type": r.mime_type,
+            "url": get_download_link("file", rid, file_type=r.mime_type or None, thumbnail=False, attachment_filename=r.file_name or "download"),
+            "storage_slug": None,
+            "created_by_name": r.created_by_name if getattr(r, "created_by_name", None) else None,
+            "rfi_name": r.rfi_name if getattr(r, "rfi_name", None) else None,
+        })
+    return items
+
+
+@router.post("/{case_id}/files/upload", summary="Upload a file for a case")
+async def upload_file(
+    case_id: str,
+    file: UploadFile = UploadFileParam(...),
+    source: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    rfi_id: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await user_has_permission(db, current_user.id, "CASES.ALL_CASES"):
+        if not await can_user_access_case(db, current_user.id, pk):
+            raise HTTPException(status_code=404, detail="Case not found")
+
+    rid: Optional[int] = None
+    if rfi_id:
+        try:
+            rid = decode_id("rfi", rfi_id)
+        except OpaqueIdError:
+            rid = None
+
+    # Resolve current user's person.id via Person.app_user_id; fallback to any person linked to the case
+    person_id = None
+    try:
+        res = await db.execute(select(PersonModel.id).where(PersonModel.app_user_id == current_user.id))
+        person_id = res.scalar()
+    except Exception:
+        person_id = None
+
+    if person_id is None:
+        try:
+            pc = (await db.execute(select(PersonCase.person_id).where(PersonCase.case_id == pk).order_by(asc(PersonCase.id)).limit(1))).scalar_one_or_none()
+            if pc is not None:
+                person_id = pc
+        except Exception:
+            person_id = None
+
+    if person_id is None:
+        raise HTTPException(status_code=400, detail="No person available to attribute file upload")
+
+    row = OtherFile(
+        case_id=pk,
+        file_name=file.filename or "upload",
+        created_by_id=int(person_id) if person_id is not None else None,
+        source=source,
+        notes=notes,
+        rfi_id=rid,
+        mime_type=file.content_type or None,
+    )
+    db.add(row)
+    await db.flush()
+
+    file.file.seek(0)
+    await create_file("file", row.id, file.file, content_type=file.content_type or "application/octet-stream")
+
+    await db.commit()
+    await db.refresh(row)
+
+    return {
+        "id": int(row.id),
+        "case_id": int(row.case_id),
+        "file_name": row.file_name,
+        "created_by_id": int(row.created_by_id) if row.created_by_id is not None else None,
+        "source": row.source,
+        "notes": row.notes,
+        "rfi_id": int(row.rfi_id) if row.rfi_id is not None else None,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "mime_type": row.mime_type,
+        "url": get_download_link("file", int(row.id), file_type=row.mime_type or None, thumbnail=False, attachment_filename=row.file_name or "download"),
+        "storage_slug": None,
+    }
+
+
+@router.patch("/{case_id}/files/{file_id}", summary="Update file fields for a case")
+async def update_file(
+    case_id: str,
+    file_id: str,
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    result = await db.execute(select(OtherFile).where(OtherFile.id == fid, OtherFile.case_id == pk))
+    frow: Optional[OtherFile] = result.scalars().first()
+    if not frow:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if payload is None:
+        payload = {}
+    source = payload.get("source")
+    notes = payload.get("notes")
+    rfi_eid = payload.get("rfi_id")
+
+    rid: Optional[int] = frow.rfi_id
+    if rfi_eid is not None:
+        if rfi_eid == "" or rfi_eid is None:
+            rid = None
+        else:
+            try:
+                rid = decode_id("rfi", rfi_eid) if not str(rfi_eid).isdigit() else int(rfi_eid)
+            except OpaqueIdError:
+                rid = None
+
+    if "source" in payload:
+        frow.source = source
+    if "notes" in payload:
+        frow.notes = notes
+    if "rfi_id" in payload:
+        frow.rfi_id = rid
+
+    await db.commit()
+    await db.refresh(frow)
+
+    P = PersonModel
+    R = Rfi
+    F = OtherFile
+    q = (
+        select(
+            F.id,
+            F.case_id,
+            F.file_name,
+            F.created_by_id,
+            F.source,
+            F.notes,
+            F.rfi_id,
+            F.created_at,
+            F.updated_at,
+            F.mime_type,
+            (P.first_name + sa.literal(" ") + P.last_name).label("created_by_name"),
+            R.name.label("rfi_name"),
+        )
+        .select_from(F)
+        .join(P, P.id == F.created_by_id, isouter=True)
+        .join(R, R.id == F.rfi_id, isouter=True)
+        .where(F.id == frow.id)
+    )
+    row = (await db.execute(q)).first()
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to load updated file")
+
+    return {
+        "id": int(row.id),
+        "case_id": int(row.case_id),
+        "file_name": row.file_name,
+        "created_by_id": int(row.created_by_id) if row.created_by_id is not None else None,
+        "source": row.source,
+        "notes": row.notes,
+        "rfi_id": int(row.rfi_id) if row.rfi_id is not None else None,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "url": get_download_link("file", int(row.id), file_type=row.mime_type or None, thumbnail=False, attachment_filename=row.file_name or "download"),
+        "mime_type": row.mime_type,
+        "storage_slug": None,
+        "created_by_name": row.created_by_name if getattr(row, "created_by_name", None) else None,
+        "rfi_name": row.rfi_name if getattr(row, "rfi_name", None) else None,
+    }
+
+
 # ---------------- Image Subjects ----------------
 from pydantic import BaseModel as _BaseModel_IS
 from typing import Optional as _Optional_IS

@@ -14,6 +14,8 @@ class File(Base):
     source = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
 
+    mime_type = Column(Text, nullable=True)
+
     rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
