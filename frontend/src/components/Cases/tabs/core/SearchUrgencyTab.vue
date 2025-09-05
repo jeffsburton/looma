@@ -27,9 +27,8 @@ let saveTimer = null
 const sortMaps = ref({ SU_AGE: {}, SU_FIT: {}, SU_MED: {}, SU_RISK: {}, SU_ONL: {}, SU_FAM: {}, SU_BE: {} })
 
 async function loadSortMap(code) {
-  const resp = await fetch(`/api/v1/reference/${encodeURIComponent(code)}/values`, { headers: { 'Accept': 'application/json' } })
-  if (!resp.ok) return
-  const data = await resp.json()
+  const { getReferenceValues } = await import('../../../../lib/referenceValues')
+  const data = await getReferenceValues(code)
   const map = {}
   for (const o of data) {
     map[String(o.id)] = o.sort_order != null ? Number(o.sort_order) : 0

@@ -82,11 +82,9 @@ let exploitSaveTimer = null
 async function loadExploitation() {
   try {
     // load options
-    const optsResp = await fetch(`/api/v1/reference/${encodeURIComponent('EXPLOIT')}/values`, { headers: { 'Accept': 'application/json' }, credentials: 'include' })
-    if (optsResp.ok) {
-      const opts = await optsResp.json()
-      exploitOptions.value = opts
-    }
+    const { getReferenceValues } = await import('../../../../lib/referenceValues')
+    const opts = await getReferenceValues('EXPLOIT')
+    exploitOptions.value = opts
     // load selected for this case
     const caseId = mCase.value?.id
     if (caseId) {
