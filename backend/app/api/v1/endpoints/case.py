@@ -54,6 +54,9 @@ router = APIRouter(prefix="/cases")
 # ---------- Helper utilities ----------
 
 def _decode_or_404(model: str, opaque_id: str) -> int:
+    # Accept numeric IDs directly as a convenience in internal calls
+    if str(opaque_id).isdigit():
+        return int(opaque_id)
     try:
         return decode_id(model, opaque_id)
     except OpaqueIdError:
@@ -2303,9 +2306,10 @@ async def list_images(
     current_user: AppUser = Depends(get_current_user),
 ):
     pk = _decode_or_404("case", case_id)
-    # Access control
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+    # Access control (allow admins with CASES.ALL_CASES)
+    if not await user_has_permission(db, current_user.id, "CASES.ALL_CASES"):
+        if not await can_user_access_case(db, current_user.id, pk):
+            raise HTTPException(status_code=404, detail="Case not found")
 
     # Join to gather creator/rfi names
     P = PersonModel
@@ -2323,6 +2327,7 @@ async def list_images(
             I.rfi_id,
             I.created_at,
             I.updated_at,
+            I.mime_type,
             (P.first_name + sa.literal(" ") + P.last_name).label("created_by_name"),
             R.name.label("rfi_name"),
         )
@@ -2348,8 +2353,10 @@ async def list_images(
             "rfi_id": int(r.rfi_id) if r.rfi_id is not None else None,
             "created_at": r.created_at,
             "updated_at": r.updated_at,
-            # presigned link to S3 object named image-<id>
-            "url": get_download_link("image", rid, file_type=None),
+            "mime_type": r.mime_type,
+            # presigned links to S3 objects
+            "url": get_download_link("image", rid, file_type=None, thumbnail=False),
+            "thumb": get_download_link("image", rid, file_type=None, thumbnail=True),
             "storage_slug": None,
             # extras for UI display
             "created_by_name": r.created_by_name if getattr(r, "created_by_name", None) else None,
@@ -2362,6 +2369,7 @@ async def list_images(
 async def upload_image(
     case_id: str,
     file: UploadFile = UploadFileParam(...),
+    thumbnail: Optional[UploadFile] = UploadFileParam(None),
     source_url: Optional[str] = Form(None),
     where: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
@@ -2370,9 +2378,10 @@ async def upload_image(
     current_user: AppUser = Depends(get_current_user),
 ):
     pk = _decode_or_404("case", case_id)
-    # Access control
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+    # Access control (allow admins with CASES.ALL_CASES)
+    if not await user_has_permission(db, current_user.id, "CASES.ALL_CASES"):
+        if not await can_user_access_case(db, current_user.id, pk):
+            raise HTTPException(status_code=404, detail="Case not found")
 
     # Decode optional rfi_id if provided (opaque)
     rid: Optional[int] = None
@@ -2406,12 +2415,22 @@ async def upload_image(
     # Store file in S3 under key image-<id>
     # Ensure we can read file bytes. UploadFile exposes .file as SpooledTemporaryFile
     file.file.seek(0)
-    create_file("image", img.id, file.file, content_type=file.content_type or "application/octet-stream")
+    await create_file("image", img.id, file.file, content_type=file.content_type or "application/octet-stream")
+
+    # Optional: store thumbnail alongside
+    if thumbnail is not None:
+        try:
+            thumbnail.file.seek(0)
+            # Always JPEG per requirement
+            await create_file("image", img.id, thumbnail.file, content_type="image/jpeg", is_thumbnail=True)
+        except Exception:
+            # Non-fatal if thumbnail upload fails
+            pass
 
     await db.commit()
     await db.refresh(img)
 
-    # Build response payload with presigned URL
+    # Build response payload with presigned URLs
     payload = {
         "id": int(img.id),
         "case_id": int(img.case_id),
@@ -2423,7 +2442,8 @@ async def upload_image(
         "rfi_id": int(img.rfi_id) if img.rfi_id is not None else None,
         "created_at": img.created_at,
         "updated_at": img.updated_at,
-        "url": get_download_link("image", int(img.id), file_type=file.content_type or None),
+        "url": get_download_link("image", int(img.id), file_type=file.content_type or None, thumbnail=False),
+        "thumb": get_download_link("image", int(img.id), file_type=None, thumbnail=True),
         "storage_slug": None,
     }
     return payload
@@ -2506,6 +2526,7 @@ async def update_image(
             I.rfi_id,
             I.created_at,
             I.updated_at,
+            I.mime_type,
             (P.first_name + sa.literal(" ") + P.last_name).label("created_by_name"),
             R.name.label("rfi_name"),
         )
@@ -2529,7 +2550,9 @@ async def update_image(
         "rfi_id": int(row.rfi_id) if row.rfi_id is not None else None,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
-        "url": get_download_link("image", int(row.id), file_type=None),
+        "url": get_download_link("image", int(row.id), file_type=None, thumbnail=False),
+        "thumb": get_download_link("image", int(row.id), file_type=None, thumbnail=True),
+        "mime_type" : row.mime_type,
         "storage_slug": None,
         "created_by_name": row.created_by_name if getattr(row, "created_by_name", None) else None,
         "rfi_name": row.rfi_name if getattr(row, "rfi_name", None) else None,

@@ -72,24 +72,28 @@ def _make_key(table_name: str, record_id: Union[int, str]) -> str:
     return f"{table_name}-{record_id}"
 
 
-def create_file(
+async def create_file(
     table_name: str,
     record_id: Union[int, str],
     data: Union[bytes, BinaryIO],
     *,
     content_type: Optional[str] = None,
     metadata: Optional[Dict[str, str]] = None,
+    is_thumbnail: bool = False,
 ) -> str:
     """
     Create/overwrite a file in the S3 bucket using the naming convention
-    [table_name]-[record_id]. Returns the object key.
+    [table_name]-[record_id] (append -thumbnail when is_thumbnail is True).
+    Returns the object key.
 
     - data: either raw bytes or a file-like object opened in binary mode.
     - content_type: optional MIME type to store alongside the object.
     - metadata: optional user metadata dict (string keys/values).
+    - is_thumbnail: when True, stores alongside the main file with a -thumbnail suffix and does not persist MIME type to DB.
     """
     s3, bucket = _get_client_and_bucket()
-    key = _make_key(table_name, record_id)
+    base_key = _make_key(table_name, record_id)
+    key = f"{base_key}-thumbnail" if is_thumbnail else base_key
 
     extra_args: Dict[str, str] = {}
     if content_type:
@@ -106,6 +110,29 @@ def create_file(
             s3.upload_fileobj(Fileobj=data, Bucket=bucket, Key=key, ExtraArgs=extra_args or None)
     except (ClientError, BotoCoreError) as e:  # pragma: no cover
         raise RuntimeError(f"Failed to upload object '{key}' to bucket '{bucket}': {e}")
+
+    # Persist MIME type for main image files only (table 'image')
+    if table_name == "image" and not is_thumbnail and content_type:
+        try:
+            import asyncio
+            import sqlalchemy as sa
+            from app.db.session import async_session_maker
+            from app.db.models.image import File as Image
+
+            async def _set_mime(img_id: int, mime: str):
+                async with async_session_maker() as db:
+                    await db.execute(sa.update(Image).where(Image.id == int(img_id)).values(mime_type=mime))
+                    await db.commit()
+
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Schedule without blocking
+                loop.create_task(_set_mime(int(record_id), str(content_type)))
+            else:
+                loop.run_until_complete(_set_mime(int(record_id), str(content_type)))
+        except Exception:
+            # Non-fatal if we fail to persist MIME type
+            pass
 
     return key
 
@@ -132,10 +159,12 @@ def get_download_link(
     file_type: Optional[str] = None,
     *,
     expires_in_seconds: int = 600,
+    thumbnail: bool = True,
 ) -> str:
     """
     Generate a pre-signed direct download URL valid for `expires_in_seconds` (default 10 minutes).
 
+    - thumbnail: when True (default), returns the URL for the -thumbnail object; when False, for the main object.
     - file_type: optional MIME type (e.g., "image/jpeg", "application/pdf"). If provided, we set
       the response content-type headers so the browser treats the file appropriately.
     """
@@ -143,7 +172,8 @@ def get_download_link(
         raise ValueError("expires_in_seconds must be positive")
 
     s3, bucket = _get_client_and_bucket()
-    key = _make_key(table_name, record_id)
+    base_key = _make_key(table_name, record_id)
+    key = f"{base_key}-thumbnail" if thumbnail else base_key
 
     params: Dict[str, str] = {"Bucket": bucket, "Key": key}
 

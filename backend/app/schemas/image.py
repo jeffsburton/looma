@@ -19,6 +19,7 @@ class ImageRead(OpaqueIdMixin):
     rfi_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    mime_type: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

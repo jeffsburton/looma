@@ -15,6 +15,8 @@ import Message from 'primevue/message'
 import Badge from 'primevue/badge'
 import Toast from 'primevue/toast'
 
+import api from '@/lib/api'
+
 import { usePrimeVue } from 'primevue/config';
 import { useToast } from "primevue/usetoast";
 
@@ -53,14 +55,11 @@ async function saveEdit() {
       notes: editing.value.notes ?? null,
       // rfi_id support can be added later when UI supports selecting RFI
     }
-    const resp = await fetch(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body)
-    })
-    if (!resp.ok) throw new Error('Failed to save')
-    const updated = await resp.json()
+    const { data: updated } = await api.patch(
+      `/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}`,
+      body,
+      { headers: { 'Accept': 'application/json' } }
+    )
     // Ensure thumb remains available for UI
     updated.thumb = updated.thumb || updated.url
     const idx = items.value.findIndex(i => i.id === updated.id)
@@ -73,30 +72,77 @@ async function saveEdit() {
   }
 }
 
-// Upload handling: POST files to backend; add highlight for 10s on returned items
-async function onUploadFiles(event) {
-  const files = Array.from(event.files || [])
+async function onUploadFiles(files, uploadedFiles) {
   if (!props.caseId) return
-  for (const file of files) {
-    const fd = new FormData()
-    fd.append('file', file, file.name)
+
+  // If not already set elsewhere, prepare overall total
+  // totalSize.value = files.reduce((acc, f) => acc + f.size, 0)
+  // amountCompleted.value = 0
+
+  const filesToProcess = [...files]
+
+  for (const file of filesToProcess) {
     try {
-      const resp = await fetch(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images/upload`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'include'
-      })
-      if (!resp.ok) throw new Error('Upload failed')
-      const created = await resp.json()
-      created.thumb = created.url
-      items.value.unshift(created)
+      const fd = new FormData()
+      fd.append('file', file, file.name)
+
+      // Also append the generated thumbnail as JPEG.
+      // We can use the previewSrc(file) object URL and fetch it to a Blob.
+      try {
+        if (file.thumbBlob) {
+          fd.append('thumbnail', file.thumbBlob, 'thumbnail.jpg')
+        }
+      } catch (e) {
+        // If thumbnail generation failed, continue without it
+        console.warn('Thumbnail generation failed:', e)
+      }
+
+      await api.post(
+        `/api/v1/cases/${encodeURIComponent(props.caseId)}/images/upload`,
+        fd,
+        {
+          // Axios will set multipart Content-Type boundary automatically
+          onUploadProgress: (evt) => {
+            // evt.loaded is bytes uploaded for this single request
+            const loaded = evt.loaded || 0
+
+            // If you want per-file progress, compute percent from file.size
+            const filePercent = Math.min(100, (loaded / file.size) * 100)
+            // update some per-file progress state if you track it
+
+            // For overall progress across files, estimate as
+            // (bytes uploaded for current file + bytes of previously finished files)
+            const previouslyCompleted = amountCompleted.value - (amountCompleted._filePartial || 0)
+            amountCompleted._filePartial = loaded
+            const overall = previouslyCompleted + loaded
+            totalSizePercent.value = Math.min(100, (overall / totalSize.value) * 100)
+          },
+          // Optional: support cancel/abort if needed
+          // signal: yourAbortController.signal,
+        }
+      )
+
+      // When file finished, finalize counters
+      const prevPartial = amountCompleted._filePartial || 0
+      amountCompleted.value += (file.size - prevPartial)
+      amountCompleted._filePartial = 0
+      totalSizePercent.value = Math.min(100, (amountCompleted.value / totalSize.value) * 100)
+
+      toast.add({ severity: 'success', summary: 'Success', detail: `File ${file.name} Uploaded`, life: 3000 })
+
+      const index = files.findIndex(f => f === file)
+      if (index > -1) files.splice(index, 1)
+
+      // Optionally collect returned file
+      // uploadedFiles.push(response.data)
     } catch (e) {
       console.error(e)
+      toast.add({ severity: 'error', summary: 'Upload failed', detail: `${file.name}: ${e?.message || e}`, life: 5000 })
     }
   }
-  // Refresh from server to populate created_by_name, rfi_name, etc.
-  await loadImages()
-  toast.add({ severity: "info", summary: "Success", detail: "File Uploaded", life: 3000 });
+
+  totalSizePercent.value = 0
+  await loadImages() // refresh list with server-derived fields
 }
 
 // Extract a frame at `timeSec` (default nudges off 0 to avoid black frames).
@@ -160,31 +206,65 @@ async function extractFrameFromFile(file, timeSec = 0.1, type = 'image/jpeg', qu
   const url = URL.createObjectURL(file);
   try {
     return await extractFrameFromURL(url, timeSec, type, quality, targetWidth);
+  } catch(e) {
+    console.log(`Error extracting frame from video: {e}`);
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
 
-const onUploadSelect = async (e) => {
-  for (const f of e.files) {
-    totalSize.value += parseInt(formatSize(f.size));
-    if (f.type.startsWith('video/')) {
-      try {
-        const blob = await extractFrameFromFile(f, 0.12, 'image/jpeg', 0.9, 640); // 640px wide poster
-        const thumbUrl = URL.createObjectURL(blob);
-        posters.set(keyOf(f), thumbUrl);
+async function createThumbnail(file, type = 'image/jpeg', quality = 0.9, targetWidth = 100) {
+  const url = URL.createObjectURL(file);
 
-        console.log(thumbUrl);
-        f.objectURL = thumbUrl;
-        // use thumbUrl for preview or upload `blob`
-        // remember to URL.revokeObjectURL(thumbUrl) when you’re done showing it
-      } catch (err) {
-        console.error('Frame extract failed:', err);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        // Calculate dimensions maintaining aspect ratio
+        const aspectRatio = img.height / img.width;
+        const targetHeight = Math.round(targetWidth * aspectRatio);
+
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        // Draw image to canvas
+        const ctx = canvas.getContext('2d');
+
+        // Fill with white background first (for transparency)
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+        // Convert to blob
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url); // Clean up
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create thumbnail blob'));
+          }
+        }, type, quality);
+      } catch (error) {
+        URL.revokeObjectURL(url);
+        reject(error);
       }
-    }
-  }
-};
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+
+    // Set crossOrigin before src for CORS support
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+  });
+}
 
 // Map File -> poster URL (blob)
 const posters = reactive(new Map());
@@ -193,47 +273,52 @@ const keyOf = (f) => `${f.name}-${f.size}-${f.type}-${f.lastModified || 0}`;
 const previewSrc = (file) => {
   // use our poster for videos; for images, keep PrimeVue’s default objectURL
 
-  console.log(`preview: {file}`)
-  return file.type.startsWith('video/')
-    ? posters.get(keyOf(file))
-    : file.objectURL;
+  return posters.get(keyOf(file))
 };
-
-
 
 const $primevue = usePrimeVue();
 const toast = useToast();
 
 const totalSize = ref(0);
+const amountCompleted = ref(0);
 const totalSizePercent = ref(0);
 const files = ref([]);
 
-const onRemoveTemplatingFile = (file, removeFileCallback, index) => {
+const onRemoveFile = (file, removeFileCallback, index) => {
     removeFileCallback(index);
-    totalSize.value -= parseInt(formatSize(file.size));
-    totalSizePercent.value = totalSize.value / 10;
+    totalSize.value -= file.size;
+    if (totalSize.value < 0) totalSize.value = 0;
+    totalSizePercent.value = 100 * (amountCompleted.value / totalSize.value);
+    if (totalSizePercent.value < 1) totalSizePercent.value = 0;
+    URL.revokeObjectURL(previewSrc(file));
 };
 
-const onClearTemplatingUpload = (clear) => {
-    clear();
+const onClearUpload = (event) => {
+    for(const file in files.value){
+      URL.revokeObjectURL(previewSrc(file));
+    }
+    for(const file in files.value){
+      URL.revokeObjectURL(previewSrc(file));
+    }
     totalSize.value = 0;
     totalSizePercent.value = 0;
+    amountCompleted.value = 0;
 };
 
-const onSelectedFiles = (event) => {
+const onSelectedFiles = (event, fs, uploadedFiles) => {
     files.value = event.files;
-    files.value.forEach((file) => {
-        totalSize.value += parseInt(formatSize(file.size));
+    event.uploadedFiles = [];
+    files.value.forEach( async (file) => {
+        totalSize.value += file.size;
+      let blob = null;
+      if (file.type.startsWith('video/'))
+        blob = await extractFrameFromFile(file, 0.12, 'image/jpeg', 0.9, 640); // 640px wide poster
+      else
+        blob = await createThumbnail(file);
+      const thumbUrl = URL.createObjectURL(blob);
+      file.thumbBlob = blob;
+      posters.set(keyOf(file), thumbUrl);
     });
-};
-
-const uploadEvent = (callback) => {
-    totalSizePercent.value = totalSize.value / 10;
-    callback();
-};
-
-const onTemplatedUpload = () => {
-    toast.add({ severity: "info", summary: "Success", detail: "File Uploaded", life: 3000 });
 };
 
 const formatSize = (bytes) => {
@@ -293,11 +378,10 @@ function tooltipOptions(item) {
 async function loadImages() {
   if (!props.caseId) { items.value = []; return }
   try {
-    const resp = await fetch(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    if (!resp.ok) throw new Error('Failed to load images')
-    const data = await resp.json()
+    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images`, { headers: { 'Accept': 'application/json' } })
     // Ensure thumb exists; reuse url for now
     items.value = Array.isArray(data) ? data.map(x => ({ ...x, thumb: x.thumb || x.url })) : []
+    console.log(items.value)
   } catch (e) {
     console.error(e)
     items.value = []
@@ -316,64 +400,54 @@ watch(() => props.caseId, () => { loadImages() })
     <div class="flex align-items-center gap-3 mb-3 wrap">
 
       <!-- PrimeVue FileUpload -->
-          <div class="flex-shrink-0">
+          <div class="w-full">
             <Toast />
             <FileUpload name="demo[]"
                         url="/api/upload"
-                        @upload="onTemplatedUpload($event)"
                         :multiple="true"
                         accept="image/*,video/*"
                         :auto="false"
-                        :maxFileSize="1000000"
-                        @select="onSelectedFiles">
-                <template #header="{ chooseCallback, uploadCallback, clearCallback, files }">
+                        :maxFileSize="1000000000"
+                        @select="onSelectedFiles($event, files, uploadedFiles)"
+                        @clear="onClearUpload($event)"
+                        adva
+            >
+
+                <template #header="{ chooseCallback, uploadCallback, clearCallback, files, uploadedFiles }">
                     <div class="flex flex-wrap justify-between items-center flex-1 gap-4">
                         <div class="flex gap-2">
-                            <Button @click="chooseCallback()" icon="pi pi-images" rounded variant="outlined" severity="secondary"></Button>
-                            <Button @click="uploadEvent(uploadCallback)" icon="pi pi-cloud-upload" rounded variant="outlined" severity="success" :disabled="!files || files.length === 0"></Button>
-                            <Button @click="clearCallback()" icon="pi pi-times" rounded variant="outlined" severity="danger" :disabled="!files || files.length === 0"></Button>
+                            <Button @click="chooseCallback()" class="file-upload-buttons"><i class="pi pi-plus"></i> Choose</Button>
+                            <Button @click="onUploadFiles(files, uploadedFiles)" class="file-upload-buttons" severity="secondary" :disabled="!files || files.length === 0"><i class="pi pi-cloud-upload"></i> Upload</Button>
+                            <Button @click="clearCallback()" class="file-upload-buttons" severity="secondary" :disabled="!files || files.length === 0"><i class="pi pi-times"></i> Clear</Button>
                         </div>
                         <ProgressBar :value="totalSizePercent" :showValue="false" class="md:w-20rem h-1 w-full md:ml-auto">
                             <span class="whitespace-nowrap">{{ totalSize }}B / 1Mb</span>
                         </ProgressBar>
                     </div>
                 </template>
-                <template #content="{ files, uploadedFiles, removeUploadedFileCallback, removeFileCallback }">
+                <template #content="{ files, uploadedFiles, removeFileCallback, messages }">
+                    <Message v-for="message of messages" :key="message" :class="{ 'mb-8': !files.length && !uploadedFiles.length}" severity="error">
+                        {{ message }}
+                    </Message>
                     <div class="w-full">
                         <div v-if="files.length > 0">
-                            <h5>Pending</h5>
-                            <div v-for="(file, index) of files" :key="file.name + file.type + file.size" class="flex">
-                              <div class="basis-xs">
-                                  <img role="presentation" :alt="file.name" :src="file.objectURL" :height="50" />
-                              </div>
-                              <div class="basis-lg">
-                                  <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
-                                  <div class="text-sm text-gray-600">{{ formatSize(file.size) }}</div>
-                              </div>
-                              <div class="basis-xs">
-                                  <Badge value="Pending" severity="warn" />
-                                  <Button icon="pi pi-times" @click="onRemoveTemplatingFile(file, removeFileCallback, index)" variant="outlined" rounded severity="danger" size="small" />
+                            <div v-for="(file, index) of files" :key="file.name + file.type + file.size" class="w-full space-y-1">
+                              <div class="flex items-center gap-1">
+                                <div class="shrink-0 items-center">
+                                    <img role="presentation" :alt="file.name" :src="previewSrc(file)" :width="50" />
+                                </div>
+                                <div class="flex-1 min-w-0 align-content-center">
+                                    <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
+                                    <div class="text-sm text-gray-600">{{ formatSize(file.size) }}</div>
+                                </div>
+                                <div class="shrink-0 align-content-center">
+                                    <Badge value="Pending" severity="warn" />
+                                </div>
+                                <div class="shrink-0 align-content-center">
+                                    <Button icon="pi pi-times" @click="onRemoveFile(file, removeFileCallback, index)" variant="outlined" rounded severity="danger" size="small" />
+                                </div>
                               </div>
                             </div>
-                        </div>
-                        <div v-if="uploadedFiles.length > 0">
-                            <h5>Completed</h5>
-                              <div class="flex flex-wrap gap-1">
-                                  <div v-for="(file, index) of uploadedFiles" :key="file.name + file.type + file.size" class="p-1 rounded-border border border-surface w-full">
-                                      <div class="flex items-center gap-2">
-                                          <div class="flex-shrink-0">
-                                              <img role="presentation" :alt="file.name" :src="file.objectURL" height="50" />
-                                          </div>
-                                          <div class="flex-1 min-w-0">
-                                              <span class="font-semibold text-ellipsis max-w-60 whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
-                                              <div>{{ formatSize(file.size) }}</div>
-                                          </div>
-                                          <div class="flex items-center gap-2 ml-auto">
-                                              <Badge value="Completed" severity="success" />
-                                          </div>
-                                      </div>
-                                  </div>
-                              </div>
                         </div>
                     </div>
                 </template>
@@ -406,8 +480,9 @@ watch(() => props.caseId, () => { loadImages() })
         @click="openEdit(item)"
         role="button"
       >
-        <img :src="viewMode === 'large' ? item.url : item.thumb" alt="image" v-tooltip.bottom="tooltipOptions(item)" />
+        <img :src="viewMode === 'large' && (!item.mime_type || !item.mime_type.includes('video')) ? item.url : item.thumb" alt="image" v-tooltip.bottom="tooltipOptions(item)" />
       </div>
+
       <div v-if="items.length === 0" class="text-600">No images yet.</div>
     </div>
 
@@ -501,17 +576,16 @@ watch(() => props.caseId, () => { loadImages() })
 /* Grid views */
 .image-grid { display: grid; gap: .75rem; }
 .image-grid.tile-large { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.image-grid.tile-medium { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-.image-tile { position: relative; border-radius: .5rem; overflow: hidden; cursor: pointer; border: 2px solid transparent; }
-.image-tile img { display: block; width: 100%; height: 200px; object-fit: cover; }
-.image-grid.tile-medium .image-tile img { height: 140px; }
+.image-grid.tile-medium { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+.image-tile { position: relative; border-radius: .75rem; overflow: hidden; cursor: pointer; border: 2px solid transparent; aspect-ratio: 1 / 1; background: #fff; }
+.image-tile img { position: absolute; inset: 0; height: 100%; object-fit: contain; background: #fff; display: block; border-radius: inherit; }
 
 /* List view */
 .list-view { display: flex; flex-direction: column; gap: .5rem; }
 .list-row { display: flex; align-items: center; gap: .75rem; padding: .5rem; border-radius: .5rem; background: var(--p-surface-0); cursor: pointer; border: 2px solid transparent; }
-.list-row .thumb { width: 72px; height: 60px; object-fit: cover; border-radius: .375rem; flex: 0 0 auto; }
+.list-row .thumb { width: 50px; object-fit: cover; border-radius: .375rem; flex: 0 0 auto; }
 /* Generic thumb size for table too */
-.thumb { width: 72px; height: 60px; object-fit: cover; border-radius: .375rem; }
+.thumb { width: 50px; object-fit: cover; border-radius: .375rem; }
 .list-row .notes { color: var(--p-text-color); }
 
 /* Blue band highlight that fades after 10s */
@@ -548,6 +622,12 @@ watch(() => props.caseId, () => { loadImages() })
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
 @media (max-width: 640px) {
   .grid-2 { grid-template-columns: 1fr; }
+}
+
+.file-upload-buttons {
+  width: auto;
+  padding-inline-start: 8px;
+  padding-inline-end: 8px;
 }
 
 </style>
