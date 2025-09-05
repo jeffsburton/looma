@@ -11,7 +11,7 @@ class MessagePerson(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
+    message_id = Column(Integer, ForeignKey("message.id", ondelete="CASCADE"), nullable=False)
     person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
 
     # reaction emoji

@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 from app.db import Base
 
 
-class Tasl(Base):
+class Task(Base):
     __tablename__ = "task"
 
     id = Column(Integer, primary_key=True, index=True)

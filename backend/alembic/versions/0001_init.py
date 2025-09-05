@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2025-09-04 11:12:27.385314
+Create Date: 2025-09-05 15:27:36.640659
 
 """
 from typing import Sequence, Union
@@ -721,7 +721,6 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=False),
     sa.Column('created_by', sa.Integer(), nullable=False),
     sa.Column('rfi_source_id', sa.Integer(), nullable=False),
     sa.Column('subject_id', sa.Integer(), nullable=False),
@@ -752,6 +751,22 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_social_media_alias_id'), 'social_media_alias', ['id'], unique=False)
+    op.create_table('task',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('case_id', sa.Integer(), nullable=False),
+    sa.Column('assigned_by_id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.Text(), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('response', sa.Text(), nullable=True),
+    sa.Column('ready_for_review', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('completed', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['assigned_by_id'], ['person.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
     op.create_table('team_case',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('team_id', sa.Integer(), nullable=False),
@@ -793,6 +808,7 @@ def upgrade() -> None:
     sa.Column('created_by_id', sa.Integer(), nullable=False),
     sa.Column('source', sa.String(length=255), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('mime_type', sa.Text(), nullable=True),
     sa.Column('rfi_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -807,11 +823,11 @@ def upgrade() -> None:
     sa.Column('case_id', sa.Integer(), nullable=False),
     sa.Column('file_name', sa.String(length=255), nullable=False),
     sa.Column('created_by_id', sa.Integer(), nullable=True),
-    sa.Column('source_url', sa.String(length=255), nullable=True),
+    sa.Column('source_url', sa.Text(), nullable=True),
     sa.Column('where', sa.Text(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
-    sa.Column('url', sa.Text(), nullable=True),
-    sa.Column('storage_slug', sa.String(length=100), nullable=True),
+    sa.Column('mime_type', sa.Text(), nullable=True),
+    sa.Column('copied_id', sa.Integer(), nullable=True),
     sa.Column('rfi_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -824,20 +840,22 @@ def upgrade() -> None:
     op.create_table('message',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('case_id', sa.Integer(), nullable=False),
-    sa.Column('person_id', sa.Integer(), nullable=False),
+    sa.Column('written_by_id', sa.Integer(), nullable=False),
     sa.Column('message', sa.Text(), nullable=False),
     sa.Column('reply_to_id', sa.Integer(), nullable=True),
     sa.Column('rfi_id', sa.Integer(), nullable=True),
     sa.Column('intel_summary_id', sa.Integer(), nullable=True),
     sa.Column('ops_plan_id', sa.Integer(), nullable=True),
+    sa.Column('task_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['case.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['intel_summary_id'], ['intel_summary.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['ops_plan_id'], ['ops_plan.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['reply_to_id'], ['message.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['rfi_id'], ['rfi.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['written_by_id'], ['person.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_message_id'), 'message', ['id'], unique=False)
@@ -856,7 +874,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('ops_plan_id', 'person_id', name='uq_ops_plan_person')
     )
     op.create_index(op.f('ix_ops_plan_assignment_id'), 'ops_plan_assignment', ['id'], unique=False)
-    op.create_table('image_person',
+    op.create_table('image_subject',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('image_id', sa.Integer(), nullable=False),
     sa.Column('subject_id', sa.Integer(), nullable=False),
@@ -866,15 +884,30 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['subject_id'], ['subject.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_image_person_id'), 'image_person', ['id'], unique=False)
+    op.create_index(op.f('ix_image_subject_id'), 'image_subject', ['id'], unique=False)
+    op.create_table('message_person',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('message_id', sa.Integer(), nullable=False),
+    sa.Column('person_id', sa.Integer(), nullable=False),
+    sa.Column('reaction', sa.String(length=10), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['message_id'], ['message.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['person_id'], ['person.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('message_id', 'person_id', name='uq_message_person')
+    )
+    op.create_index(op.f('ix_message_person_id'), 'message_person', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_image_person_id'), table_name='image_person')
-    op.drop_table('image_person')
+    op.drop_index(op.f('ix_message_person_id'), table_name='message_person')
+    op.drop_table('message_person')
+    op.drop_index(op.f('ix_image_subject_id'), table_name='image_subject')
+    op.drop_table('image_subject')
     op.drop_index(op.f('ix_ops_plan_assignment_id'), table_name='ops_plan_assignment')
     op.drop_table('ops_plan_assignment')
     op.drop_index(op.f('ix_message_id'), table_name='message')
@@ -887,6 +920,8 @@ def downgrade() -> None:
     op.drop_table('timeline')
     op.drop_index(op.f('ix_team_case_id'), table_name='team_case')
     op.drop_table('team_case')
+    op.drop_index(op.f('ix_task_id'), table_name='task')
+    op.drop_table('task')
     op.drop_index(op.f('ix_social_media_alias_id'), table_name='social_media_alias')
     op.drop_table('social_media_alias')
     op.drop_index(op.f('ix_rfi_id'), table_name='rfi')

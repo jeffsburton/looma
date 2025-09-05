@@ -260,6 +260,24 @@ const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
 import FilesTab from './tabs/FilesTab.vue'
 const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))
 const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
+
+import OverlayBadge from 'primevue/overlaybadge'
+import api from '../../lib/api'
+
+const messagesUnseenCount = ref(0)
+async function refreshMessagesUnseenCount() {
+  try {
+    const cid = String(caseModel.value.id || '')
+    if (!cid) { messagesUnseenCount.value = 0; return }
+    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(cid)}/messages/unseen_count`)
+    messagesUnseenCount.value = Number(data?.count || 0)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+watch(() => caseModel.value.id, () => { refreshMessagesUnseenCount() })
+watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCount() })
 </script>
 
 <template>
@@ -316,8 +334,20 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
           <span class="ml-1">Files</span>
         </Tab>
         <Tab value="messages">
-          <span class="material-symbols-outlined">chat_bubble</span>
-          <span class="ml-1">Messages</span>
+          <template v-if="messagesUnseenCount > 0">
+            <OverlayBadge :value="String(messagesUnseenCount)">
+              <div class="flex align-items-center">
+                <span class="material-symbols-outlined">chat_bubble</span>
+                <span class="ml-1">Messages</span>
+              </div>
+            </OverlayBadge>
+          </template>
+          <template v-else>
+            <div class="flex align-items-center">
+              <span class="material-symbols-outlined">chat_bubble</span>
+              <span class="ml-1">Messages</span>
+            </div>
+          </template>
         </Tab>
       </TabList>
 
@@ -395,7 +425,7 @@ const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
       <TabPanel value="messages">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <MessagesTab />
+            <MessagesTab :caseId="caseModel.id" @unseen-count="(n) => (messagesUnseenCount = Number(n||0))" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

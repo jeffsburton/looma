@@ -51,6 +51,7 @@ from .models import team_case  # noqa: F401
 from .models import timeline  # noqa: F401
 from .models import victimology  # noqa: F401
 from .models import victimology_category  # noqa: F401
+from .models import task  # noqa: F401
 
 
 __all__ = ["Base", "TimestampMixin"]

@@ -10,8 +10,10 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
 
-    # to a specific person (someone not on the case)
-    person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=True)
+    # who wrote the message.
+    written_by_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
+
+
     message = Column(Text, nullable=False)
     reply_to_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)
 
