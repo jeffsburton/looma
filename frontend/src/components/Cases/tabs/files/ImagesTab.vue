@@ -489,7 +489,6 @@ async function loadImages() {
     const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images`, { headers: { 'Accept': 'application/json' } })
     // Ensure thumb exists; reuse url for now
     items.value = Array.isArray(data) ? data.map(x => ({ ...x, thumb: x.thumb || x.url })) : []
-    console.log(items.value)
   } catch (e) {
     console.error(e)
     items.value = []

@@ -21,7 +21,7 @@ const emit = defineEmits(['update:modelValue', 'change'])
 
 const selectedId = ref(props.modelValue || '')
 watch(() => props.modelValue, (v) => { selectedId.value = v || '' })
-watch(selectedId, (v) => { emit('update:modelValue', v); emit('change', v) })
+watch(selectedId, (v) => { emit('update:modelValue', v) })
 
 const options = ref([])
 const loading = ref(false)
@@ -139,6 +139,7 @@ async function onCreated(created) {
     :loading="loading"
     class="w-full"
     :disabled="disabled || (!subjects && !shepherds && !agency)"
+    @update:modelValue="(v) => emit('change', v)"
   >
     <template #option="{ option }">
       <div class="flex align-items-center gap-2 w-full">

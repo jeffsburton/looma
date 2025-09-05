@@ -9,7 +9,7 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("case.id", ondelete="CASCADE"), nullable=False)
-    person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
+    person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=True)
     message = Column(Text, nullable=False)
     reply_to_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)
 

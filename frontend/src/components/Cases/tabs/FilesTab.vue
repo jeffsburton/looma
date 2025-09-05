@@ -53,6 +53,10 @@ watch(
           <span class="material-symbols-outlined">imagesmode</span>
           <span class="ml-1">Images</span>
         </Tab>
+        <Tab value="other">
+          <span class="material-symbols-outlined">picture_as_pdf</span>
+          <span class="ml-1">Other</span>
+        </Tab>
         <Tab value="ops">
           <span class="material-symbols-outlined">map_pin_review</span>
           <span class="ml-1">Ops Plans</span>
@@ -72,10 +76,6 @@ watch(
         <Tab value="flyer">
           <span class="material-symbols-outlined">contact_phone</span>
           <span class="ml-1">Missing Flyer</span>
-        </Tab>
-        <Tab value="other">
-          <span class="material-symbols-outlined">picture_as_pdf</span>
-          <span class="ml-1">Other</span>
         </Tab>
       </TabList>
 
@@ -99,7 +99,7 @@ watch(
           <MissingFlyerTab />
         </TabPanel>
         <TabPanel value="other">
-          <OtherTab />
+          <OtherTab :caseId="caseId" />
         </TabPanel>
       </TabPanels>
     </Tabs>

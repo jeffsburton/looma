@@ -52,7 +52,7 @@ function focusFilter() {
 
 const selectedId = ref(props.modelValue ? String(props.modelValue) : '')
 watch(() => props.modelValue, (v) => { selectedId.value = v ? String(v) : '' })
-watch(selectedId, (v) => { emit('update:modelValue', v); emit('change', v) })
+watch(selectedId, (v) => { emit('update:modelValue', v) })
 
 const otherText = ref(props.otherValue)
 watch(() => props.otherValue, (v) => { otherText.value = v })
@@ -174,6 +174,7 @@ watch(
       class="w-full"
       :disabled="disabled"
       @show="focusFilter"
+      @update:modelValue="(v) => emit('change', v)"
     >
       <template #option="{ option }">
         <div :title="option.description || ''" class="flex align-items-center justify-content-between w-full">
