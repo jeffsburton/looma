@@ -160,6 +160,7 @@ def get_download_link(
     *,
     expires_in_seconds: int = 600,
     thumbnail: bool = True,
+    attachment_filename: Optional[str] = None,
 ) -> str:
     """
     Generate a pre-signed direct download URL valid for `expires_in_seconds` (default 10 minutes).
@@ -167,6 +168,7 @@ def get_download_link(
     - thumbnail: when True (default), returns the URL for the -thumbnail object; when False, for the main object.
     - file_type: optional MIME type (e.g., "image/jpeg", "application/pdf"). If provided, we set
       the response content-type headers so the browser treats the file appropriately.
+    - attachment_filename: if provided, sets Content-Disposition to attachment with the given filename, which prompts a Save dialog.
     """
     if expires_in_seconds <= 0:
         raise ValueError("expires_in_seconds must be positive")
@@ -181,6 +183,13 @@ def get_download_link(
     if file_type:
         params.update({
             "ResponseContentType": file_type,
+        })
+
+    # Optionally force download with a filename (Save As dialog)
+    if attachment_filename:
+        safe_name = attachment_filename.replace("\r", " ").replace("\n", " ")
+        params.update({
+            "ResponseContentDisposition": f"attachment; filename=\"{safe_name}\"",
         })
 
     try:

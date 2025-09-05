@@ -2355,7 +2355,7 @@ async def list_images(
             "updated_at": r.updated_at,
             "mime_type": r.mime_type,
             # presigned links to S3 objects
-            "url": get_download_link("image", rid, file_type=None, thumbnail=False),
+            "url": get_download_link("image", rid, file_type=None, thumbnail=False, attachment_filename=r.file_name or "download"),
             "thumb": get_download_link("image", rid, file_type=None, thumbnail=True),
             "storage_slug": None,
             # extras for UI display
@@ -2442,7 +2442,7 @@ async def upload_image(
         "rfi_id": int(img.rfi_id) if img.rfi_id is not None else None,
         "created_at": img.created_at,
         "updated_at": img.updated_at,
-        "url": get_download_link("image", int(img.id), file_type=file.content_type or None, thumbnail=False),
+        "url": get_download_link("image", int(img.id), file_type=file.content_type or None, thumbnail=False, attachment_filename=img.file_name or "download"),
         "thumb": get_download_link("image", int(img.id), file_type=None, thumbnail=True),
         "storage_slug": None,
     }
@@ -2550,7 +2550,7 @@ async def update_image(
         "rfi_id": int(row.rfi_id) if row.rfi_id is not None else None,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
-        "url": get_download_link("image", int(row.id), file_type=None, thumbnail=False),
+        "url": get_download_link("image", int(row.id), file_type=None, thumbnail=False, attachment_filename=row.file_name or "download"),
         "thumb": get_download_link("image", int(row.id), file_type=None, thumbnail=True),
         "mime_type" : row.mime_type,
         "storage_slug": None,
