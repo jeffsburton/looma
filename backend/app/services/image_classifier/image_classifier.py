@@ -1,4 +1,5 @@
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 
@@ -43,7 +44,7 @@ def predict_photo_probability(image_bytes: bytes) -> float:
     """
     # Resolve resources relative to this script
     script_dir = Path(__file__).resolve().parent
-    weights_path = (script_dir / "./output/best_model.pt").resolve()
+    weights_path = (script_dir / "./best_model.pt").resolve()
     model_name = "resnet18"
 
     # Device selection (no external flags; fully self-contained)
