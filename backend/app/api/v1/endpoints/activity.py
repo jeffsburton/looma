@@ -3,6 +3,7 @@ from datetime import date as Date
 
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy import select, asc
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, require_permission
@@ -29,8 +30,8 @@ async def list_activity(
     if not await can_user_access_case(db, current_user.id, int(case_db_id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
-    source_ref = RefValue.alias() if hasattr(RefValue, 'alias') else RefValue
-    reported_to_ref = RefValue.alias() if hasattr(RefValue, 'alias') else RefValue
+    source_ref = aliased(RefValue)
+    reported_to_ref = aliased(RefValue)
 
     q = (
         select(

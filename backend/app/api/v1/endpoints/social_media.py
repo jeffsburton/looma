@@ -46,9 +46,8 @@ async def list_social_media(
             SocialMedia.id,
             SocialMedia.platform_id,
             SocialMedia.platform_other,
-            SocialMedia.username,
+            SocialMedia.url,
             SocialMedia.notes,
-            SocialMedia.link,
             plat.name,
             plat.code,
         )
@@ -63,9 +62,8 @@ async def list_social_media(
         sm_id,
         platform_id,
         platform_other,
-        username,
+        url,
         notes,
-        link,
         platform_name,
         platform_code,
     ) in rows:
@@ -73,9 +71,9 @@ async def list_social_media(
             "id": encode_id("social_media", int(sm_id)),
             "platform_id": encode_id("ref_value", int(platform_id)) if platform_id is not None else None,
             "platform_other": platform_other,
-            "username": username,
+            "username": None,
             "notes": notes,
-            "link": link,
+            "link": url,
             "platform_name": platform_name,
             "platform_code": platform_code,
         })
@@ -109,9 +107,8 @@ async def create_social_media(
         case_id=int(case_db_id),
         platform_id=_dec_ref(payload.platform_id) if hasattr(payload, "platform_id") else None,
         platform_other=getattr(payload, "platform_other", None),
-        username=getattr(payload, "username", None),
         notes=getattr(payload, "notes", None),
-        link=getattr(payload, "link", None),
+        url=getattr(payload, "link", None),
     )
     
     db.add(row)
@@ -167,11 +164,12 @@ async def update_social_media(
     if "platform_other" in fields_set:
         row.platform_other = payload.platform_other
     if "username" in fields_set:
-        row.username = payload.username
+        # 'username' is not a column on SocialMedia; currently ignored to avoid errors
+        pass
     if "notes" in fields_set:
         row.notes = payload.notes
     if "link" in fields_set:
-        row.link = payload.link
+        row.url = payload.link
 
     await db.commit()
     return {"ok": True}
