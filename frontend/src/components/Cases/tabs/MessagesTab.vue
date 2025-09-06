@@ -135,17 +135,21 @@ onMounted(() => { /* additional hooks if needed */ })
 
 const groups = computed(() => {
   const byDate = new Map()
-  for (const m of messages.value.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
+  const sorted = messages.value.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  for (const m of sorted) {
     const dt = new Date(m.created_at)
-    const key = dt.toISOString().slice(0, 10)
-    if (!byDate.has(key)) byDate.set(key, [])
-    byDate.get(key).push(m)
+    const y = dt.getFullYear()
+    const mo = dt.getMonth()
+    const d = dt.getDate()
+    const key = `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    if (!byDate.has(key)) byDate.set(key, { date: new Date(y, mo, d), items: [] })
+    byDate.get(key).items.push(m)
   }
-  return Array.from(byDate.entries()).map(([key, arr]) => ({ key, date: new Date(key), items: arr }))
+  return Array.from(byDate.entries()).map(([key, grp]) => ({ key, date: grp.date, items: grp.items }))
 })
 
 function fmtTime(date) { return new Date(date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }
-function fmtDate(date) { return new Date(date).toLocaleDateString([], { month: 'long', day: 'numeric' }) }
+function fmtDate(date) { return new Date(date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) }
 </script>
 
 <template>
@@ -219,7 +223,8 @@ function fmtDate(date) { return new Date(date).toLocaleDateString([], { month: '
 .row { display: grid; grid-template-columns: 40px 1fr 40px; gap: 8px; padding: 8px 4px; align-items: start; }
 .pfp { width: 40px; height: 40px; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--p-surface-200, #e5e7eb); border: 2px solid var(--p-surface-200, #e5e7eb); }
-
+.left {position: relative; left: 15px; top: -5px; z-index: 1; }
+.right {position: relative; left: -20px; top: -5px; z-index: 1; }
 .bubble { position: relative; max-width: 100%; width: 100%; border: 1px solid var(--p-surface-300, #d1d5db); background: var(--p-surface-0, #fff); border-radius: 12px; padding: 8px 12px 6px 12px; box-shadow: 0 1px 1px rgba(0,0,0,0.04); }
 .emoji-panel { display: flex; flex-wrap: wrap; gap: 6px; max-width: 260px; }
 .emoji-btn { font-size: 20px; background: var(--p-surface-0, #fff); border: 1px solid var(--p-surface-300, #d1d5db); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
