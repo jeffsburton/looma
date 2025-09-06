@@ -196,10 +196,102 @@ onMounted(loadFiles)
 watch(() => props.caseId, () => { loadFiles() })
 
 const hasItems = computed(() => (items.value || []).length > 0)
+const pastedFiles = ref([])
+const showingPastePrompt = ref(false)
+
+async function fileFromClipboardItem(item) {
+  const blob = item.getAsFile ? item.getAsFile() : null
+  if (!blob) throw new Error('Clipboard item has no file')
+  const type = blob.type || 'image/png'
+  const ext = type.includes('png') ? 'png' : type.includes('jpeg') ? 'jpg' : type.includes('gif') ? 'gif' : 'png'
+  const name = `pasted-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`
+  return new File([blob], name, { type, lastModified: Date.now() })
+}
+
+async function onPaste(e) {
+  try {
+    const dt = e.clipboardData || window.clipboardData
+    if (!dt) return
+    const itemsArr = Array.from(dt.items || [])
+    const imageItems = itemsArr.filter(i => i.type && i.type.startsWith('image/'))
+    if (!imageItems.length) return
+
+    const newlyQueued = []
+    for (const it of imageItems) {
+      const file = await fileFromClipboardItem(it)
+      if (!file.type.startsWith('image/')) continue
+      if (isVideoType(file.type)) continue // just in case
+      if (file.size > 1000000000) continue
+      newlyQueued.push(file)
+    }
+
+    if (!newlyQueued.length) return
+
+    for (const f of newlyQueued) totalSize.value += f.size
+
+    pastedFiles.value.push(...newlyQueued)
+    showingPastePrompt.value = true
+    try { toast.add({ severity: 'info', summary: 'Paste detected', detail: `Added ${newlyQueued.length} file(s) from clipboard. Click Upload to proceed.`, life: 3500 }) } catch (_) {}
+  } catch (err) {
+    console.error(err)
+    try { toast.add({ severity: 'error', summary: 'Paste failed', detail: String(err?.message || err), life: 4000 }) } catch (_) {}
+  }
+}
+
+async function uploadPasted() {
+  if (!pastedFiles.value.length) return
+  await onUploadFiles([...pastedFiles.value], [])
+  pastedFiles.value.splice(0)
+  showingPastePrompt.value = false
+}
+
+function discardPasted() {
+  if (!pastedFiles.value.length) { showingPastePrompt.value = false; return }
+  for (const f of pastedFiles.value) {
+    totalSize.value -= f.size
+  }
+  if (totalSize.value < 0) totalSize.value = 0
+  totalSizePercent.value = totalSize.value ? 100 * (amountCompleted.value / totalSize.value) : 0
+  pastedFiles.value.splice(0)
+  showingPastePrompt.value = false
+}
+
+function removePastedFile(file) {
+  try { totalSize.value -= file?.size || 0 } catch {}
+  if (totalSize.value < 0) totalSize.value = 0
+  const idx = pastedFiles.value.indexOf(file)
+  if (idx > -1) pastedFiles.value.splice(idx, 1)
+  if (!pastedFiles.value.length) showingPastePrompt.value = false
+}
+
 </script>
 <template>
-  <div class="p-3">
+  <div class="p-3" @paste.prevent="onPaste">
     <Toast />
+
+    <div v-if="showingPastePrompt" class="flex items-center gap-2 mb-2">
+      <Message severity="info">Pasted image(s) ready to upload.</Message>
+      <Button icon="pi pi-cloud-upload" label="Upload now" @click="uploadPasted" />
+      <Button icon="pi pi-times" label="Discard" severity="danger" variant="outlined" @click="discardPasted" />
+    </div>
+
+    <div v-if="pastedFiles.length > 0" class="w-full mb-3">
+      <div v-for="(file, index) in pastedFiles" :key="file.name + file.type + file.size" class="w-full space-y-1">
+        <div class="flex items-center gap-2">
+          <i class="pi text-2xl" :class="extensionIcon(file.name)"></i>
+          <div class="flex-1 min-w-0">
+            <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
+            <div class="text-sm text-gray-600">{{ formatSize(file.size) }}</div>
+          </div>
+          <div class="shrink-0">
+            <Badge value="Pending" severity="warn" />
+          </div>
+          <div class="shrink-0">
+            <Button icon="pi pi-times" @click="removePastedFile(file)" variant="outlined" rounded severity="danger" size="small" />
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="flex align-items-center gap-3 mb-3 wrap">
       <div class="w-full">
