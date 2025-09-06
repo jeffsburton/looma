@@ -25,6 +25,22 @@ import { useToast } from "primevue/usetoast";
 const toast = useToast();
 const $primevue = usePrimeVue();
 
+// Encode caseId safely: if it already contains percent-escapes, assume pre-encoded and return as-is
+function safeEncode(id) {
+  const s = String(id ?? '')
+  // If it already includes percent-encodings like %3D, skip re-encoding to avoid double-encoding
+  if (/%[0-9a-fA-F]{2}/.test(s)) return s
+  try { return encodeURIComponent(s) } catch { return s }
+}
+
+// Prefer numeric case id when present (e.g., "2.abcd==" -> "2") to avoid opaque decode mismatches
+function casePathId(id) {
+  const s = String(id ?? '')
+  const m = s.match(/^(\d+)/)
+  if (m && m[1]) return m[1]
+  return safeEncode(s)
+}
+
 const props = defineProps({
   caseId: { type: [String, Number], required: false }
 })
@@ -88,7 +104,7 @@ async function loadImageSubjects() {
   if (!props.caseId || !editing.value?.id) return
   subjectsLoading.value = true
   try {
-    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects`)
+    const { data } = await api.get(`/api/v1/cases/${casePathId(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects`)
     imgSubjects.value = Array.isArray(data) ? data : []
   } catch (e) {
     imgSubjects.value = []
@@ -102,7 +118,7 @@ async function addImageSubject(subjectId) {
   if (!props.caseId || !editing.value?.id || !sid) return
   try {
     await api.post(
-      `/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects`,
+      `/api/v1/cases/${casePathId(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects`,
       { subject_id: sid },
       { headers: { 'Accept': 'application/json' } }
     )
@@ -129,7 +145,7 @@ function onSelectNewSubject(v) {
 async function deleteImageSubject(linkId) {
   if (!props.caseId || !editing.value?.id || !linkId) return
   try {
-    await api.delete(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects/${encodeURIComponent(linkId)}`)
+    await api.delete(`/api/v1/cases/${casePathId(props.caseId)}/images/${encodeURIComponent(editing.value.id)}/subjects/${encodeURIComponent(linkId)}`)
     imgSubjects.value = imgSubjects.value.filter(s => s.id !== linkId)
   } catch (e) {
     console.error(e)
@@ -155,7 +171,7 @@ async function saveEdit() {
       // rfi_id support can be added later when UI supports selecting RFI
     }
     const { data: updated } = await api.patch(
-      `/api/v1/cases/${encodeURIComponent(props.caseId)}/images/${encodeURIComponent(editing.value.id)}`,
+      `/api/v1/cases/${casePathId(props.caseId)}/images/${encodeURIComponent(editing.value.id)}`,
       body,
       { headers: { 'Accept': 'application/json' } }
     )
@@ -197,7 +213,7 @@ async function onUploadFiles(files, uploadedFiles) {
       }
 
       await api.post(
-        `/api/v1/cases/${encodeURIComponent(props.caseId)}/images/upload`,
+        `/api/v1/cases/${casePathId(props.caseId)}/images/upload`,
         fd,
         {
           // Axios will set multipart Content-Type boundary automatically
@@ -375,6 +391,77 @@ const previewSrc = (file) => {
   return posters.get(keyOf(file))
 };
 
+// Pasted files queue
+const pastedFiles = ref([])
+const showingPastePrompt = ref(false)
+
+async function fileFromClipboardItem(item) {
+  const blob = item.getAsFile ? item.getAsFile() : null
+  if (!blob) throw new Error('Clipboard item has no file')
+  const ext = blob.type?.includes('png') ? 'png' : blob.type?.includes('jpeg') ? 'jpg' : 'png'
+  const name = `pasted-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`
+  return new File([blob], name, { type: blob.type || 'image/png', lastModified: Date.now() })
+}
+
+async function onPaste(e) {
+  try {
+    const dt = e.clipboardData || window.clipboardData
+    if (!dt) return
+    const itemsArr = Array.from(dt.items || [])
+    const imageItems = itemsArr.filter(i => i.type && i.type.startsWith('image/'))
+    if (!imageItems.length) return
+
+    const newlyQueued = []
+    for (const it of imageItems) {
+      const file = await fileFromClipboardItem(it)
+      if (!(file.type.startsWith('image/') || file.type.startsWith('video/'))) continue
+      if (file.size > 1000000000) continue
+
+      let blob
+      if (file.type.startsWith('video/')) {
+        blob = await extractFrameFromFile(file, 0.12, 'image/jpeg', 0.9, 640)
+      } else {
+        blob = await createThumbnail(file)
+      }
+      const thumbUrl = URL.createObjectURL(blob)
+      file.thumbBlob = blob
+      posters.set(keyOf(file), thumbUrl)
+
+      newlyQueued.push(file)
+    }
+
+    if (!newlyQueued.length) return
+
+    for (const f of newlyQueued) totalSize.value += f.size
+
+    pastedFiles.value.push(...newlyQueued)
+    showingPastePrompt.value = true
+    try { toast.add({ severity: 'info', summary: 'Paste detected', detail: `Added ${newlyQueued.length} file(s) from clipboard. Click Upload to proceed.`, life: 3500 }) } catch (_) {}
+  } catch (err) {
+    console.error(err)
+    try { toast.add({ severity: 'error', summary: 'Paste failed', detail: String(err?.message || err), life: 4000 }) } catch (_) {}
+  }
+}
+
+async function uploadPasted() {
+  if (!pastedFiles.value.length) return
+  await onUploadFiles([...pastedFiles.value], [])
+  pastedFiles.value.splice(0)
+  showingPastePrompt.value = false
+}
+
+function discardPasted() {
+  if (!pastedFiles.value.length) { showingPastePrompt.value = false; return }
+  for (const f of pastedFiles.value) {
+    try { URL.revokeObjectURL(previewSrc(f)) } catch {}
+    totalSize.value -= f.size
+  }
+  if (totalSize.value < 0) totalSize.value = 0
+  totalSizePercent.value = totalSize.value ? 100 * (amountCompleted.value / totalSize.value) : 0
+  pastedFiles.value.splice(0)
+  showingPastePrompt.value = false
+}
+
 
 const totalSize = ref(0);
 const amountCompleted = ref(0);
@@ -486,7 +573,7 @@ function tooltipOptions(item) {
 async function loadImages() {
   if (!props.caseId) { items.value = []; return }
   try {
-    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(props.caseId)}/images`, { headers: { 'Accept': 'application/json' } })
+    const { data } = await api.get(`/api/v1/cases/${casePathId(props.caseId)}/images`, { headers: { 'Accept': 'application/json' } })
     // Ensure thumb exists; reuse url for now
     items.value = Array.isArray(data) ? data.map(x => ({ ...x, thumb: x.thumb || x.url })) : []
   } catch (e) {
@@ -538,13 +625,37 @@ function downloadItem(item) {
 
 
 
-  <div class="p-3">
+  <div class="p-3" @paste.prevent="onPaste">
     <!-- Controls row: Upload and View Mode selector -->
     <div class="flex align-items-center gap-3 mb-3 wrap">
 
       <!-- PrimeVue FileUpload -->
           <div class="w-full">
             <Toast />
+            <div v-if="showingPastePrompt" class="flex items-center gap-2 mb-2">
+              <Message severity="info">Pasted image(s) ready to upload.</Message>
+              <Button icon="pi pi-cloud-upload" label="Upload now" @click="uploadPasted" />
+              <Button icon="pi pi-times" label="Discard" severity="danger" variant="outlined" @click="discardPasted" />
+            </div>
+            <div v-if="pastedFiles.length > 0" class="w-full">
+              <div v-for="(file, index) in pastedFiles" :key="file.name + file.type + file.size" class="w-full space-y-1">
+                <div class="flex items-center gap-1">
+                  <div class="shrink-0 items-center">
+                    <img role="presentation" :alt="file.name" :src="previewSrc(file)" :width="50" />
+                  </div>
+                  <div class="flex-1 min-w-0 align-content-center">
+                    <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
+                    <div class="text-sm text-gray-600">{{ formatSize(file.size) }}</div>
+                  </div>
+                  <div class="shrink-0 align-content-center">
+                    <Badge value="Pending" severity="warn" />
+                  </div>
+                  <div class="shrink-0 align-content-center">
+                    <Button icon="pi pi-times" @click="() => { totalSize.value -= file.size; if (totalSize.value < 0) totalSize.value = 0; totalSizePercent.value = totalSize.value ? 100 * (amountCompleted.value / totalSize.value) : 0; try { URL.revokeObjectURL(previewSrc(file)); } catch (e) {} pastedFiles.splice(index, 1); }" variant="outlined" rounded severity="danger" size="small" />
+                  </div>
+                </div>
+              </div>
+            </div>
             <FileUpload name="demo[]"
                         url="/api/upload"
                         :multiple="true"
@@ -596,7 +707,7 @@ function downloadItem(item) {
                 </template>
                 <template #empty>
                     <div class="flex items-center justify-center flex-col">
-                        <p class="mt-1 mb-0">Drag and drop files to here to upload.</p>
+                        <p class="mt-1 mb-0">Drag and drop files to here to upload. <strong>Only photos of people, places, and things belong here. Images of documents go in "Other"</strong></p>
                     </div>
                 </template>
             </FileUpload>

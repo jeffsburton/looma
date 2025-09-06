@@ -15,6 +15,19 @@ import Message from 'primevue/message'
 import api from '@/lib/api'
 import { useToast } from 'primevue/usetoast'
 
+// Helpers to avoid double-encoding and to prefer numeric case id when present (e.g., "2.xyz==" -> "2")
+function safeEncode(id) {
+  const s = String(id ?? '')
+  if (/%[0-9a-fA-F]{2}/.test(s)) return s
+  try { return encodeURIComponent(s) } catch { return s }
+}
+function casePathId(id) {
+  const s = String(id ?? '')
+  const m = s.match(/^(\d+)/)
+  if (m && m[1]) return m[1]
+  return safeEncode(s)
+}
+
 const toast = useToast()
 
 const props = defineProps({
@@ -41,9 +54,9 @@ function formatSize(bytes) {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
 }
 
-function isImageOrVideoType(type) {
+function isVideoType(type) {
   const t = (type || '').toLowerCase()
-  return t.startsWith('image/') || t.startsWith('video/')
+  return t.startsWith('video/')
 }
 
 function extensionIcon(name) {
@@ -51,6 +64,7 @@ function extensionIcon(name) {
   if (n.endsWith('.pdf')) return 'pi-file-pdf'
   if (/(\.doc|\.docx|\.docm|\.dot|\.dotx)$/.test(n)) return 'pi-file-word'
   if (/(\.xls|\.xlsx|\.xlsm|\.xlt|\.xltx)$/.test(n)) return 'pi-file-excel'
+  if (/(\.png|\.jpg|\.jpeg|\.gif|\.bmp|\.webp|\.tif|\.tiff|\.svg)$/.test(n)) return 'pi-image'
   return 'pi-file'
 }
 
@@ -58,7 +72,7 @@ async function loadFiles() {
   if (!props.caseId) return
   loading.value = true
   try {
-    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(props.caseId)}/files`)
+    const { data } = await api.get(`/api/v1/cases/${casePathId(props.caseId)}/files`)
     items.value = Array.isArray(data) ? data : []
   } catch (e) {
     items.value = []
@@ -82,8 +96,8 @@ function onSelectedFiles(event, files, uploadedFiles) {
   const selected = event.files || []
   const keep = []
   for (const f of selected) {
-    if (isImageOrVideoType(f.type)) {
-      try { toast.add({ severity: 'warn', summary: 'Rejected', detail: `${f.name}: images and videos are not allowed here.`, life: 4000 }) } catch(_) {}
+    if (isVideoType(f.type)) {
+      try { toast.add({ severity: 'warn', summary: 'Rejected', detail: `${f.name}: videos are not allowed here.`, life: 4000 }) } catch(_) {}
     } else {
       keep.push(f)
     }
@@ -104,7 +118,7 @@ async function onUploadFiles(files, uploadedFiles) {
     try {
       const fd = new FormData()
       fd.append('file', file, file.name)
-      await api.post(`/api/v1/cases/${encodeURIComponent(props.caseId)}/files/upload`, fd, {
+      await api.post(`/api/v1/cases/${casePathId(props.caseId)}/files/upload`, fd, {
         onUploadProgress: (evt) => {
           const loaded = evt.loaded || 0
           const filePercent = Math.min(100, (loaded / file.size) * 100)
@@ -162,7 +176,7 @@ async function saveEdit() {
       source: editing.value.source ?? null,
       notes: editing.value.notes ?? null,
     }
-    const { data } = await api.patch(`/api/v1/cases/${encodeURIComponent(props.caseId)}/files/${encodeURIComponent(editing.value.id)}`, payload)
+    const { data } = await api.patch(`/api/v1/cases/${casePathId(props.caseId)}/files/${encodeURIComponent(editing.value.id)}`, payload)
     // Merge back into list
     const idx = items.value.findIndex(x => x.id === editing.value.id)
     if (idx > -1) items.value[idx] = data
@@ -233,7 +247,7 @@ const hasItems = computed(() => (items.value || []).length > 0)
           </template>
           <template #empty>
             <div class="flex items-center justify-center flex-col">
-              <p class="mt-1 mb-0">Drag and drop files here to upload (images and videos not allowed).</p>
+              <p class="mt-1 mb-0">Drag and drop files here to upload (videos not allowed). <strong>Photos of people, places & things belong in Photos. Only images of documents should be uploaded here. </strong></p>
             </div>
           </template>
         </FileUpload>

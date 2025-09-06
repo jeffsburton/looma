@@ -51,7 +51,7 @@ watch(
       <TabList class="mb-2">
         <Tab value="images">
           <span class="material-symbols-outlined">imagesmode</span>
-          <span class="ml-1">Images</span>
+          <span class="ml-1">Photos</span>
         </Tab>
         <Tab value="other">
           <span class="material-symbols-outlined">picture_as_pdf</span>
