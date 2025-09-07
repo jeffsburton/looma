@@ -99,26 +99,20 @@ async function init(){
 async function load(){
   if (!props.caseId) return
   try {
-    const resp = await fetch(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/search-urgency`, {
-      headers: { 'Accept': 'application/json' },
-      credentials: 'include',
-    })
-    if (resp.ok) {
-      const data = await resp.json()
-      m.value = {
-        age_id: data.age_id || '',
-        physical_condition_id: data.physical_condition_id || '',
-        medical_condition_id: data.medical_condition_id || '',
-        personal_risk_id: data.personal_risk_id || '',
-        online_risk_id: data.online_risk_id || '',
-        family_risk_id: data.family_risk_id || '',
-        behavioral_risk_id: data.behavioral_risk_id || '',
-      }
-      serverScore.value = data.score ?? null
-    } else {
-      m.value = { ...m.value }
-      serverScore.value = null
+    const apiModule = await import('../../../../lib/api')
+    const api = apiModule.default
+    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/search-urgency`)
+    const su = data || {}
+    m.value = {
+      age_id: su.age_id != null ? String(su.age_id) : '',
+      physical_condition_id: su.physical_condition_id != null ? String(su.physical_condition_id) : '',
+      medical_condition_id: su.medical_condition_id != null ? String(su.medical_condition_id) : '',
+      personal_risk_id: su.personal_risk_id != null ? String(su.personal_risk_id) : '',
+      online_risk_id: su.online_risk_id != null ? String(su.online_risk_id) : '',
+      family_risk_id: su.family_risk_id != null ? String(su.family_risk_id) : '',
+      behavioral_risk_id: su.behavioral_risk_id != null ? String(su.behavioral_risk_id) : '',
     }
+    serverScore.value = su.score ?? null
   } catch (e) {
     console.error('Failed to load search urgency', e)
   }
@@ -134,18 +128,11 @@ function queueSave(){
 
 async function save(){
   try {
+    const apiModule = await import('../../../../lib/api')
+    const api = apiModule.default
     const payload = { ...m.value }
-    const resp = await fetch(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/search-urgency`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    })
-    if (resp.ok) {
-      const data = await resp.json().catch(() => ({}))
-      // Update serverScore with returned score
-      if (data && typeof data.score !== 'undefined') serverScore.value = data.score
-    }
+    const { data } = await api.put(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/search-urgency`, payload)
+    if (data && typeof data.score !== 'undefined') serverScore.value = data.score
   } catch (e) {
     console.error('Failed to save search urgency', e)
   }
