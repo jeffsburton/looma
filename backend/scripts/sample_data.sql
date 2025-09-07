@@ -1,3 +1,10 @@
+INSERT INTO public.app_user (id, email, password_hash, is_active, onboarding_data, created_at, updated_at) VALUES (2, 'looma.c2r@gmail.com', '$pbkdf2-sha256$29000$em/NWStlDKH0PqcUAgCgVA$w3SQyF9g3tW7GIqEuFba39QP0t//UQT/W9cVOEq0DTM', true, '{"first_name": "Lou", "last_name": "Loomen", "phone": "7152225655", "organization": "Shepherds", "referred_by": "Brad Dennis"}', '2025-09-07 13:30:43.768759 +00:00', '2025-09-07 13:30:43.768759 +00:00');
+INSERT INTO public.app_user_role (app_user_id, role_id) VALUES (2, 3);
+INSERT INTO public.person (id, first_name, last_name, phone, email, telegram, organization_id, profile_pic, app_user_id, created_at, updated_at) VALUES (10, 'Lou', 'Loomen', '715-222-5655', 'looma.c2r@gmail.com', null, 1, null, 2, '2025-09-07 13:32:25.575897 +00:00', '2025-09-07 13:32:25.575897 +00:00');
+INSERT INTO public.person_team (id, person_id, team_id, team_role_id, created_at, updated_at) VALUES (16, 10, 1, 143, '2025-09-07 13:35:20.456286 +00:00', '2025-09-07 13:35:20.456286 +00:00');
+
+
+
 INSERT INTO public.organization (id, name, state_id, created_at, updated_at) VALUES (2, 'Clark County Sheriff', 87, '2025-08-28 14:59:36.940000 +00:00', '2025-08-28 19:59:48.536110 +00:00');
 INSERT INTO public.organization (id, name, state_id, created_at, updated_at) VALUES (3, 'Nevada Highway Patrol', 87, '2025-08-28 20:02:17.051345 +00:00', '2025-08-28 20:02:17.051345 +00:00');
 INSERT INTO public.organization (id, name, state_id, created_at, updated_at) VALUES (4, 'ARYS', 87, '2025-08-28 20:02:17.051345 +00:00', '2025-08-28 20:02:17.051345 +00:00');

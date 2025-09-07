@@ -18,11 +18,10 @@ class Message(Base):
     reply_to_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)
 
     rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
-    intel_summary_id = Column(Integer, ForeignKey("intel_summary.id", ondelete="SET NULL"), nullable=True)
     ops_plan_id = Column(Integer, ForeignKey("ops_plan.id", ondelete="SET NULL"), nullable=True)
     task_id = Column(Integer, ForeignKey("task.id", ondelete="SET NULL"), nullable=True)
 
-
+    file_id = Column(Integer, ForeignKey("file.id", ondelete="CASCADE"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

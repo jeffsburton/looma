@@ -111,17 +111,17 @@ async def create_file(
     except (ClientError, BotoCoreError) as e:  # pragma: no cover
         raise RuntimeError(f"Failed to upload object '{key}' to bucket '{bucket}': {e}")
 
-    # Persist MIME type for main image files only (table 'image')
-    if table_name == "image" and not is_thumbnail and content_type:
+    # Persist MIME type for main file records only (table 'file')
+    if table_name == "file" and not is_thumbnail and content_type:
         try:
             import asyncio
             import sqlalchemy as sa
             from app.db.session import async_session_maker
-            from app.db.models.image import File as Image
+            from app.db.models.file import File as FileModel
 
-            async def _set_mime(img_id: int, mime: str):
+            async def _set_mime(file_id: int, mime: str):
                 async with async_session_maker() as db:
-                    await db.execute(sa.update(Image).where(Image.id == int(img_id)).values(mime_type=mime))
+                    await db.execute(sa.update(FileModel).where(FileModel.id == int(file_id)).values(mime_type=mime))
                     await db.commit()
 
             loop = asyncio.get_event_loop()

@@ -42,11 +42,9 @@ from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
 from app.schemas.case_circumstances import CaseCircumstancesUpsert
 
 # Images
-from app.db.models.image import File as Image
+from app.db.models.file import File
 from app.db.models.rfi import Rfi
 from app.db.models.person import Person as PersonModel
-from app.db.models.image_subject import ImageSubject
-from app.schemas.image import ImageRead
 from app.services.s3 import get_download_link, create_file
 from fastapi import UploadFile, File as UploadFileParam, Form
 
@@ -54,7 +52,6 @@ from fastapi import UploadFile, File as UploadFileParam, Form
 router = APIRouter(prefix="/cases")
 
 # Include subrouters for modularized route groups
-from . import images as _case_images
 from . import files as _case_files
 from . import messages as _case_messages
 from . import timeline as _case_timeline
@@ -63,7 +60,6 @@ from . import social_media as _case_social_media
 from . import case_persons as _case_persons
 from . import case_subjects as _case_subjects
 
-router.include_router(_case_images.router)
 router.include_router(_case_files.router)
 router.include_router(_case_messages.router)
 router.include_router(_case_timeline.router)

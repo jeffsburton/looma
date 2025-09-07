@@ -22,12 +22,11 @@ class File(Base):
     is_document = Column(Boolean, nullable=False, server_default="false")
 
     rfi_id = Column(Integer, ForeignKey("rfi.id", ondelete="SET NULL"), nullable=True)
-    message_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)
     missing_flyer_id = Column(Integer, ForeignKey("missing_flyer.id", ondelete="SET NULL"), nullable=True)
     intel_summary_id = Column(Integer, ForeignKey("intel_summary.id", ondelete="SET NULL"), nullable=True)
 
     # if the image was copied, original id (so we don't have to duplicate the file in s3)
-    copied_id = Column(Integer, nullable=True)
+    copied_id = Column(Integer, ForeignKey("file.id", ondelete="CASCADE"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

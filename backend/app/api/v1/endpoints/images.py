@@ -11,8 +11,8 @@ from app.db.models.app_user import AppUser
 from app.db.models.subject import Subject
 from app.db.models.person import Person as PersonModel
 from app.db.models.rfi import Rfi
-from app.db.models.image import File as Image
-from app.db.models.image_subject import ImageSubject
+from app.db.models.file import File
+from app.db.models.file_subject import FileSubject
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 from app.services.auth import user_has_permission
 from app.services.s3 import get_download_link, create_file

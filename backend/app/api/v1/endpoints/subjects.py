@@ -19,8 +19,8 @@ from app.db.models.team_case import TeamCase
 from app.db.models.case import Case
 from app.db.models.app_user import AppUser
 from app.services.auth import user_has_permission
-from app.db.models.image_subject import ImageSubject
-from app.db.models.image import File as Image
+from app.db.models.file_subject import FileSubject
+from app.db.models.file import File
 
 # Simple authenticated listing for subjects
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -70,7 +70,7 @@ def _subject_visibility_filter(person_id: int):
     Subject linkage to a case can be:
       - direct (case.subject_id)
       - via subject_case
-      - via image_subject on any image belonging to those cases
+      - via file_subject on any image file belonging to those cases
     """
     # Cases related directly to the person
     pc_case_ids = select(PersonCase.case_id).where(PersonCase.person_id == person_id)
@@ -87,11 +87,12 @@ def _subject_visibility_filter(person_id: int):
     # Subjects directly attached on the case.subject_id
     direct_subject_ids = select(Case.subject_id).where(Case.id.in_(union_case_ids))
 
-    # Subjects appearing in images for those cases (image_subject join image)
+    # Subjects appearing in image files for those cases (file_subject join file)
     img_subject_ids = (
-        select(ImageSubject.subject_id)
-        .join(Image, Image.id == ImageSubject.image_id)
-        .where(Image.case_id.in_(union_case_ids))
+        select(FileSubject.subject_id)
+        .join(File, File.id == FileSubject.file_id)
+        .where(File.case_id.in_(union_case_ids))
+        .where(File.is_image.is_(True))
     )
 
     return or_(

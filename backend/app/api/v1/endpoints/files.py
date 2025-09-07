@@ -12,7 +12,9 @@ from app.db.models.person import Person as PersonModel
 from app.db.models.person_case import PersonCase
 from app.db.models.rfi import Rfi
 from app.db.models.file import File as OtherFile
-from app.core.id_codec import decode_id, OpaqueIdError
+from app.db.models.subject import Subject
+from app.db.models.file_subject import FileSubject
+from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 from app.services.auth import user_has_permission
 from app.services.s3 import get_download_link, create_file
 from app.services.image_classifier.image_classifier import predict_photo_probability
@@ -207,6 +209,140 @@ async def upload_file(
         "url": get_download_link("file", int(row.id), file_type=row.mime_type or None, thumbnail=False, attachment_filename=row.file_name or "download"),
         "storage_slug": None,
     }
+
+
+# ---------------- File Subjects ----------------
+from pydantic import BaseModel as _BaseModel_FS
+from typing import Optional as _Optional_FS
+
+class FileSubjectCreate(_BaseModel_FS):
+    subject_id: str
+
+
+@router.get("/{case_id}/files/{file_id}/subjects", summary="List subjects linked to a file")
+async def list_file_subjects(
+    case_id: str,
+    file_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    # Access control
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve file id and ensure it belongs to the case
+    try:
+        fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    f_row = (await db.execute(select(OtherFile.id).where(OtherFile.id == fid, OtherFile.case_id == pk))).scalar_one_or_none()
+    if f_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    FS = FileSubject
+    S = Subject
+    rows = (
+        await db.execute(
+            select(
+                FS.id,
+                S.first_name,
+                S.last_name,
+                S.nicknames,
+                S.id.label("sid"),
+                S.profile_pic,
+            ).join(S, S.id == FS.subject_id).where(FS.file_id == fid)
+        )
+    ).all()
+
+    def _name(first: str, last: str, nick: _Optional_FS[str]) -> str:
+        nick_part = f' "{nick.strip()}"' if nick and str(nick).strip() else ""
+        return f"{first}{nick_part} {last}".strip()
+
+    items = []
+    for r in rows:
+        sid = int(r.sid)
+        photo_url = f"/api/v1/media/pfp/subject/{encode_id('subject', sid)}?s=sm" if getattr(r, 'profile_pic', None) else "/images/pfp-generic.png"
+        items.append({
+            "id": int(r.id),
+            "subject_id": encode_id("subject", sid),
+            "name": _name(r.first_name, r.last_name, r.nicknames),
+            "photo_url": photo_url,
+        })
+    return items
+
+
+@router.post("/{case_id}/files/{file_id}/subjects", summary="Add a subject to a file")
+async def add_file_subject(
+    case_id: str,
+    file_id: str,
+    payload: FileSubjectCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    f_row = (await db.execute(select(OtherFile.id).where(OtherFile.id == fid, OtherFile.case_id == pk))).scalar_one_or_none()
+    if f_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        sid = decode_id("subject", payload.subject_id) if not str(payload.subject_id).isdigit() else int(payload.subject_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=400, detail="Invalid subject_id")
+
+    exists_row = (
+        await db.execute(select(FileSubject.id).where(FileSubject.file_id == fid, FileSubject.subject_id == sid).limit(1))
+    ).scalar_one_or_none()
+    if exists_row is not None:
+        return {"id": int(exists_row)}
+
+    link = FileSubject(file_id=fid, subject_id=sid)
+    db.add(link)
+    await db.commit()
+    await db.refresh(link)
+
+    return {"id": int(link.id)}
+
+
+@router.delete("/{case_id}/files/{file_id}/subjects/{link_id}", summary="Remove a subject from a file")
+async def delete_file_subject(
+    case_id: str,
+    file_id: str,
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    f_row = (await db.execute(select(OtherFile.id).where(OtherFile.id == fid, OtherFile.case_id == pk))).scalar_one_or_none()
+    if f_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        lid = int(link_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Link not found")
+
+    await db.execute(sa.delete(FileSubject).where(FileSubject.id == lid, FileSubject.file_id == fid))
+    await db.commit()
+
+    return {"ok": True}
 
 
 @router.patch("/{case_id}/files/{file_id}", summary="Update file fields for a case")

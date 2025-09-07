@@ -12,6 +12,8 @@ import SelectButton from 'primevue/selectbutton'
 import api from '@/lib/api'
 import { useToast } from 'primevue/usetoast'
 import FileUpload from '@/components/common/FileUpload.vue'
+import CaseSubjectSelect from '@/components/cases/CaseSubjectSelect.vue'
+import SubjectPanel from '@/components/contacts/Subject.vue'
 
 // Helpers to avoid double-encoding and to prefer numeric case id when present (e.g., "2.xyz==" -> "2")
 function safeEncode(id) {
@@ -47,6 +49,95 @@ const selectedTypes = ref(typeOptions.map(o => o.value)) // multiple selection (
 const showDialog = ref(false)
 const editing = ref(null)
 const saving = ref(false)
+
+// File subjects management (copied from ImagesTab, adapted for files)
+const fileSubjects = ref([])
+const subjectsLoading = ref(false)
+const newSubjectId = ref('')
+
+// Subject detail dialog
+const subjectDialogVisible = ref(false)
+const subjectModel = ref(null)
+const subjectLoading = ref(false)
+
+async function openSubject(opaqueId) {
+  if (!opaqueId) return
+  subjectLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/subjects`, { headers: { 'Accept': 'application/json' } })
+    const arr = Array.isArray(data) ? data : []
+    const subj = arr.find(s => s?.id === opaqueId)
+    if (!subj) {
+      try { toast.add({ severity: 'warn', summary: 'Not found', detail: 'Subject not found.', life: 2500 }) } catch (_) {}
+      return
+    }
+    subjectModel.value = {
+      id: subj.id,
+      first_name: subj.first_name || '',
+      last_name: subj.last_name || '',
+      phone: subj.phone || '',
+      email: subj.email || '',
+      dangerous: !!subj.dangerous,
+      danger: subj.danger || '',
+    }
+    subjectDialogVisible.value = true
+  } catch (e) {
+    console.error(e)
+    try { toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load subject details.', life: 3000 }) } catch (_) {}
+  } finally {
+    subjectLoading.value = false
+  }
+}
+
+async function loadFileSubjects() {
+  if (!props.caseId || !editing.value?.id) return
+  subjectsLoading.value = true
+  try {
+    const { data } = await api.get(`/api/v1/cases/${casePathId(props.caseId)}/files/${encodeURIComponent(editing.value.id)}/subjects`)
+    fileSubjects.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    fileSubjects.value = []
+  } finally {
+    subjectsLoading.value = false
+  }
+}
+
+async function addFileSubject(subjectId) {
+  const sid = subjectId || newSubjectId.value
+  if (!props.caseId || !editing.value?.id || !sid) return
+  try {
+    await api.post(
+      `/api/v1/cases/${casePathId(props.caseId)}/files/${encodeURIComponent(editing.value.id)}/subjects`,
+      { subject_id: sid },
+      { headers: { 'Accept': 'application/json' } }
+    )
+    newSubjectId.value = ''
+    await loadFileSubjects()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function onSelectNewSubject(v) {
+  if (!v) return
+  const alreadyLinked = fileSubjects.value?.some(s => s.subject_id === v)
+  if (alreadyLinked) {
+    try { toast.add({ severity: 'info', summary: 'Already added', detail: 'This subject is already linked to the file.', life: 2500 }) } catch (_) {}
+    newSubjectId.value = ''
+    return
+  }
+  addFileSubject(v)
+}
+
+async function deleteFileSubject(linkId) {
+  if (!props.caseId || !editing.value?.id || !linkId) return
+  try {
+    await api.delete(`/api/v1/cases/${casePathId(props.caseId)}/files/${encodeURIComponent(editing.value.id)}/subjects/${encodeURIComponent(linkId)}`)
+    fileSubjects.value = fileSubjects.value.filter(s => s.id !== linkId)
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 
 function extensionIcon(name) {
@@ -91,6 +182,8 @@ function downloadItem(item) {
 function openEdit(item) {
   editing.value = { ...item }
   showDialog.value = true
+  // Load file-subject links for this file
+  loadFileSubjects()
 }
 
 async function saveEdit() {
@@ -262,11 +355,50 @@ onBeforeUnmount(() => {
           <label for="notes">Notes</label>
         </FloatLabel>
       </div>
+
+      <!-- Subjects list and add (copied from ImagesTab, adapted) -->
+      <div class="field mt-3">
+        <div class="label mb-2">Subjects in File</div>
+        <div v-if="subjectsLoading" class="text-600 text-sm mb-2">Loading…</div>
+        <ul v-else class="subject-list">
+          <li v-for="s in fileSubjects" :key="s.id" class="subject-row">
+            <div class="subject-info clickable" @click.stop="openSubject(s.subject_id)">
+              <img :src="s.photo_url" :alt="s.name" class="subject-avatar" />
+              <span class="subject-name">{{ s.name }}</span>
+            </div>
+            <Button icon="pi pi-trash" text size="small" @click="deleteFileSubject(s.id)" />
+          </li>
+          <li v-if="fileSubjects.length === 0" class="text-600 text-sm">No subjects linked.</li>
+        </ul>
+        <div class="mt-2">
+          <FloatLabel variant="on">
+            <CaseSubjectSelect
+              v-model="newSubjectId"
+              :caseId="String(props.caseId || '')"
+              :filter="true"
+              :includeUnknown="false"
+              class="w-full"
+              @change="onSelectNewSubject"
+            />
+            <label>Add Subject</label>
+          </FloatLabel>
+        </div>
+      </div>
+
       <template #footer>
         <div class="flex justify-end gap-2">
           <Button label="Cancel" severity="secondary" @click="showDialog=false" />
           <Button label="Save" :loading="saving" @click="saveEdit" />
         </div>
+      </template>
+    </Dialog>
+
+    <!-- Subject Dialog -->
+    <Dialog v-model:visible="subjectDialogVisible" modal header="Subject" :style="{ width: '640px' }">
+      <div v-if="subjectLoading" class="p-3 text-600">Loading…</div>
+      <SubjectPanel v-else-if="subjectModel" v-model="subjectModel" :isNew="false" :canModify="true" @updated="() => {}" @avatarChanged="() => {}" />
+      <template #footer>
+        <Button label="Close" text @click="subjectDialogVisible=false" />
       </template>
     </Dialog>
 
@@ -294,4 +426,10 @@ onBeforeUnmount(() => {
 .lightbox-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2vw; }
 .lightbox-content { max-width: 80vw; max-height: 90vh; background: transparent; display: flex; align-items: center; justify-content: center; }
 .lightbox-media { max-width: 80vw; max-height: 90vh; object-fit: contain; display: block; }
+.subject-list { list-style: none; padding: 0; margin: 0; }
+.subject-row { display: flex; align-items: center; justify-content: space-between; padding: .25rem 0; border-bottom: 1px solid var(--p-surface-200); }
+.subject-row:last-child { border-bottom: 0; }
+.subject-info { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1 1 auto; }
+.subject-avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; }
+.subject-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
