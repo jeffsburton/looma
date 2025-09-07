@@ -77,7 +77,7 @@ async function onSelectedFiles(event, files, uploadedFiles) {
 
   // Auto-start upload immediately after selection/drag-drop
   try {
-    await onUploadFiles(files, uploadedFiles)
+    await onUploadFiles(event.files, uploadedFiles)
   } catch (e) {
     console.error(e)
   }
@@ -85,6 +85,7 @@ async function onSelectedFiles(event, files, uploadedFiles) {
 
 async function onUploadFiles(files, uploadedFiles) {
   if (!props.caseId) return
+  console.log(files);
   const filesToProcess = [...files]
   for (const file of filesToProcess) {
     try {
@@ -332,39 +333,15 @@ function removePastedFile(file) {
                     @clear="onClearUpload($event)">
           <template #header="{ chooseCallback, uploadCallback, clearCallback, files, uploadedFiles }">
             <div class="flex flex-wrap justify-between items-center flex-1 gap-4">
-              <div class="flex gap-2">
+              <div  v-if="files.length === 0" class="flex gap-2">
                 <Button @click="chooseCallback()" class="file-upload-buttons"><i class="pi pi-plus"></i> Choose</Button>
-                <Button @click="clearCallback()" class="file-upload-buttons" severity="secondary" :disabled="!files || files.length === 0"><i class="pi pi-times"></i> Clear</Button>
-              </div>
-              <ProgressBar :value="totalSizePercent" :showValue="false" class="md:w-20rem h-1 w-full md:ml-auto">
+               </div>
+              <ProgressBar v-if="files.length > 0" :value="totalSizePercent" :showValue="false" class="md:w-20rem h-1 w-full md:ml-auto">
                 <span class="whitespace-nowrap">{{ totalSize }}B</span>
               </ProgressBar>
             </div>
           </template>
-          <template #content="{ files, uploadedFiles, removeFileCallback, messages }">
-            <Message v-for="message of messages" :key="message" :class="{ 'mb-8': !files.length && !uploadedFiles.length}" severity="error">
-              {{ message }}
-            </Message>
-            <div class="w-full">
-              <div v-if="files.length > 0">
-                <div v-for="(file, index) of files" :key="file.name + file.type + file.size" class="w-full space-y-1">
-                  <div class="flex items-center gap-2">
-                    <i class="pi text-2xl" :class="extensionIcon(file.name)"></i>
-                    <div class="flex-1 min-w-0">
-                      <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden block">{{ file.name }}</span>
-                      <div class="text-sm text-gray-600">{{ formatSize(file.size) }}</div>
-                    </div>
-                    <div class="shrink-0">
-                      <Badge value="Pending" severity="warn" />
-                    </div>
-                    <div class="shrink-0">
-                      <Button icon="pi pi-times" @click="onRemoveFile(file, removeFileCallback, index)" variant="outlined" rounded severity="danger" size="small" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
+          <template #content/>
           <template #empty>
             <div class="flex items-center justify-center flex-col">
               <p class="mt-1 mb-0">Drag and drop files here to upload. <strong>Photos of people, places & things belong in Photos. Only images of documents should be uploaded here. </strong></p>
