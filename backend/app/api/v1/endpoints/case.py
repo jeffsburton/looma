@@ -321,9 +321,11 @@ async def get_case_by_number(
         csec_id,
         missing_status_id,
         classification_id,
+        mgmt_requested_by_id,
         csec_code,
         missing_status_code,
         classification_code,
+        mgmt_requested_by_code,
         ncic_case_number,
         ncmec_case_number,
         le_case_number,
@@ -343,8 +345,6 @@ async def get_case_by_number(
         pol_work_hours,
         pol_employer_address,
         pol_confidants,
-        mgmt_requested_by_id,
-        mgmt_requested_by_code,
         disp_shep_intel,
         disp_date_found,
         disp_scope_id,
@@ -550,9 +550,16 @@ async def get_case_exploitation(
     if not await can_user_access_case(db, current_user.id, int(case_db_id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
-    rows = (await db.execute(select(CaseExploitation.exploitation_id).where(CaseExploitation.case_id == int(case_db_id)))).all()
-    ids = [encode_id("ref_value", int(r[0])) for r in rows]
-    return {"exploitation_ids": ids}
+    rows = (
+        await db.execute(
+            select(CaseExploitation.exploitation_id, RefValue.code)
+            .join(RefValue, RefValue.id == CaseExploitation.exploitation_id)
+            .where(CaseExploitation.case_id == int(case_db_id))
+        )
+    ).all()
+    ids = [encode_id("ref_value", int(eid)) for (eid, _code) in rows]
+    codes = [code for (_eid, code) in rows]
+    return {"exploitation_ids": ids, "exploitation_codes": codes}
 
 
 @router.put("/{case_id}/exploitation", summary="Sync case exploitation selections")
@@ -567,11 +574,15 @@ async def upsert_case_exploitation(
         raise HTTPException(status_code=404, detail="Case not found")
 
     raw_ids = payload.get("exploitation_ids") or []
-    # decode opaque ids; ignore invalid
+    # decode opaque ids or accept numeric strings; ignore invalid
     dec_ids = []
     for oid in raw_ids:
         try:
-            dec_ids.append(int(decode_id("ref_value", str(oid))))
+            s = str(oid)
+            if s.isdigit():
+                dec_ids.append(int(s))
+            else:
+                dec_ids.append(int(decode_id("ref_value", s)))
         except Exception:
             continue
     dec_set = set(dec_ids)
@@ -636,6 +647,7 @@ async def get_victimology_catalog(
             "questions": [
                 {
                     "id": enc("victimology", v.id),
+                    "db_id": int(v.id),
                     "question": v.question,
                     "follow_up": getattr(v, "follow_up", None),
                     "sort_order": int(v.sort_order) if v.sort_order is not None else None,
@@ -671,6 +683,7 @@ async def get_case_victimology(
         {
             "id": enc("case_victimology", r.id),
             "victimology_id": enc("victimology", r.victimology_id),
+            "victimology_db_id": int(r.victimology_id) if getattr(r, 'victimology_id', None) is not None else None,
             "answer_id": enc("ref_value", r.answer_id) if r.answer_id is not None else None,
             "details": r.details,
         }

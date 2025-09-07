@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.db.models.app_user import AppUser
 from app.db.models.ref_value import RefValue
 from app.db.models.social_media import SocialMedia
+from app.db.models.subject import Subject
 from app.db.models.social_media_alias import SocialMediaAlias
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
@@ -23,11 +24,14 @@ from pydantic import BaseModel
 from typing import Optional as _OptionalForSM
 
 class SocialMediaCreate(BaseModel):
+    subject_id: Optional[str] = None
     platform_id: Optional[str] = None
     platform_other: Optional[str] = None
-    username: Optional[str] = None
     notes: Optional[str] = None
-    link: Optional[str] = None
+    url: Optional[str] = None
+    status_id: Optional[str] = None
+    investigated_id: Optional[str] = None
+    rule_out: Optional[bool] = None
 
 
 @router.get("/{case_id}/social-media", summary="List social media for a case")
@@ -41,17 +45,32 @@ async def list_social_media(
         raise HTTPException(status_code=404, detail="Case not found")
 
     plat = aliased(RefValue)
+    stat = aliased(RefValue)
+    inv = aliased(RefValue)
     q = (
         select(
             SocialMedia.id,
+            SocialMedia.subject_id,
             SocialMedia.platform_id,
             SocialMedia.platform_other,
             SocialMedia.url,
             SocialMedia.notes,
+            SocialMedia.status_id,
+            SocialMedia.investigated_id,
+            SocialMedia.rule_out,
             plat.name,
             plat.code,
+            stat.name,
+            stat.code,
+            inv.name,
+            inv.code,
+            Subject.first_name,
+            Subject.last_name,
         )
         .join(plat, plat.id == SocialMedia.platform_id, isouter=True)
+        .join(stat, stat.id == SocialMedia.status_id, isouter=True)
+        .join(inv, inv.id == SocialMedia.investigated_id, isouter=True)
+        .join(Subject, Subject.id == SocialMedia.subject_id, isouter=True)
         .where(SocialMedia.case_id == int(case_db_id))
         .order_by(asc(SocialMedia.id))
     )
@@ -60,22 +79,43 @@ async def list_social_media(
     items = []
     for (
         sm_id,
+        subject_id,
         platform_id,
         platform_other,
         url,
         notes,
+        status_id,
+        investigated_id,
+        rule_out,
         platform_name,
         platform_code,
+        status_name,
+        status_code,
+        inv_name,
+        inv_code,
+        first_name,
+        last_name,
     ) in rows:
         items.append({
             "id": encode_id("social_media", int(sm_id)),
+            "subject": {
+                "id": encode_id("subject", int(subject_id)) if subject_id is not None else None,
+                "first_name": first_name,
+                "last_name": last_name,
+            },
             "platform_id": encode_id("ref_value", int(platform_id)) if platform_id is not None else None,
             "platform_other": platform_other,
-            "username": None,
             "notes": notes,
-            "link": url,
+            "url": url,
             "platform_name": platform_name,
             "platform_code": platform_code,
+            "status_id": encode_id("ref_value", int(status_id)) if status_id is not None else None,
+            "status_name": status_name,
+            "status_code": status_code,
+            "investigated_id": encode_id("ref_value", int(investigated_id)) if investigated_id is not None else None,
+            "investigated_name": inv_name,
+            "investigated_code": inv_code,
+            "rule_out": bool(rule_out) if rule_out is not None else False,
         })
 
     return items
@@ -103,12 +143,27 @@ async def create_social_media(
         except Exception:
             return None
 
+    def _dec_subject(oid: _OptionalForSM[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("subject", s)) if not s.isdigit() else int(s)
+        except Exception:
+            return None
+
     row = SocialMedia(
         case_id=int(case_db_id),
+        subject_id=_dec_subject(getattr(payload, "subject_id", None)) if hasattr(payload, "subject_id") else None,
         platform_id=_dec_ref(payload.platform_id) if hasattr(payload, "platform_id") else None,
         platform_other=getattr(payload, "platform_other", None),
         notes=getattr(payload, "notes", None),
-        url=getattr(payload, "link", None),
+        url=getattr(payload, "url", None),
+        status_id=_dec_ref(getattr(payload, "status_id", None)) if hasattr(payload, "status_id") else None,
+        investigated_id=_dec_ref(getattr(payload, "investigated_id", None)) if hasattr(payload, "investigated_id") else None,
+        rule_out=bool(getattr(payload, "rule_out", False)) if hasattr(payload, "rule_out") else False,
     )
     
     db.add(row)
@@ -120,9 +175,11 @@ async def create_social_media(
 class SocialMediaPartial(BaseModel):
     platform_id: Optional[str] = None
     platform_other: Optional[str] = None
-    username: Optional[str] = None
     notes: Optional[str] = None
-    link: Optional[str] = None
+    url: Optional[str] = None
+    status_id: Optional[str] = None
+    investigated_id: Optional[str] = None
+    rule_out: Optional[bool] = None
 
 
 @router.patch("/{case_id}/social-media/{social_media_id}", summary="Update a social media record for a case")
@@ -163,13 +220,16 @@ async def update_social_media(
         row.platform_id = _dec_ref(payload.platform_id)
     if "platform_other" in fields_set:
         row.platform_other = payload.platform_other
-    if "username" in fields_set:
-        # 'username' is not a column on SocialMedia; currently ignored to avoid errors
-        pass
     if "notes" in fields_set:
         row.notes = payload.notes
-    if "link" in fields_set:
-        row.url = payload.link
+    if "url" in fields_set:
+        row.url = payload.url
+    if "status_id" in fields_set:
+        row.status_id = _dec_ref(payload.status_id)
+    if "investigated_id" in fields_set:
+        row.investigated_id = _dec_ref(payload.investigated_id)
+    if "rule_out" in fields_set:
+        row.rule_out = bool(payload.rule_out)
 
     await db.commit()
     return {"ok": True}
