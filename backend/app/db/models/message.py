@@ -22,5 +22,7 @@ class Message(Base):
     ops_plan_id = Column(Integer, ForeignKey("ops_plan.id", ondelete="SET NULL"), nullable=True)
     task_id = Column(Integer, ForeignKey("task.id", ondelete="SET NULL"), nullable=True)
 
+
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
