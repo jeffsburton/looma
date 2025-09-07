@@ -12,6 +12,7 @@ import FloatLabel from 'primevue/floatlabel'
 import Toast from 'primevue/toast'
 import Badge from 'primevue/badge'
 import Message from 'primevue/message'
+import SelectButton from 'primevue/selectbutton'
 import api from '@/lib/api'
 import { useToast } from 'primevue/usetoast'
 
@@ -37,6 +38,15 @@ const props = defineProps({
 const items = ref([])
 const loading = ref(false)
 
+// Toolbar state: search and type filters
+const searchQuery = ref('')
+const typeOptions = [
+  { label: 'Photos', value: 'photos', icon: 'pi pi-image' },
+  { label: 'Video', value: 'video', icon: 'pi pi-video' },
+  { label: 'Documents', value: 'documents', icon: 'pi pi-file' },
+]
+const selectedTypes = ref(typeOptions.map(o => o.value)) // multiple selection (default: all selected)
+
 const showDialog = ref(false)
 const editing = ref(null)
 const saving = ref(false)
@@ -52,11 +62,6 @@ function formatSize(bytes) {
   let i = Math.floor(Math.log(bytes) / Math.log(k))
   i = Math.min(i, sizes.length - 1)
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
-}
-
-function isVideoType(type) {
-  const t = (type || '').toLowerCase()
-  return t.startsWith('video/')
 }
 
 function extensionIcon(name) {
@@ -92,19 +97,30 @@ function onRemoveFile(file, removeFileCallback, index) {
   totalSize.value -= file.size
 }
 
-function onSelectedFiles(event, files, uploadedFiles) {
+async function onSelectedFiles(event, files, uploadedFiles) {
   const selected = event.files || []
   const keep = []
   for (const f of selected) {
-    if (isVideoType(f.type)) {
-      try { toast.add({ severity: 'warn', summary: 'Rejected', detail: `${f.name}: videos are not allowed here.`, life: 4000 }) } catch(_) {}
-    } else {
-      keep.push(f)
-    }
+    keep.push(f)
   }
   // Replace event files with filtered
   event.files.length = 0
   keep.forEach(f => event.files.push(f))
+
+  // Generate thumbnails for images and videos
+  for (const file of event.files) {
+    try {
+      let blob = null
+      if (file.type && file.type.startsWith('video/')) {
+        blob = await extractFrameFromFile(file, 0.12, 'image/jpeg', 0.95, 200)
+      } else if (file.type && file.type.startsWith('image/')) {
+        blob = await createThumbnail(file)
+      }
+      if (blob) file.thumbBlob = blob
+    } catch (e) {
+      console.warn('Failed to generate thumbnail for file', file?.name, e)
+    }
+  }
 
   // Update counters
   totalSize.value = (files || []).reduce((acc, f) => acc + (f.size || 0), 0)
@@ -118,6 +134,15 @@ async function onUploadFiles(files, uploadedFiles) {
     try {
       const fd = new FormData()
       fd.append('file', file, file.name)
+      // If we have a locally generated thumbnail, send it along as JPEG
+      try {
+        if (file.thumbBlob) {
+          fd.append('thumbnail', file.thumbBlob, 'thumbnail.jpg')
+        }
+      } catch (e) {
+        console.warn('Thumbnail append failed:', e)
+      }
+
       await api.post(`/api/v1/cases/${casePathId(props.caseId)}/files/upload`, fd, {
         onUploadProgress: (evt) => {
           const loaded = evt.loaded || 0
@@ -174,6 +199,7 @@ async function saveEdit() {
   try {
     const payload = {
       source: editing.value.source ?? null,
+      where: editing.value.where ?? null,
       notes: editing.value.notes ?? null,
     }
     const { data } = await api.patch(`/api/v1/cases/${casePathId(props.caseId)}/files/${encodeURIComponent(editing.value.id)}`, payload)
@@ -195,7 +221,110 @@ onMounted(loadFiles)
 
 watch(() => props.caseId, () => { loadFiles() })
 
+// Thumbnail helpers (mirroring ImagesTab behavior)
+function extractFrameFromURL(src, timeSec = 0.1, type = 'image/jpeg', quality = 0.9, targetWidth) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
+    video.crossOrigin = 'anonymous'
+    video.src = src
+    const fail = (msg) => reject(new Error(msg))
+    video.addEventListener('error', () => fail('Failed to load video'))
+    video.addEventListener('loadedmetadata', () => {
+      if (!video.videoWidth || !video.videoHeight) return fail('No video dimensions')
+      const t = Math.min(timeSec, Math.max(0.01, (video.duration || 1) * 0.01))
+      const onSeeked = () => {
+        const vw = video.videoWidth
+        const vh = video.videoHeight
+        let outW = vw
+        let outH = vh
+        if (targetWidth && targetWidth > 0) {
+          outW = targetWidth
+          outH = Math.round((vh / vw) * outW)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = outW
+        canvas.height = outH
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, outW, outH)
+        canvas.toBlob((blob) => {
+          if (!blob) return fail('Canvas toBlob failed')
+          resolve(blob)
+        }, type, quality)
+      }
+      video.addEventListener('seeked', onSeeked, { once: true })
+      try { video.currentTime = t } catch {
+        video.addEventListener('loadeddata', () => { video.currentTime = t }, { once: true })
+      }
+    }, { once: true })
+  })
+}
+async function extractFrameFromFile(file, timeSec = 0.1, type = 'image/jpeg', quality = 0.9, targetWidth) {
+  const url = URL.createObjectURL(file)
+  try {
+    return await extractFrameFromURL(url, timeSec, type, quality, targetWidth)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+async function createThumbnail(file, type = 'image/jpeg', quality = 0.95, targetWidth = 200) {
+  const url = URL.createObjectURL(file)
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const aspectRatio = img.height / img.width
+        const targetHeight = Math.round(targetWidth * aspectRatio)
+        const canvas = document.createElement('canvas')
+        canvas.width = targetWidth
+        canvas.height = targetHeight
+        const ctx = canvas.getContext('2d')
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0, 0, targetWidth, targetHeight)
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url)
+          if (blob) resolve(blob)
+          else reject(new Error('Failed to create thumbnail blob'))
+        }, type, quality)
+      } catch (error) {
+        URL.revokeObjectURL(url)
+        reject(error)
+      }
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image')) }
+    img.crossOrigin = 'anonymous'
+    img.src = url
+  })
+}
+
 const hasItems = computed(() => (items.value || []).length > 0)
+
+// Filtered items based on search and type selections
+const filteredItems = computed(() => {
+  const q = (searchQuery.value || '').trim().toLowerCase()
+  const types = Array.isArray(selectedTypes.value) ? selectedTypes.value : []
+  const applyType = (it) => {
+    if (!types.length) return true
+    let ok = false
+    for (const t of types) {
+      if (t === 'photos' && it.is_image === true && it.is_document === false) ok = true
+      if (t === 'video' && it.is_video === true) ok = true
+      if (t === 'documents' && it.is_document === true) ok = true
+      if (ok) break
+    }
+    return ok
+  }
+  const applySearch = (it) => {
+    if (!q) return true
+    const fields = [it.file_name, it.source, it.where, it.notes, it.created_by_name]
+    return fields.some(v => String(v || '').toLowerCase().includes(q))
+  }
+  return (items.value || []).filter(it => applyType(it) && applySearch(it))
+})
+
 const pastedFiles = ref([])
 const showingPastePrompt = ref(false)
 
@@ -203,7 +332,13 @@ async function fileFromClipboardItem(item) {
   const blob = item.getAsFile ? item.getAsFile() : null
   if (!blob) throw new Error('Clipboard item has no file')
   const type = blob.type || 'image/png'
-  const ext = type.includes('png') ? 'png' : type.includes('jpeg') ? 'jpg' : type.includes('gif') ? 'gif' : 'png'
+  let ext = 'bin'
+  if (type.includes('png')) ext = 'png'
+  else if (type.includes('jpeg')) ext = 'jpg'
+  else if (type.includes('gif')) ext = 'gif'
+  else if (type.includes('mp4')) ext = 'mp4'
+  else if (type.startsWith('video/')) ext = 'mp4'
+  else if (type.startsWith('image/')) ext = 'jpg'
   const name = `pasted-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`
   return new File([blob], name, { type, lastModified: Date.now() })
 }
@@ -213,15 +348,24 @@ async function onPaste(e) {
     const dt = e.clipboardData || window.clipboardData
     if (!dt) return
     const itemsArr = Array.from(dt.items || [])
-    const imageItems = itemsArr.filter(i => i.type && i.type.startsWith('image/'))
-    if (!imageItems.length) return
+    const fileItems = itemsArr.filter(i => i.type && (i.type.startsWith('image/') || i.type.startsWith('video/')))
+    if (!fileItems.length) return
 
     const newlyQueued = []
-    for (const it of imageItems) {
+    for (const it of fileItems) {
       const file = await fileFromClipboardItem(it)
-      if (!file.type.startsWith('image/')) continue
-      if (isVideoType(file.type)) continue // just in case
       if (file.size > 1000000000) continue
+      try {
+        let blob = null
+        if (file.type && file.type.startsWith('video/')) {
+          blob = await extractFrameFromFile(file, 0.12, 'image/jpeg', 0.95, 200)
+        } else if (file.type && file.type.startsWith('image/')) {
+          blob = await createThumbnail(file)
+        }
+        if (blob) file.thumbBlob = blob
+      } catch (e) {
+        console.warn('Paste thumbnail generation failed:', e)
+      }
       newlyQueued.push(file)
     }
 
@@ -339,23 +483,49 @@ function removePastedFile(file) {
           </template>
           <template #empty>
             <div class="flex items-center justify-center flex-col">
-              <p class="mt-1 mb-0">Drag and drop files here to upload (videos not allowed). <strong>Photos of people, places & things belong in Photos. Only images of documents should be uploaded here. </strong></p>
+              <p class="mt-1 mb-0">Drag and drop files here to upload. <strong>Photos of people, places & things belong in Photos. Only images of documents should be uploaded here. </strong></p>
             </div>
           </template>
         </FileUpload>
       </div>
     </div>
 
-    <div class="mb-2 text-900 font-medium">Files</div>
-    <DataTable :value="items" dataKey="id" :loading="loading" v-if="hasItems">
+    <!-- Toolbar: Search + Type Filters -->
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <div class="flex-1 min-w-[220px]">
+        <FloatLabel variant="on" class="w-full">
+          <InputText id="file-search" v-model="searchQuery" class="w-full" placeholder="Search" />
+          <label for="file-search">Search</label>
+        </FloatLabel>
+      </div>
+      <div class="min-w-[220px]">
+        <FloatLabel variant="on" class="w-full">
+          <SelectButton id="type-filter" v-model="selectedTypes" :options="typeOptions" optionLabel="label" optionValue="value" :multiple="true">
+            <template #option="slotProps">
+              <i :class="slotProps.option.icon" class="mr-2"></i>
+            </template>
+          </SelectButton>
+        </FloatLabel>
+      </div>
+    </div>
+
+    <DataTable :value="filteredItems" dataKey="id" :loading="loading" v-if="hasItems">
       <Column header="Type" style="width: 60px">
         <template #body="{ data }">
-          <i class="pi text-2xl" :class="extensionIcon(data.file_name)"></i>
+          <template v-if="(data.is_image || data.is_video) && data.thumb">
+            <img :src="data.thumb" alt="thumb" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" />
+          </template>
+          <template v-else>
+            <i class="pi text-2xl" :class="extensionIcon(data.file_name)"></i>
+          </template>
         </template>
       </Column>
       <Column field="file_name" header="Name" />
       <Column header="Source">
         <template #body="{ data }">{{ data.source || '—' }}</template>
+      </Column>
+      <Column header="Where">
+        <template #body="{ data }">{{ data.where || '—' }}</template>
       </Column>
       <Column header="Notes">
         <template #body="{ data }">{{ data.notes || '—' }}</template>
@@ -376,6 +546,10 @@ function removePastedFile(file) {
         <FloatLabel variant="on" class="mb-2">
           <InputText id="source" v-model="editing.source" class="w-full" />
           <label for="source">Source</label>
+        </FloatLabel>
+        <FloatLabel variant="on" class="mb-2">
+          <InputText id="where" v-model="editing.where" class="w-full" />
+          <label for="where">Where</label>
         </FloatLabel>
         <FloatLabel variant="on">
           <Textarea id="notes" v-model="editing.notes" class="w-full" rows="4" />
