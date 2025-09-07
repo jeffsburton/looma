@@ -1055,3 +1055,284 @@ async def upsert_case_management(
 
 
 
+
+
+
+@router.get("/{case_id}/by-id", summary="Get case header by case id")
+async def get_case_by_id(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """
+    Returns the same composite structure as GET /cases/by-number/{case_number},
+    but addressed by encrypted case id. Read-only.
+    """
+    # Decode and authorize
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Aliases for ref tables (mirrors get_case_by_number)
+    SexRV = aliased(RefValue)
+    RaceRV = aliased(RefValue)
+    CsecRV = aliased(RefValue)
+    MstatRV = aliased(RefValue)
+    MclassRV = aliased(RefValue)
+    ReqByRV = aliased(RefValue)
+    ScopeRV = aliased(RefValue)
+    ClassRV = aliased(RefValue)
+    StatusRV = aliased(RefValue)
+    LivingRV = aliased(RefValue)
+    FoundByRV = aliased(RefValue)
+
+    q = (
+        select(
+            Case.id.label("case_id"),
+            Case.case_number,
+            Case.date_intake,
+            Case.inactive,
+            Subject.id.label("subject_id"),
+            Subject.first_name,
+            Subject.last_name,
+            Subject.middle_name,
+            Subject.nicknames,
+            Subject.profile_pic.isnot(None).label("has_pic"),
+            CaseDemographics.age_when_missing,
+            CaseDemographics.date_of_birth,
+            CaseDemographics.height,
+            CaseDemographics.weight,
+            CaseDemographics.hair_color,
+            CaseDemographics.hair_length,
+            CaseDemographics.eye_color,
+            CaseDemographics.identifying_marks,
+            CaseDemographics.sex_id,
+            CaseDemographics.race_id,
+            SexRV.code.label("sex_code"),
+            RaceRV.code.label("race_code"),
+            CaseCircumstances.date_missing,
+            CaseManagement.consent_sent,
+            CaseManagement.consent_returned,
+            CaseManagement.flyer_complete,
+            CaseManagement.ottic,
+            CaseManagement.csec_id,
+            CaseManagement.missing_status_id,
+            CaseManagement.classification_id,
+            CaseManagement.requested_by_id,
+            CsecRV.code.label("csec_code"),
+            MstatRV.code.label("missing_status_code"),
+            MclassRV.code.label("classification_code"),
+            ReqByRV.code.label("requested_by_code"),
+            CaseManagement.ncic_case_number,
+            CaseManagement.ncmec_case_number,
+            CaseManagement.le_case_number,
+            CaseManagement.le_24hour_contact,
+            CaseManagement.ss_case_number,
+            CaseManagement.ss_24hour_contact,
+            CaseManagement.jpo_case_number,
+            CaseManagement.jpo_24hour_contact,
+            CasePatternOfLife.school,
+            CasePatternOfLife.grade,
+            CasePatternOfLife.missing_classes,
+            CasePatternOfLife.school_laptop,
+            CasePatternOfLife.school_laptop_taken,
+            CasePatternOfLife.school_address,
+            CasePatternOfLife.employed,
+            CasePatternOfLife.employer,
+            CasePatternOfLife.work_hours,
+            CasePatternOfLife.employer_address,
+            CasePatternOfLife.confidants,
+            CaseDisposition.shepherds_contributed_intel,
+            CaseDisposition.date_found,
+            CaseDisposition.scope_id,
+            CaseDisposition.class_id,
+            CaseDisposition.status_id,
+            CaseDisposition.living_id,
+            CaseDisposition.found_by_id,
+            ScopeRV.code.label("scope_code"),
+            ClassRV.code.label("class_code"),
+            StatusRV.code.label("status_code"),
+            LivingRV.code.label("living_code"),
+            FoundByRV.code.label("found_by_code"),
+        )
+        .join(Subject, Subject.id == Case.subject_id)
+        .join(CaseDemographics, CaseDemographics.case_id == Case.id, isouter=True)
+        .join(SexRV, SexRV.id == CaseDemographics.sex_id, isouter=True)
+        .join(RaceRV, RaceRV.id == CaseDemographics.race_id, isouter=True)
+        .join(CaseCircumstances, CaseCircumstances.case_id == Case.id, isouter=True)
+        .join(CaseManagement, CaseManagement.case_id == Case.id, isouter=True)
+        .join(CsecRV, CsecRV.id == CaseManagement.csec_id, isouter=True)
+        .join(MstatRV, MstatRV.id == CaseManagement.missing_status_id, isouter=True)
+        .join(MclassRV, MclassRV.id == CaseManagement.classification_id, isouter=True)
+        .join(ReqByRV, ReqByRV.id == CaseManagement.requested_by_id, isouter=True)
+        .join(CasePatternOfLife, CasePatternOfLife.case_id == Case.id, isouter=True)
+        .join(CaseDisposition, CaseDisposition.case_id == Case.id, isouter=True)
+        .join(ScopeRV, ScopeRV.id == CaseDisposition.scope_id, isouter=True)
+        .join(ClassRV, ClassRV.id == CaseDisposition.class_id, isouter=True)
+        .join(StatusRV, StatusRV.id == CaseDisposition.status_id, isouter=True)
+        .join(LivingRV, LivingRV.id == CaseDisposition.living_id, isouter=True)
+        .join(FoundByRV, FoundByRV.id == CaseDisposition.found_by_id, isouter=True)
+        .where(Case.id == int(case_db_id))
+    )
+
+    row = (await db.execute(q)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    (
+        case_id_val,
+        case_number_val,
+        date_intake,
+        inactive,
+        subject_id,
+        first,
+        last,
+        middle,
+        nicknames,
+        has_pic,
+        age_when_missing,
+        date_of_birth,
+        height,
+        weight,
+        hair_color,
+        hair_length,
+        eye_color,
+        identifying_marks,
+        sex_id,
+        race_id,
+        sex_code,
+        race_code,
+        date_missing,
+        consent_sent,
+        consent_returned,
+        flyer_complete,
+        ottic,
+        csec_id,
+        missing_status_id,
+        classification_id,
+        mgmt_requested_by_id,
+        csec_code,
+        missing_status_code,
+        classification_code,
+        mgmt_requested_by_code,
+        ncic_case_number,
+        ncmec_case_number,
+        le_case_number,
+        le_24hour_contact,
+        ss_case_number,
+        ss_24hour_contact,
+        jpo_case_number,
+        jpo_24hour_contact,
+        pol_school,
+        pol_grade,
+        pol_missing_classes,
+        pol_school_laptop,
+        pol_school_laptop_taken,
+        pol_school_address,
+        pol_employed,
+        pol_employer,
+        pol_work_hours,
+        pol_employer_address,
+        pol_confidants,
+        disp_shep_intel,
+        disp_date_found,
+        disp_scope_id,
+        disp_class_id,
+        disp_status_id,
+        disp_living_id,
+        disp_found_by_id,
+        disp_scope_code,
+        disp_class_code,
+        disp_status_code,
+        disp_living_code,
+        disp_found_by_code,
+    ) = row
+
+    subject_opaque = encode_id("subject", int(subject_id))
+    case_opaque = encode_id("case", int(case_id_val))
+
+    return {
+        "case": {
+            "id": case_opaque,
+            "raw_db_id": int(case_id_val),
+            "case_number": case_number_val,
+            "date_intake": date_intake.isoformat() if date_intake is not None else None,
+            "inactive": bool(inactive) if inactive is not None else False,
+            "subject_id": subject_opaque,
+        },
+        "subject": {
+            "id": subject_opaque,
+            "first_name": first,
+            "last_name": last,
+            "middle_name": middle,
+            "nicknames": nicknames,
+            "has_pic": bool(has_pic),
+            "photo_url": f"/api/v1/media/pfp/subject/{subject_opaque}?s=sm" if has_pic else "/images/pfp-generic.png",
+        },
+        "demographics": {
+            "age_when_missing": int(age_when_missing) if age_when_missing is not None else None,
+            "date_of_birth": date_of_birth.isoformat() if date_of_birth is not None else None,
+            "height": height,
+            "weight": weight,
+            "hair_color": hair_color,
+            "hair_length": hair_length,
+            "eye_color": eye_color,
+            "identifying_marks": identifying_marks,
+            "sex_id": int(sex_id) if sex_id is not None else None,
+            "race_id": int(race_id) if race_id is not None else None,
+            "sex_code": sex_code,
+            "race_code": race_code,
+        },
+        "circumstances": {
+            "date_missing": date_missing.isoformat() if date_missing is not None else None,
+        },
+        "management": {
+            "consent_sent": bool(consent_sent) if consent_sent is not None else False,
+            "consent_returned": bool(consent_returned) if consent_returned is not None else False,
+            "flyer_complete": bool(flyer_complete) if flyer_complete is not None else False,
+            "ottic": bool(ottic) if ottic is not None else False,
+            "csec_id": int(csec_id) if csec_id is not None else None,
+            "missing_status_id": int(missing_status_id) if missing_status_id is not None else None,
+            "classification_id": int(classification_id) if classification_id is not None else None,
+            "requested_by_id": int(mgmt_requested_by_id) if mgmt_requested_by_id is not None else None,
+            "csec_code": csec_code,
+            "missing_status_code": missing_status_code,
+            "classification_code": classification_code,
+            "requested_by_code": mgmt_requested_by_code,
+            "ncic_case_number": ncic_case_number,
+            "ncmec_case_number": ncmec_case_number,
+            "le_case_number": le_case_number,
+            "le_24hour_contact": le_24hour_contact,
+            "ss_case_number": ss_case_number,
+            "ss_24hour_contact": ss_24hour_contact,
+            "jpo_case_number": jpo_case_number,
+            "jpo_24hour_contact": jpo_24hour_contact,
+        },
+        "pattern_of_life": {
+            "school": pol_school,
+            "grade": pol_grade,
+            "missing_classes": bool(pol_missing_classes) if pol_missing_classes is not None else False,
+            "school_laptop": bool(pol_school_laptop) if pol_school_laptop is not None else False,
+            "school_laptop_taken": bool(pol_school_laptop_taken) if pol_school_laptop_taken is not None else False,
+            "school_address": pol_school_address,
+            "employed": bool(pol_employed) if pol_employed is not None else False,
+            "employer": pol_employer,
+            "work_hours": pol_work_hours,
+            "employer_address": pol_employer_address,
+            "confidants": pol_confidants,
+        },
+        "disposition": {
+            "shepherds_contributed_intel": bool(disp_shep_intel) if disp_shep_intel is not None else False,
+            "date_found": disp_date_found.isoformat() if disp_date_found is not None else None,
+            "scope_id": int(disp_scope_id) if disp_scope_id is not None else None,
+            "class_id": int(disp_class_id) if disp_class_id is not None else None,
+            "status_id": int(disp_status_id) if disp_status_id is not None else None,
+            "living_id": int(disp_living_id) if disp_living_id is not None else None,
+            "found_by_id": int(disp_found_by_id) if disp_found_by_id is not None else None,
+            "scope_code": disp_scope_code,
+            "class_code": disp_class_code,
+            "status_code": disp_status_code,
+            "living_code": disp_living_code,
+            "found_by_code": disp_found_by_code,
+        }
+    }

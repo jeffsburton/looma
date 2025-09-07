@@ -15,14 +15,9 @@ const CircumstancesTab = defineAsyncComponent(() => import('./core/Circumstances
 
 const props = defineProps({
   subtab: { type: String, default: 'intake' },
-  caseModel: { type: Object, default: () => ({}) },
-  subjectModel: { type: Object, default: () => ({}) },
-  demographicsModel: { type: Object, default: () => ({}) },
-  managementModel: { type: Object, default: () => ({}) },
-  patternOfLifeModel: { type: Object, default: () => ({}) },
-  dispositionModel: { type: Object, default: () => ({}) },
+  caseId: { type: [String, Number], default: '' },
 })
-const emit = defineEmits(['update:subtab','update:caseModel','update:subjectModel','update:demographicsModel','update:managementModel','update:patternOfLifeModel','update:dispositionModel'])
+const emit = defineEmits(['update:subtab'])
 
 const VALID_SUBTABS = ['intake','status','victimology','circumstances','urgency']
 
@@ -81,18 +76,7 @@ watch(
       <TabPanels>
         <TabPanel value="intake">
           <Suspense>
-            <IntakeTab
-              :caseModel="props.caseModel"
-              :subjectModel="props.subjectModel"
-              :demographicsModel="props.demographicsModel"
-              :managementModel="props.managementModel"
-              :patternOfLifeModel="props.patternOfLifeModel"
-              @update:caseModel="(v) => emit('update:caseModel', v)"
-              @update:subjectModel="(v) => emit('update:subjectModel', v)"
-              @update:demographicsModel="(v) => emit('update:demographicsModel', v)"
-              @update:managementModel="(v) => emit('update:managementModel', v)"
-              @update:patternOfLifeModel="(v) => emit('update:patternOfLifeModel', v)"
-            />
+            <IntakeTab :caseId="props.caseId" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
@@ -100,21 +84,16 @@ watch(
         </TabPanel>
         <TabPanel value="status">
           <Suspense>
-            <StatusTab
-              :caseModel="props.caseModel"
-              :dispositionModel="props.dispositionModel"
-              @update:caseModel="(v) => emit('update:caseModel', v)"
-              @update:dispositionModel="(v) => emit('update:dispositionModel', v)"
-            />
+            <StatusTab :caseId="props.caseId" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
           </Suspense>
         </TabPanel>
         <TabPanel value="victimology">
-          <template v-if="props.caseModel && props.caseModel.id">
+          <template v-if="props.caseId">
             <Suspense>
-              <VictimologyTab :caseId="props.caseModel.id" />
+              <VictimologyTab :caseId="props.caseId" />
               <template #fallback>
                 <div class="p-3 text-600">Loading...</div>
               </template>
@@ -126,7 +105,7 @@ watch(
         </TabPanel>
         <TabPanel value="circumstances">
           <Suspense>
-            <CircumstancesTab :caseId="props.caseModel?.id || ''" />
+            <CircumstancesTab :caseId="props.caseId || ''" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
@@ -134,7 +113,7 @@ watch(
         </TabPanel>
         <TabPanel value="urgency">
           <Suspense>
-            <SearchUrgencyTab :caseId="props.caseModel?.id || ''" />
+            <SearchUrgencyTab :caseId="props.caseId || ''" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

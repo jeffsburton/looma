@@ -25,6 +25,46 @@ const props = defineProps({
   subtab: { type: String, default: 'intake' },
 })
 
+
+// Models to pass to Intake/Core tabs
+const caseModel = ref({})
+const subjectModel = ref({})
+
+async function loadCase() {
+  const num = String(props.caseNumber || '')
+  if (!num) return
+  try {
+    const resp = await fetch(`/api/v1/cases/by-number/${encodeURIComponent(num)}`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (!resp.ok) throw new Error('Failed to load case')
+    const data = await resp.json()
+    // Header
+    const s = data.subject || {}
+    const nicks = s.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
+    subjectName.value = `${s.first_name || ''}${nicks} ${s.last_name || ''}`.trim()
+    subjectPhotoUrl.value = (s.photo_url || '/images/pfp-generic.png')
+    const dem = data.demographics || {}
+    // Prefer age_when_missing
+    subjectAge.value = dem.age_when_missing ?? null
+    const circ = data.circumstances || {}
+    dateMissing.value = circ.date_missing || null
+
+
+    const c = data.case || {}
+    caseModel.value = {
+      id: c.id || null,
+      subject_id: s.id || null,
+      case_number: c.case_number || num,
+      date_intake: c.date_intake || null,
+      inactive: !!c.inactive,
+    }
+    photoError.value = false
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+loadCase()
+
 const router = useRouter()
 const route = useRoute()
 
@@ -119,133 +159,6 @@ function onImgError() { photoError.value = true }
 const subjectName = ref('')
 const subjectAge = ref(null)
 const dateMissing = ref(null)
-
-// Models to pass to Intake/Core tabs
-const caseModel = ref({})
-const subjectModel = ref({})
-const demographicsModel = ref({})
-const managementModel = ref({})
-const patternOfLifeModel = ref({})
-const dispositionModel = ref({})
-
-// Keep header subjectName reactive to edits in IntakeTab
-watch(subjectModel, (s) => {
-  const nicks = s?.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
-  subjectName.value = `${s?.first_name || ''}${nicks} ${s?.last_name || ''}`.trim()
-}, { deep: true })
-
-async function loadCase() {
-  const num = String(props.caseNumber || '')
-  if (!num) return
-  try {
-    const resp = await fetch(`/api/v1/cases/by-number/${encodeURIComponent(num)}`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    if (!resp.ok) throw new Error('Failed to load case')
-    const data = await resp.json()
-    // Header
-    const s = data.subject || {}
-    const nicks = s.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
-    subjectName.value = `${s.first_name || ''}${nicks} ${s.last_name || ''}`.trim()
-    subjectPhotoUrl.value = (s.photo_url || '/images/pfp-generic.png')
-    const dem = data.demographics || {}
-    // Prefer age_when_missing
-    subjectAge.value = dem.age_when_missing ?? null
-    const circ = data.circumstances || {}
-    dateMissing.value = circ.date_missing || null
-
-    // Models for tabs
-    const mgmt = data.management || {}
-    managementModel.value = {
-      consent_sent: !!mgmt.consent_sent,
-      consent_returned: !!mgmt.consent_returned,
-      flyer_complete: !!mgmt.flyer_complete,
-      ottic: !!mgmt.ottic,
-      csec_id: mgmt.csec_id ?? null,
-      missing_status_id: mgmt.missing_status_id ?? null,
-      classification_id: mgmt.classification_id ?? null,
-      requested_by_id: mgmt.requested_by_id ?? null,
-      csec_code: mgmt.csec_code || '',
-      missing_status_code: mgmt.missing_status_code || '',
-      classification_code: mgmt.classification_code || '',
-      requested_by_code: mgmt.requested_by_code || '',
-      ncic_case_number: mgmt.ncic_case_number || '',
-      ncmec_case_number: mgmt.ncmec_case_number || '',
-      le_case_number: mgmt.le_case_number || '',
-      le_24hour_contact: mgmt.le_24hour_contact || '',
-      ss_case_number: mgmt.ss_case_number || '',
-      ss_24hour_contact: mgmt.ss_24hour_contact || '',
-      jpo_case_number: mgmt.jpo_case_number || '',
-      jpo_24hour_contact: mgmt.jpo_24hour_contact || '',
-    }
-
-    demographicsModel.value = {
-      // keep as primitives (Calendar in child will convert date to Date)
-      date_of_birth: dem.date_of_birth || null,
-      age_when_missing: dem.age_when_missing ?? null,
-      height: dem.height || '',
-      weight: dem.weight || '',
-      hair_color: dem.hair_color || '',
-      hair_length: dem.hair_length || '',
-      eye_color: dem.eye_color || '',
-      identifying_marks: dem.identifying_marks || '',
-      sex_id: dem.sex_id ?? '',
-      race_id: dem.race_id ?? '',
-      sex_code: dem.sex_code || '',
-      race_code: dem.race_code || '',
-    }
-
-    const pol = data.pattern_of_life || {}
-    patternOfLifeModel.value = {
-      school: pol.school || '',
-      grade: pol.grade || '',
-      missing_classes: !!pol.missing_classes,
-      school_laptop: !!pol.school_laptop,
-      school_laptop_taken: !!pol.school_laptop_taken,
-      school_address: pol.school_address || '',
-      employed: !!pol.employed,
-      employer: pol.employer || '',
-      work_hours: pol.work_hours || '',
-      employer_address: pol.employer_address || '',
-      confidants: pol.confidants || '',
-    }
-
-    subjectModel.value = {
-      id: s.id || null,
-      first_name: s.first_name || '',
-      last_name: s.last_name || '',
-      middle_name: s.middle_name || '',
-      nicknames: s.nicknames || '',
-    }
-    const c = data.case || {}
-    caseModel.value = {
-      id: c.id || null,
-      subject_id: s.id || null,
-      case_number: c.case_number || num,
-      date_intake: c.date_intake || null,
-      inactive: !!c.inactive,
-    }
-
-    const disp = data.disposition || {}
-    dispositionModel.value = {
-      shepherds_contributed_intel: !!disp.shepherds_contributed_intel,
-      date_found: disp.date_found || null,
-      scope_id: disp.scope_id ?? null,
-      class_id: disp.class_id ?? null,
-      status_id: disp.status_id ?? null,
-      living_id: disp.living_id ?? null,
-      found_by_id: disp.found_by_id ?? null,
-      scope_code: disp.scope_code || '',
-      class_code: disp.class_code || '',
-      status_code: disp.status_code || '',
-      living_code: disp.living_code || '',
-      found_by_code: disp.found_by_code || '',
-    }
-    photoError.value = false
-  } catch (e) {
-    console.error(e)
-  }
-}
-
-loadCase()
 
 watch(() => props.caseNumber, () => { loadCase() })
 
@@ -356,16 +269,7 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
       <TabPanel value="core">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <CoreTab
-              :subtab="intakeSubActive"
-              @update:subtab="(v) => (intakeSubActive = v)"
-              v-model:caseModel="caseModel"
-              v-model:subjectModel="subjectModel"
-              v-model:demographicsModel="demographicsModel"
-              v-model:managementModel="managementModel"
-              v-model:patternOfLifeModel="patternOfLifeModel"
-              v-model:dispositionModel="dispositionModel"
-            />
+            <CoreTab :caseId="caseModel.id" :subtab="intakeSubActive" @update:subtab="(v) => (intakeSubActive = v)"/>
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
@@ -385,7 +289,7 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
       <TabPanel value="social">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <SocialMediaTab :caseId="caseModel.id" :primarySubject="{ id: subjectModel.id, first_name: subjectModel.first_name, last_name: subjectModel.last_name }" />
+            <SocialMediaTab :caseId="caseModel.id"  />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
@@ -395,7 +299,7 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
       <TabPanel value="timeline">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <TimelineTab :caseId="caseModel.id" :primarySubject="{ id: subjectModel.id, first_name: subjectModel.first_name, last_name: subjectModel.last_name }" />
+            <TimelineTab :caseId="caseModel.id"  />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

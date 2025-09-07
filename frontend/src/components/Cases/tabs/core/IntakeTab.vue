@@ -16,6 +16,8 @@ const props = defineProps({
   demographicsModel: { type: Object, default: () => ({}) },
   managementModel: { type: Object, default: () => ({}) },
   patternOfLifeModel: { type: Object, default: () => ({}) },
+  // New: allow loading by caseId when provided (CoreTab will pass this)
+  caseId: { type: [String, Number], default: '' },
 })
 const emit = defineEmits(['update:caseModel','update:subjectModel','update:demographicsModel','update:managementModel','update:patternOfLifeModel'])
 
@@ -32,6 +34,106 @@ onMounted(() => {
   // wait for initial render and any prop-driven syncing to settle
   nextTick(() => { autoSaveReady = true })
 })
+
+
+
+// Models to pass to Intake/Core tabs
+const caseModel = ref({})
+const subjectModel = ref({})
+const demographicsModel = ref({})
+const managementModel = ref({})
+const patternOfLifeModel = ref({})
+
+async function loadCase() {
+  const num = String(props.caseNumber || '')
+  if (!num) return
+  try {
+    const resp = await fetch(`/api/v1/cases/by-number/${encodeURIComponent(num)}`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+    if (!resp.ok) throw new Error('Failed to load case')
+    const data = await resp.json()
+    // Header
+    const s = data.subject || {}
+    const nicks = s.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
+    subjectName.value = `${s.first_name || ''}${nicks} ${s.last_name || ''}`.trim()
+    subjectPhotoUrl.value = (s.photo_url || '/images/pfp-generic.png')
+    const dem = data.demographics || {}
+    // Prefer age_when_missing
+    subjectAge.value = dem.age_when_missing ?? null
+    const circ = data.circumstances || {}
+    dateMissing.value = circ.date_missing || null
+
+    // Models for tabs
+    const mgmt = data.management || {}
+    managementModel.value = {
+      consent_sent: !!mgmt.consent_sent,
+      consent_returned: !!mgmt.consent_returned,
+      flyer_complete: !!mgmt.flyer_complete,
+      ottic: !!mgmt.ottic,
+      csec_id: mgmt.csec_id ?? null,
+      missing_status_id: mgmt.missing_status_id ?? null,
+      classification_id: mgmt.classification_id ?? null,
+      requested_by_id: mgmt.requested_by_id ?? null,
+      csec_code: mgmt.csec_code || '',
+      missing_status_code: mgmt.missing_status_code || '',
+      classification_code: mgmt.classification_code || '',
+      requested_by_code: mgmt.requested_by_code || '',
+      ncic_case_number: mgmt.ncic_case_number || '',
+      ncmec_case_number: mgmt.ncmec_case_number || '',
+      le_case_number: mgmt.le_case_number || '',
+      le_24hour_contact: mgmt.le_24hour_contact || '',
+      ss_case_number: mgmt.ss_case_number || '',
+      ss_24hour_contact: mgmt.ss_24hour_contact || '',
+      jpo_case_number: mgmt.jpo_case_number || '',
+      jpo_24hour_contact: mgmt.jpo_24hour_contact || '',
+    }
+
+    demographicsModel.value = {
+      // keep as primitives (Calendar in child will convert date to Date)
+      date_of_birth: dem.date_of_birth || null,
+      age_when_missing: dem.age_when_missing ?? null,
+      height: dem.height || '',
+      weight: dem.weight || '',
+      hair_color: dem.hair_color || '',
+      hair_length: dem.hair_length || '',
+      eye_color: dem.eye_color || '',
+      identifying_marks: dem.identifying_marks || '',
+      sex_id: dem.sex_id ?? '',
+      race_id: dem.race_id ?? '',
+      sex_code: dem.sex_code || '',
+      race_code: dem.race_code || '',
+    }
+
+    const pol = data.pattern_of_life || {}
+    patternOfLifeModel.value = {
+      school: pol.school || '',
+      grade: pol.grade || '',
+      missing_classes: !!pol.missing_classes,
+      school_laptop: !!pol.school_laptop,
+      school_laptop_taken: !!pol.school_laptop_taken,
+      school_address: pol.school_address || '',
+      employed: !!pol.employed,
+      employer: pol.employer || '',
+      work_hours: pol.work_hours || '',
+      employer_address: pol.employer_address || '',
+      confidants: pol.confidants || '',
+    }
+    const c = data.case || {}
+    caseModel.value = {
+      id: c.id || null,
+      subject_id: s.id || null,
+      case_number: c.case_number || num,
+      date_intake: c.date_intake || null,
+      inactive: !!c.inactive,
+    }
+    photoError.value = false
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+loadCase()
+
+
 async function saveSubjectToServer(subj) {
   try {
     if (!subj?.id) return
@@ -289,8 +391,46 @@ syncMgmtFromProps(props.managementModel)
 // Guard to prevent emitting changes caused by syncing from props
 let syncingFromProps = false
 
+// Load initial data when caseId is provided (decoupled mode)
+async function loadFromCaseId(id) {
+  const cid = String(id || '')
+  if (!cid) return
+  try {
+    syncingFromProps = true
+    const apiModule = await import('../../../../lib/api')
+    const { data } = await apiModule.default.get(`/api/v1/cases/${encodeURIComponent(cid)}/by-id`)
+    const c = data?.case || {}
+    mCase.value = {
+      id: c.id || null,
+      subject_id: c.subject_id || null,
+      case_number: c.case_number || '',
+      date_intake: c.date_intake || null,
+      inactive: !!c.inactive,
+    }
+    const s = data?.subject || {}
+    mSubject.value = {
+      id: s.id || null,
+      first_name: s.first_name || '',
+      last_name: s.last_name || '',
+      middle_name: s.middle_name || '',
+      nicknames: s.nicknames || '',
+    }
+    syncDemoFromProps(data?.demographics || {})
+    syncPolFromProps(data?.pattern_of_life || {})
+    syncMgmtFromProps(data?.management || {})
+  } catch (e) {
+    console.error('Failed to load intake data by case id', e)
+  } finally {
+    // allow emits/saves after initial load
+    queueMicrotask(() => { syncingFromProps = false })
+  }
+}
+
+watch(() => props.caseId, (v) => { if (v) loadFromCaseId(v) }, { immediate: true })
+
 // Keep local mirrors in sync when parent props change (avoid unnecessary reassignments)
 watch(() => props.caseModel, (v) => {
+  if (String(props.caseId || '')) return
   const next = { ...(v || {}) }
   const cur = mCase.value || {}
   const changed = JSON.stringify(next) !== JSON.stringify(cur)
@@ -306,6 +446,7 @@ watch(() => props.caseModel, (v) => {
 
 // Sync demographics when prop changes
 watch(() => props.demographicsModel, (v) => {
+  if (String(props.caseId || '')) return
   syncingFromProps = true
   syncDemoFromProps(v)
   queueMicrotask(() => { syncingFromProps = false })
@@ -313,6 +454,7 @@ watch(() => props.demographicsModel, (v) => {
 
 // Sync pattern of life when prop changes
 watch(() => props.patternOfLifeModel, (v) => {
+  if (String(props.caseId || '')) return
   syncingFromProps = true
   syncPolFromProps(v)
   queueMicrotask(() => { syncingFromProps = false })
@@ -320,12 +462,14 @@ watch(() => props.patternOfLifeModel, (v) => {
 
 // Sync management when prop changes
 watch(() => props.managementModel, (v) => {
+  if (String(props.caseId || '')) return
   syncingFromProps = true
   syncMgmtFromProps(v)
   queueMicrotask(() => { syncingFromProps = false })
 }, { deep: true })
 
 watch(() => props.subjectModel, (v) => {
+  if (String(props.caseId || '')) return
   const next = {
     id: v?.id || null,
     first_name: v?.first_name || '',
@@ -386,7 +530,8 @@ watch(mMgmt, (v) => {
 watch(mSubject, (v) => {
   if (syncingFromProps) return
   emit('update:subjectModel', v)
-  // debounce save to server
+  // debounce save to server (but only after user interaction and initial load)
+  if (!autoSaveReady || !hasUserInteracted.value) return
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => saveSubjectToServer(v), 600)
 }, { deep: true })

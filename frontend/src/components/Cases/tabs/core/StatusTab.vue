@@ -10,6 +10,8 @@ import Fieldset from "primevue/fieldset";
 const props = defineProps({
   caseModel: { type: Object, default: () => ({}) },
   dispositionModel: { type: Object, default: () => ({}) },
+  // New: accept caseId so this tab can self-load when used under CoreTab
+  caseId: { type: [String, Number], default: '' },
 })
 const emit = defineEmits(['update:caseModel','update:dispositionModel'])
 
@@ -45,6 +47,47 @@ const dateFound = computed({
 
 // Sync from props
 let syncing = false
+
+// Load initial data when caseId is provided (decoupled mode)
+async function loadFromCaseId(id) {
+  const cid = String(id || '')
+  if (!cid) return
+  try {
+    syncing = true
+    const apiModule = await import('../../../../lib/api')
+    const { data } = await apiModule.default.get(`/api/v1/cases/${encodeURIComponent(cid)}/by-id`)
+    const c = data?.case || {}
+    mCase.value = {
+      id: c.id || null,
+      subject_id: c.subject_id || null,
+      case_number: c.case_number || '',
+      date_intake: c.date_intake || null,
+      inactive: !!c.inactive,
+    }
+    const disp = data?.disposition || {}
+    mDisp.value = {
+      shepherds_contributed_intel: !!disp.shepherds_contributed_intel,
+      date_found: disp.date_found || null,
+      scope_id: disp.scope_id != null ? String(disp.scope_id) : '',
+      class_id: disp.class_id != null ? String(disp.class_id) : '',
+      status_id: disp.status_id != null ? String(disp.status_id) : '',
+      living_id: disp.living_id != null ? String(disp.living_id) : '',
+      found_by_id: disp.found_by_id != null ? String(disp.found_by_id) : '',
+      scope_code: disp.scope_code || '',
+      class_code: disp.class_code || '',
+      status_code: disp.status_code || '',
+      living_code: disp.living_code || '',
+      found_by_code: disp.found_by_code || '',
+    }
+  } catch (e) {
+    console.error('Failed to load status data by case id', e)
+  } finally {
+    queueMicrotask(() => { syncing = false })
+  }
+}
+
+watch(() => props.caseId, (v) => { if (v) loadFromCaseId(v) }, { immediate: true })
+
 watch(() => props.caseModel, (v) => {
   syncing = true
   mCase.value = { ...(v || {}) }
@@ -88,12 +131,27 @@ async function loadExploitation() {
     // load selected for this case
     const caseId = mCase.value?.id
     if (caseId) {
-      const selResp = await fetch(`/api/v1/cases/${encodeURIComponent(String(caseId))}/exploitation`, { headers: { 'Accept': 'application/json' }, credentials: 'include' })
-      if (selResp.ok) {
-        const data = await selResp.json()
+      try {
+        const apiModule = await import('../../../../lib/api')
+        const { data } = await apiModule.default.get(`/api/v1/cases/${encodeURIComponent(String(caseId))}/exploitation`)
+        const ids = Array.isArray(data)
+          ? data
+          : (Array.isArray(data?.exploitation_ids) ? data.exploitation_ids : [])
+        const codes = Array.isArray(data?.exploitation_codes) ? data.exploitation_codes : []
         const set = {}
-        ;(data.exploitation_ids || []).forEach(id => { set[String(id)] = true })
+        ids.forEach(id => { set[String(id)] = true })
+        if (codes.length && Array.isArray(exploitOptions.value) && exploitOptions.value.length) {
+          const codeSet = new Set(codes.map(c => String(c).toUpperCase()))
+          for (const opt of exploitOptions.value) {
+            const c = (opt?.code || '').toString().toUpperCase()
+            if (c && codeSet.has(c)) {
+              set[String(opt.id)] = true
+            }
+          }
+        }
         exploitSelected.value = set
+      } catch (e) {
+        console.error('Failed to load exploitation', e)
       }
     }
   } finally {
@@ -124,12 +182,8 @@ async function saveExploitation() {
     const ids = Object.entries(exploitSelected.value)
       .filter(([, on]) => !!on)
       .map(([id]) => id)
-    await fetch(`/api/v1/cases/${encodeURIComponent(String(caseId))}/exploitation`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ exploitation_ids: ids }),
-    })
+    const apiModule = await import('../../../../lib/api')
+    await apiModule.default.put(`/api/v1/cases/${encodeURIComponent(String(caseId))}/exploitation`, { exploitation_ids: ids })
   } catch (e) {
     console.error('Failed to save exploitation', e)
   }
