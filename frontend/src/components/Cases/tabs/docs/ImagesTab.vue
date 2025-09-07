@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import SelectButton from 'primevue/selectbutton'
 import Dialog from 'primevue/dialog'
 import FileUpload from 'primevue/fileupload'
@@ -597,6 +597,24 @@ function closeLightbox() {
   showLightbox.value = false
   lightboxItem.value = null
 }
+
+// Close lightbox on Escape key
+function onKeydown(e) {
+  if (!showLightbox.value) return
+  const key = e?.key || e?.code || ''
+  if (key === 'Escape' || key === 'Esc') {
+    e.preventDefault()
+    closeLightbox()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 
 function isVideo(item) {
   const mt = item?.mime_type || ''

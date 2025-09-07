@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -147,6 +147,41 @@ const filteredItems = computed(() => {
   return (items.value || []).filter(it => applyType(it) && applySearch(it))
 })
 
+// Lightbox state and helpers (mirrors ImagesTab behavior)
+const showLightbox = ref(false)
+const lightboxItem = ref(null)
+
+function openLightbox(item) {
+  if (!item) return
+  lightboxItem.value = item
+  showLightbox.value = true
+}
+function closeLightbox() {
+  showLightbox.value = false
+  lightboxItem.value = null
+}
+function isVideo(item) {
+  const mt = item?.mime_type || ''
+  return typeof mt === 'string' && mt.toLowerCase().startsWith('video')
+}
+
+// Close lightbox on Escape key
+function onKeydown(e) {
+  if (!showLightbox.value) return
+  const key = e?.key || e?.code || ''
+  if (key === 'Escape' || key === 'Esc') {
+    e.preventDefault()
+    closeLightbox()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 
 </script>
 <template>
@@ -178,7 +213,13 @@ const filteredItems = computed(() => {
       <Column header="Type" style="width: 60px">
         <template #body="{ data }">
           <template v-if="(data.is_image || data.is_video) && data.thumb">
-            <img :src="data.thumb" alt="thumb" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" />
+            <img
+              :src="data.thumb"
+              alt="thumb"
+              style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;"
+              role="button"
+              @click="openLightbox(data)"
+            />
           </template>
           <template v-else>
             <i class="pi text-2xl" :class="extensionIcon(data.file_name)"></i>
@@ -228,5 +269,29 @@ const filteredItems = computed(() => {
         </div>
       </template>
     </Dialog>
+
+    <!-- Lightbox Overlay (images/videos) -->
+    <div v-if="showLightbox" class="lightbox" @click.self="closeLightbox">
+      <button class="lightbox-close" type="button" @click="closeLightbox" aria-label="Close">
+        <i class="pi pi-times"></i>
+      </button>
+      <div class="lightbox-center">
+        <div class="lightbox-content">
+          <template v-if="lightboxItem">
+            <video v-if="isVideo(lightboxItem)" :src="lightboxItem.url" controls class="lightbox-media"></video>
+            <img v-else :src="lightboxItem.url" alt="preview" class="lightbox-media" />
+          </template>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; }
+.lightbox-close { position: fixed; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.4); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1001; }
+.lightbox-close .pi { font-size: 18px; }
+.lightbox-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2vw; }
+.lightbox-content { max-width: 80vw; max-height: 90vh; background: transparent; display: flex; align-items: center; justify-content: center; }
+.lightbox-media { max-width: 80vw; max-height: 90vh; object-fit: contain; display: block; }
+</style>
