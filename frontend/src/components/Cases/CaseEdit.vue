@@ -6,6 +6,18 @@ import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
+import ProgressSpinner from 'primevue/progressspinner';
+
+import CoreTab from './tabs/CoreTab.vue'
+import ContactsTab from './tabs/ContactsTab.vue'
+import SocialMediaTab from './tabs/SocialMediaTab.vue'
+import TimelineTab from './tabs/TimelineTab.vue'
+import DocsTab from './tabs/DocsTab.vue'
+import ActivityTab from './tabs/ActivityTab.vue'
+import MessagesTab from './tabs/MessagesTab.vue'
+
+import OverlayBadge from 'primevue/overlaybadge'
+import api from '../../lib/api'
 
 const props = defineProps({
   caseNumber: { type: [String, Number], required: true },
@@ -18,9 +30,9 @@ const route = useRoute()
 
 const active = ref('core')
 const intakeSubActive = ref('intake')
-const filesSubActive = ref('images')
-const VALID_TABS = ['core','contacts','social','timeline','files','activity','messages']
-const VALID_FILES_SUBTABS = ['images','ops','intel','rfis','eod','flyer','other']
+const docsSubActive = ref('files')
+const VALID_TABS = ['core','contacts','social','timeline','docs','activity','messages']
+const VALID_DOCS_SUBTABS = ['files','ops','intel','rfis','eod','flyer']
 
 // Sync initial tab from route/prop and keep in sync
 watch(
@@ -33,17 +45,17 @@ watch(
   { immediate: true }
 )
 
-// Keep subtab in sync with prop for intake/files based on active tab
+// Keep subtab in sync with prop for intake/docs based on active tab
 watch(
   () => props.subtab,
   (val) => {
     const t = String(props.tab || active.value || 'core')
-    let sub = String(val || (t === 'files' ? 'images' : 'intake'))
-    if (t === 'files' && !VALID_FILES_SUBTABS.includes(sub)) sub = 'images'
+    let sub = String(val || (t === 'docs' ? 'files' : 'intake'))
+    if (t === 'docs' && !VALID_DOCS_SUBTABS.includes(sub)) sub = 'files'
     if (t === 'core') {
       if (intakeSubActive.value !== sub) intakeSubActive.value = sub
-    } else if (t === 'files') {
-      if (filesSubActive.value !== sub) filesSubActive.value = sub
+    } else if (t === 'docs') {
+      if (docsSubActive.value !== sub) docsSubActive.value = sub
     }
   },
   { immediate: true }
@@ -56,7 +68,7 @@ watch(
     const caseNumber = String(props.caseNumber || '')
     const subtab = tab === 'core'
       ? String(intakeSubActive.value || 'intake')
-      : (tab === 'files' ? (VALID_FILES_SUBTABS.includes(String(filesSubActive.value)) ? String(filesSubActive.value) : 'images') : undefined)
+      : (tab === 'docs' ? (VALID_DOCS_SUBTABS.includes(String(docsSubActive.value)) ? String(docsSubActive.value) : 'files') : undefined)
     const curSub = route.params.subtab ? String(route.params.subtab) : undefined
     // Only update if different to avoid redundant navigations
     if (
@@ -84,14 +96,14 @@ watch(
   }
 )
 
-// When files subtab changes, update URL
+// When docs subtab changes, update URL
 watch(
-  () => filesSubActive.value,
+  () => docsSubActive.value,
   (v) => {
-    if (active.value !== 'files') return
+    if (active.value !== 'docs') return
     const caseNumber = String(props.caseNumber || '')
-    const tab = 'files'
-    const subtab = String(v || 'images')
+    const tab = 'docs'
+    const subtab = String(v || 'files')
     const curSub = route.params.subtab ? String(route.params.subtab) : undefined
     if (curSub !== subtab) {
       router.replace({ name: 'case-detail', params: { caseNumber, tab, subtab } })
@@ -252,18 +264,6 @@ const daysMissing = computed(() => {
   return Math.max(0, days)
 })
 
-// Lazy imports for tab components
-import IntakeTab from './tabs/CoreTab.vue'
-const ContactsTab = defineAsyncComponent(() => import('./tabs/ContactsTab.vue'))
-const SocialMediaTab = defineAsyncComponent(() => import('./tabs/SocialMediaTab.vue'))
-const TimelineTab = defineAsyncComponent(() => import('./tabs/TimelineTab.vue'))
-import FilesTab from './tabs/FilesTab.vue'
-const ActivityTab = defineAsyncComponent(() => import('./tabs/ActivityTab.vue'))
-const MessagesTab = defineAsyncComponent(() => import('./tabs/MessagesTab.vue'))
-
-import OverlayBadge from 'primevue/overlaybadge'
-import api from '../../lib/api'
-
 const messagesUnseenCount = ref(0)
 async function refreshMessagesUnseenCount() {
   try {
@@ -281,7 +281,7 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
 </script>
 
 <template>
-  <div class="case-edit panel">
+  <div class="case-edit panel" v-if="caseModel.id">
     <!-- Subject Row -->
     <div class="subject-row surface-card border-round p-2 mb-2">
       <div class="flex align-items-center gap-2">
@@ -307,7 +307,7 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
     </div>
 
     <!-- Tabs -->
-    <Tabs :value="active" @update:value="(v) => (active = v)">
+    <Tabs :value="active" @update:value="(v) => (active = v)" :lazy="true">
       <TabList class="mb-1">
         <Tab value="core">
           <span class="material-symbols-outlined">article</span>
@@ -329,9 +329,9 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
           <span class="material-symbols-outlined">skateboarding</span>
           <span class="ml-1">Activity</span>
         </Tab>
-        <Tab value="files">
+        <Tab value="docs">
           <span class="material-symbols-outlined">folder_open</span>
-          <span class="ml-1">Files</span>
+          <span class="ml-1">Docs</span>
         </Tab>
         <Tab value="messages">
           <template v-if="messagesUnseenCount > 0">
@@ -356,7 +356,7 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
       <TabPanel value="core">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <IntakeTab
+            <CoreTab
               :subtab="intakeSubActive"
               @update:subtab="(v) => (intakeSubActive = v)"
               v-model:caseModel="caseModel"
@@ -402,10 +402,10 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
           </Suspense>
         </div>
       </TabPanel>
-      <TabPanel value="files">
+      <TabPanel value="docs">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <FilesTab :caseId="caseModel.id" :subtab="filesSubActive" @update:subtab="(v) => (filesSubActive = v)" />
+            <DocsTab :caseId="caseModel.id" :subtab="docsSubActive" @update:subtab="(v) => (docsSubActive = v)" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
@@ -434,6 +434,9 @@ watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCo
       </TabPanel>
     </TabPanels>
     </Tabs>
+  </div>
+  <div v-else class="p-3 text-600">
+    <ProgressSpinner />
   </div>
 </template>
 

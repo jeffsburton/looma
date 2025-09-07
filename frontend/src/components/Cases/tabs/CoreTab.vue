@@ -1,15 +1,17 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, defineAsyncComponent } from 'vue'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
-import IntakeTab from './core/IntakeTab.vue'
-import StatusTab from './core/StatusTab.vue'
-import VictimologyTab from './core/VictimologyTab.vue'
-import SearchUrgencyTab from './core/SearchUrgencyTab.vue'
-import CircumstancesTab from './core/CircumstancesTab.vue'
+
+// Lazy imports for core subtabs
+const IntakeTab = defineAsyncComponent(() => import('./core/IntakeTab.vue'))
+const StatusTab = defineAsyncComponent(() => import('./core/StatusTab.vue'))
+const VictimologyTab = defineAsyncComponent(() => import('./core/VictimologyTab.vue'))
+const SearchUrgencyTab = defineAsyncComponent(() => import('./core/SearchUrgencyTab.vue'))
+const CircumstancesTab = defineAsyncComponent(() => import('./core/CircumstancesTab.vue'))
 
 const props = defineProps({
   subtab: { type: String, default: 'intake' },
@@ -52,7 +54,7 @@ watch(
 
 <template>
   <div class="intake">
-    <Tabs :value="active" @update:value="(v) => (active = v)">
+    <Tabs :value="active" @update:value="(v) => (active = v)" :lazy="true">
       <TabList class="mb-2">
         <Tab value="intake">
           <span class="material-symbols-outlined">arrows_input</span>
@@ -78,40 +80,65 @@ watch(
 
       <TabPanels>
         <TabPanel value="intake">
-          <IntakeTab
-            :caseModel="props.caseModel"
-            :subjectModel="props.subjectModel"
-            :demographicsModel="props.demographicsModel"
-            :managementModel="props.managementModel"
-            :patternOfLifeModel="props.patternOfLifeModel"
-            @update:caseModel="(v) => emit('update:caseModel', v)"
-            @update:subjectModel="(v) => emit('update:subjectModel', v)"
-            @update:demographicsModel="(v) => emit('update:demographicsModel', v)"
-            @update:managementModel="(v) => emit('update:managementModel', v)"
-            @update:patternOfLifeModel="(v) => emit('update:patternOfLifeModel', v)"
-          />
+          <Suspense>
+            <IntakeTab
+              :caseModel="props.caseModel"
+              :subjectModel="props.subjectModel"
+              :demographicsModel="props.demographicsModel"
+              :managementModel="props.managementModel"
+              :patternOfLifeModel="props.patternOfLifeModel"
+              @update:caseModel="(v) => emit('update:caseModel', v)"
+              @update:subjectModel="(v) => emit('update:subjectModel', v)"
+              @update:demographicsModel="(v) => emit('update:demographicsModel', v)"
+              @update:managementModel="(v) => emit('update:managementModel', v)"
+              @update:patternOfLifeModel="(v) => emit('update:patternOfLifeModel', v)"
+            />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="status">
-          <StatusTab
-            :caseModel="props.caseModel"
-            :dispositionModel="props.dispositionModel"
-            @update:caseModel="(v) => emit('update:caseModel', v)"
-            @update:dispositionModel="(v) => emit('update:dispositionModel', v)"
-          />
+          <Suspense>
+            <StatusTab
+              :caseModel="props.caseModel"
+              :dispositionModel="props.dispositionModel"
+              @update:caseModel="(v) => emit('update:caseModel', v)"
+              @update:dispositionModel="(v) => emit('update:dispositionModel', v)"
+            />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="victimology">
           <template v-if="props.caseModel && props.caseModel.id">
-            <VictimologyTab :caseId="props.caseModel.id" />
+            <Suspense>
+              <VictimologyTab :caseId="props.caseModel.id" />
+              <template #fallback>
+                <div class="p-3 text-600">Loading...</div>
+              </template>
+            </Suspense>
           </template>
           <template v-else>
             <div class="p-3 text-500">Loading case...</div>
           </template>
         </TabPanel>
         <TabPanel value="circumstances">
-          <CircumstancesTab :caseId="props.caseModel?.id || ''" />
+          <Suspense>
+            <CircumstancesTab :caseId="props.caseModel?.id || ''" />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="urgency">
-          <SearchUrgencyTab :caseId="props.caseModel?.id || ''" />
+          <Suspense>
+            <SearchUrgencyTab :caseId="props.caseModel?.id || ''" />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
       </TabPanels>
     </Tabs>

@@ -3,11 +3,11 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
-import OverlayPanel from 'primevue/overlaypanel'
-import api from '../../../lib/api'
+import Popover from 'primevue/popover'
+import api from '@/lib/api'
 
 const props = defineProps({
-  caseId: { type: String, required: true },
+  caseId: { type: [String, Number], required: false },
 })
 
 const emit = defineEmits(['unseen-count'])
@@ -50,6 +50,7 @@ async function loadMessages() {
 }
 
 async function refreshUnseenCount() {
+  if (!props.caseId) { emit('unseen-count', 0); return }
   try {
     const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/unseen_count`)
     const count = Number(data?.count || 0)
@@ -129,7 +130,7 @@ async function chooseEmoji(val) {
   }
 }
 
-watch(() => props.caseId, () => { loadMessages(); refreshUnseenCount() }, { immediate: true })
+watch(() => props.caseId, (val) => { if (val) { loadMessages(); refreshUnseenCount() } else { messages.value = []; emit('unseen-count', 0) } }, { immediate: true })
 
 onMounted(() => { /* additional hooks if needed */ })
 
@@ -207,12 +208,12 @@ function fmtDate(date) { return new Date(date).toLocaleDateString([], { weekday:
       </div>
     </div>
 
-    <OverlayPanel ref="emojiPanel">
+    <Popover ref="emojiPanel">
       <div class="emoji-panel">
         <button v-for="e in emojiChoices" :key="e" class="emoji-btn" @click="chooseEmoji(e)">{{ e }}</button>
         <button class="emoji-btn clear" @click="chooseEmoji(null)">Clear</button>
       </div>
-    </OverlayPanel>
+    </Popover>
   </div>
 </template>
 

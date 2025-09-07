@@ -1,34 +1,33 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, defineAsyncComponent } from 'vue'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
-import ImagesTab from './files/ImagesTab.vue'
-import OpsPlansTab from './files/OpsPlansTab.vue'
-import IntelSummariesTab from './files/IntelSummariesTab.vue'
-import RFIsTab from './files/RFIsTab.vue'
-import EODReportsTab from './files/EODReportsTab.vue'
-import MissingFlyerTab from './files/MissingFlyerTab.vue'
-import OtherTab from './files/OtherTab.vue'
+import FilesTab from './docs/FilesTab.vue'
+import OpsPlansTab from './docs/OpsPlansTab.vue'
+import IntelSummariesTab from './docs/IntelSummariesTab.vue'
+import RFIsTab from './docs/RFIsTab.vue'
+import EODReportsTab from './docs/EODReportsTab.vue'
+import MissingFlyerTab from './docs/MissingFlyerTab.vue'
 
 const props = defineProps({
-  caseId: { type: [String, Number], required: false },
-  subtab: { type: String, default: 'images' }
+  caseId: { type: [String, Number], required: true },
+  subtab: { type: String, default: 'files' }
 })
 const emit = defineEmits(['update:subtab'])
 
-const VALID_SUBTABS = ['images','ops','intel','rfis','eod','flyer','other']
+const VALID_SUBTABS = ['files','ops','intel','rfis','eod','flyer']
 
-const active = ref('images')
+const active = ref('files')
 
 // Initialize and sync from prop
 watch(
   () => props.subtab,
   (val) => {
-    let v = String(val || 'images')
-    if (!VALID_SUBTABS.includes(v)) v = 'images'
+    let v = String(val || 'files')
+    if (!VALID_SUBTABS.includes(v)) v = 'files'
     if (active.value !== v) active.value = v
   },
   { immediate: true }
@@ -38,7 +37,7 @@ watch(
 watch(
   () => active.value,
   (v) => {
-    const sub = String(v || 'images')
+    const sub = String(v || 'files')
     if (!VALID_SUBTABS.includes(sub)) return
     emit('update:subtab', sub)
   }
@@ -47,15 +46,11 @@ watch(
 
 <template>
   <div class="files">
-    <Tabs v-model:value="active">
+    <Tabs v-model:value="active" :lazy="true">
       <TabList class="mb-2">
-        <Tab value="images">
-          <span class="material-symbols-outlined">imagesmode</span>
-          <span class="ml-1">Photos</span>
-        </Tab>
-        <Tab value="other">
+        <Tab value="files">
           <span class="material-symbols-outlined">picture_as_pdf</span>
-          <span class="ml-1">Other</span>
+          <span class="ml-1">Files</span>
         </Tab>
         <Tab value="ops">
           <span class="material-symbols-outlined">map_pin_review</span>
@@ -80,26 +75,53 @@ watch(
       </TabList>
 
       <TabPanels>
-        <TabPanel value="images">
-          <ImagesTab :caseId="caseId" />
+        <TabPanel value="files">
+          <Suspense>
+            <FilesTab :caseId="caseId" />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="ops">
-          <OpsPlansTab />
+          <Suspense>
+            <OpsPlansTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="intel">
-          <IntelSummariesTab />
+          <Suspense>
+            <IntelSummariesTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="rfis">
-          <RFIsTab />
+          <Suspense>
+            <RFIsTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="eod">
-          <EODReportsTab />
+          <Suspense>
+            <EODReportsTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
         <TabPanel value="flyer">
-          <MissingFlyerTab />
-        </TabPanel>
-        <TabPanel value="other">
-          <OtherTab :caseId="caseId" />
+          <Suspense>
+            <MissingFlyerTab />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
         </TabPanel>
       </TabPanels>
     </Tabs>
