@@ -11,6 +11,7 @@ import Checkbox from 'primevue/checkbox'
 import api from '../lib/api'
 import { setCookie } from '../lib/cookies'
 import { setPermissions } from '../lib/permissions'
+import { initMessagesWS } from '../lib/messages_ws'
 
 const router = useRouter()
 const route = useRoute()
@@ -76,6 +77,9 @@ const handleLogin = async () => {
       detail: 'Welcome back!',
       life: 3000
     })
+
+    // Initialize messages websocket AFTER login
+    try { await initMessagesWS() } catch {}
 
     // Redirect to intended page or home
     const redirect = route.query.redirect || '/'

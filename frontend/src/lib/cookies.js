@@ -33,6 +33,7 @@ export function setCookie(name, value, options = {}) {
 
 export function getCookie(name) {
   const cookies = document.cookie ? document.cookie.split('; ') : []
+
   for (const c of cookies) {
     const [k, v] = c.split('=')
     if (decodeURIComponent(k) === name) {

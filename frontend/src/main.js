@@ -64,3 +64,8 @@ app.use(router)
 app.directive('tooltip', Tooltip)
 
 app.mount('#app')
+
+// On app load, if a valid session exists, initialize the messages websocket.
+import('./lib/messages_ws').then(m => {
+  try { m.maybeInitMessagesWSOnLoad && m.maybeInitMessagesWSOnLoad() } catch (_) {}
+}).catch(() => {})

@@ -7,7 +7,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, get_bearer_or_cookie_token
 from app.db.session import get_db
 from app.db.models.app_user import AppUser
 from app.db.models.person import Person
@@ -258,7 +258,7 @@ async def create_case_message(
     try:
         ws_payload = msg_model.model_dump(mode="json")
         ws_payload["author_person_id"] = int(pid)
-        await _ws_manager.publish(int(msg.case_id), ws_payload)
+        await _ws_manager.publish(int(msg.case_id))
     except Exception:
         # Do not fail the request if broadcasting fails
         pass
@@ -311,100 +311,149 @@ async def set_message_reaction(
     return {"ok": True}
 
 
-@router.get("/{case_id}/messages/unseen_count", summary="Get unseen message count for current user in a case")
-async def unseen_message_count(
-    case_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: AppUser = Depends(get_current_user),
-):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
-    if pid is None:
-        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
-
-    M = Message
-    MP = MessagePerson
-
-    # Count messages in case that current person hasn't seen; exclude own messages
-    subq = select(1).where(sa.and_(MP.message_id == M.id, MP.person_id == pid)).limit(1)
-    q = select(sa.func.count()).where(sa.and_(M.case_id == pk, M.written_by_id != pid, sa.not_(sa.exists(subq))))
-
-    count = (await db.execute(q)).scalar() or 0
-    return {"count": int(count)}
 
 
-@router.get("/messages/unseen_counts", summary="Get unseen message counts for current user across all related cases")
-async def unseen_counts_all_cases(
-    db: AsyncSession = Depends(get_db),
-    current_user: AppUser = Depends(get_current_user),
-):
-    # Resolve current user's person id
-    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
-    if pid is None:
-        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+# Standalone function: get unseen message counts for a user across all related cases
+# Not a FastAPI route; accepts encrypted user id and session id, manages its own DB session
+async def unseen_counts_all_cases(encrypted_user_id: str, session_id: str) -> dict[str, int]:
+    from app.core.id_codec import set_current_session, reset_current_session, decode_id, encode_id, OpaqueIdError
+    from app.db.session import async_session_maker
 
-    M = Message
-    MNS = MessageNotSeen
+    # Establish id_codec session context so decode_id/encode_id work
+    ctx_token = set_current_session(session_id)
+    try:
+        # Decrypt the provided app_user id
+        try:
+            user_id = int(decode_id("app_user", encrypted_user_id))
+        except OpaqueIdError:
+            # Propagate a clear error for caller
+            raise OpaqueIdError("Invalid encrypted user id or session context")
 
-    # Single grouped query: by case and mutually exclusive dimension ids
-    q = (
-        select(
-            M.case_id.label("case_id"),
-            M.rfi_id.label("rfi_id"),
-            M.ops_plan_id.label("ops_plan_id"),
-            M.task_id.label("task_id"),
-            sa.func.count().label("cnt"),
-        )
-        .select_from(MNS)
-        .join(M, M.id == MNS.message_id)
-        .where(MNS.person_id == pid)
-        .group_by(M.case_id, M.rfi_id, M.ops_plan_id, M.task_id)
-    )
+        async with async_session_maker() as db:
+            # Resolve person's id linked to the user
+            pid = (await db.execute(select(Person.id).where(Person.app_user_id == user_id))).scalar_one_or_none()
+            if pid is None:
+                # No linked person; treat as invalid usage
+                raise ValueError("User is not linked to a person")
 
-    rows = (await db.execute(q)).all()
+            M = Message
+            MNS = MessageNotSeen
 
-    # Aggregate into the requested JSON shape
-    by_case: dict[int, dict] = {}
-    for r in rows:
-        cid = int(r.case_id)
-        cnt = int(getattr(r, "cnt", 0) or 0)
-        if cnt <= 0:
-            continue
-        entry = by_case.setdefault(
-            cid,
-            {
-                "case_id": encode_id("case", cid),
+            # Single grouped query: by case and mutually exclusive dimension ids
+            q = (
+                select(
+                    M.case_id.label("case_id"),
+                    M.rfi_id.label("rfi_id"),
+                    M.ops_plan_id.label("ops_plan_id"),
+                    M.task_id.label("task_id"),
+                    sa.func.count().label("cnt"),
+                )
+                .select_from(MNS)
+                .join(M, M.id == MNS.message_id)
+                .where(MNS.person_id == pid)
+                .group_by(M.case_id, M.rfi_id, M.ops_plan_id, M.task_id)
+            )
+
+            rows = (await db.execute(q)).all()
+
+            # Build flat JSON object with dynamic keys per specification
+            result: dict[str, int] = {
                 "count": 0,
-                "rfis": [],
-                "ops_plans": [],
-                "tasks": [],
-            },
-        )
-        # Add to total
-        entry["count"] += cnt
+                "count_rfis": 0,
+                "count_ops_plans": 0,
+                "count_tasks": 0,
+            }
 
-        # Breakdown arrays, respecting mutual exclusivity
-        rid = r.rfi_id
-        oid = r.ops_plan_id
-        tid = r.task_id
-        if rid is not None:
-            entry["rfis"].append({"rfi_id": encode_id("rfi", int(rid)), "count": cnt})
-        elif oid is not None:
-            entry["ops_plans"].append({"ops_plan_id": int(oid), "count": cnt})
-        elif tid is not None:
-            # Note: spec uses key 'tasks_id' inside tasks array
-            entry["tasks"].append({"tasks_id": int(tid), "count": cnt})
-        else:
-            # Plain case-level messages without rfi/ops_plan/task: only included in total
+            # Helpers to increment counts safely
+            def inc(key: str, amount: int) -> None:
+                result[key] = int(result.get(key, 0)) + int(amount)
+
+            for r in rows:
+                cnt = int(getattr(r, "cnt", 0) or 0)
+                if cnt <= 0:
+                    continue
+
+                # Global total
+                inc("count", cnt)
+
+                # Case-level totals
+                case_id_raw = int(r.case_id)
+                case_id_enc = encode_id("case", case_id_raw)
+                inc(f"count_{case_id_enc}", cnt)
+
+                # Dimension-specific handling (mutually exclusive)
+                rid = r.rfi_id
+                oid = r.ops_plan_id
+                tid = r.task_id
+
+                if rid is not None:
+                    # Global category total
+                    inc("count_rfis", cnt)
+                    # Per-case category total
+                    inc(f"count_rfis_{case_id_enc}", cnt)
+                    # Per-entity within case
+                    rfi_enc = encode_id("rfi", int(rid))
+                    inc(f"count_rfis_{case_id_enc}_{rfi_enc}", cnt)
+                elif oid is not None:
+                    inc("count_ops_plans", cnt)
+                    inc(f"count_ops_plans_{case_id_enc}", cnt)
+                    ops_plan_enc = encode_id("ops_plan", int(oid))
+                    inc(f"count_ops_plans_{case_id_enc}_{ops_plan_enc}", cnt)
+                elif tid is not None:
+                    inc("count_tasks", cnt)
+                    inc(f"count_tasks_{case_id_enc}", cnt)
+                    task_enc = encode_id("task", int(tid))
+                    inc(f"count_tasks_{case_id_enc}_{task_enc}", cnt)
+                else:
+                    # Messages not tied to rfi/ops_plan/task are counted globally and per-case already
+                    pass
+
+            return result
+    finally:
+        try:
+            reset_current_session(ctx_token)
+        except Exception:
             pass
 
-    # Return as a list; omit cases with zero total (none collected)
-    # Optionally sort by total desc, then by case id
-    result = sorted(by_case.values(), key=lambda x: (-int(x["count"]), str(x["case_id"])))
-    return result
+
+@router.get("/messages/unseen_messages_counts", summary="Get unseen message counts for current user across all related cases")
+async def get_unseen_messages_counts(
+    current_user: AppUser = Depends(get_current_user),
+    token: str = Depends(get_bearer_or_cookie_token),
+):
+    """Return flat unseen message counts for the current user across all cases.
+    This wraps the standalone unseen_counts_all_cases(encrypted_user_id, session_id) function.
+    """
+    try:
+        from jose import jwt as _jwt
+        from app.core.config import settings as _settings
+        from app.core.id_codec import set_current_session as _set_sess, reset_current_session as _reset_sess, encode_id as _enc
+    except Exception:  # pragma: no cover
+        # Fallback local imports (should not happen in normal runtime)
+        import jose as _jwt  # type: ignore
+        from app.core.config import settings as _settings  # type: ignore
+        from app.core.id_codec import set_current_session as _set_sess, reset_current_session as _reset_sess, encode_id as _enc  # type: ignore
+
+    # Decode token to extract session id (jti)
+    payload = _jwt.decode(token, _settings.jwt_secret_key, algorithms=[_settings.jwt_algorithm])
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(status_code=401, detail="Invalid or missing session id")
+
+    # Encode current user's app_user id under this session context
+    ctx = _set_sess(jti)
+    try:
+        enc_uid = _enc("app_user", int(current_user.id))
+    finally:
+        try:
+            _reset_sess(ctx)
+        except Exception:
+            pass
+
+    # Delegate to the standalone function
+    counts = await unseen_counts_all_cases(enc_uid, jti)
+    # counts already uses encrypted ids and is a flat dict[str, int]
+    return counts
 
 # --- WebSocket Messaging Infrastructure ---
 import asyncio
@@ -418,105 +467,82 @@ from app.services.auth import validate_session
 
 
 class _WSConnection:
-    def __init__(self, websocket: WebSocket, user_id: int, person_id: int, my_photo_url: str):
+    def __init__(self, websocket: WebSocket, user_id: int, session_id: str):
         self.websocket = websocket
         self.user_id = int(user_id)
-        self.person_id = int(person_id)
-        self.my_photo_url = my_photo_url
+        self.session_id = str(session_id)
 
 class _CaseWSManager:
     def __init__(self) -> None:
-        self._channels: Dict[int, Set[_WSConnection]] = {}
+        # Keyed by raw user_id
+        self._subs_by_user: Dict[int, Set[_WSConnection]] = {}
         self._lock = asyncio.Lock()
         print("WS Manager initialized")
 
-    async def subscribe(self, case_id: int, conn: _WSConnection) -> None:
+    async def subscribe_user(self, conn: _WSConnection) -> None:
         async with self._lock:
-            s = self._channels.setdefault(int(case_id), set())
+            s = self._subs_by_user.setdefault(int(conn.user_id), set())
             s.add(conn)
             print("subscribed", {
-                "event": "subscribe",
-                "case_id": int(case_id),
+                "event": "subscribe_user",
                 "user_id": conn.user_id,
-                "person_id": conn.person_id,
+                "session_id": conn.session_id,
                 "sub_count": len(s),
             })
 
-    async def unsubscribe(self, case_id: int, conn: _WSConnection) -> None:
-        async with self._lock:
-            s = self._channels.get(int(case_id))
-            if s and conn in s:
-                s.remove(conn)
-                print("unsubscribed", {
-                    "event": "unsubscribe",
-                    "case_id": int(case_id),
-                    "user_id": conn.user_id,
-                    "person_id": conn.person_id,
-                    "sub_count": len(s),
-                })
-                if not s:
-                    self._channels.pop(int(case_id), None)
-
     async def disconnect(self, conn: _WSConnection) -> None:
         async with self._lock:
-            for cid, s in list(self._channels.items()):
+            for uid, s in list(self._subs_by_user.items()):
                 if conn in s:
                     s.remove(conn)
                     print("disconnected", {
                         "event": "disconnect",
-                        "case_id": int(cid),
                         "user_id": conn.user_id,
-                        "person_id": conn.person_id,
+                        "session_id": conn.session_id,
                         "sub_count": len(s),
                     })
                     if not s:
-                        self._channels.pop(cid, None)
+                        self._subs_by_user.pop(uid, None)
 
-    async def publish(self, case_id: int, base_payload: Dict[str, Any]) -> None:
-        # Broadcast to all subscribers of this case
+    async def publish(self, case_id: int) -> None:
+        # Determine which users can see this case, then push counts to connected users
+        from .case_utils import list_user_ids_for_case
+        from app.core.id_codec import set_current_session, reset_current_session, encode_id
+        async with async_session_maker() as db:
+            user_ids = await list_user_ids_for_case(db, int(case_id))
         async with self._lock:
-            subs = list(self._channels.get(int(case_id), set()))
-        print("publish", {
-            "event": "publish",
+            # Snapshot of all current connections keyed by user id
+            subs_map = {uid: list(conns) for uid, conns in self._subs_by_user.items() if uid in set(user_ids)}
+        print("publish_counts", {
+            "event": "publish_counts",
             "case_id": int(case_id),
-            "message_id": base_payload.get("id"),
-            "written_by_id": base_payload.get("written_by_id"),
-            "subscriber_count": len(subs),
+            "target_user_count": len(subs_map),
         })
-        for conn in subs:
-            try:
-                # Prefer an internal raw author_person_id if provided
-                raw_author_id = base_payload.get("author_person_id")
-                is_mine = (int(raw_author_id) == conn.person_id) if raw_author_id is not None else False
-                payload = dict(base_payload)
-                # Remove internal field before sending to client
-                if "author_person_id" in payload:
-                    payload.pop("author_person_id", None)
-                payload["is_mine"] = bool(is_mine)
-                payload["my_photo_url"] = conn.my_photo_url
-                # For pushed items, mark seen True for the author, False for others
-                payload["seen"] = bool(is_mine)
-                await conn.websocket.send_json({
-                    "type": "message.created",
-                    "case_id": int(case_id),
-                    "message": payload,
-                })
-                print("delivered", {
-                    "event": "deliver",
-                    "case_id": int(case_id),
-                    "message_id": base_payload.get("id"),
-                    "to_person_id": conn.person_id,
-                    "to_user_id": conn.user_id,
-                    "is_mine": bool(is_mine),
-                })
-            except Exception as e:
-                print("deliver_failed")
-                # best-effort; drop failures silently
+        for uid, conns in subs_map.items():
+            for conn in conns:
                 try:
-                    await conn.websocket.close()
+                    # Build encrypted user id specific to this connection's session
+                    ctx = set_current_session(conn.session_id)
+                    try:
+                        enc_uid = encode_id("app_user", int(uid))
+                    finally:
+                        try:
+                            reset_current_session(ctx)
+                        except Exception:
+                            pass
+                    # Compute counts for this user under their session id
+                    counts = await unseen_counts_all_cases(enc_uid, conn.session_id)
+                    await conn.websocket.send_json({
+                        "type": "counts.update",
+                        "counts": counts,
+                    })
+                    print("delivered_counts", {"to_user_id": uid})
                 except Exception:
-                    pass
-                await self.disconnect(conn)
+                    try:
+                        await conn.websocket.close()
+                    except Exception:
+                        pass
+                    await self.disconnect(conn)
 
 _ws_manager = _CaseWSManager()
 
@@ -559,83 +585,50 @@ async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[tuple[AppUser,
 async def websocket_messages(websocket: WebSocket):
     await websocket.accept()
     print("ws_accept")
-    auth = await _auth_ws_and_get_user(websocket)
-    if not auth:
-        print("ws_reject", {"reason": "auth_failed"})
+    # Expect two query parameters: uid (encrypted app_user.id), sid (session id/jti)
+    enc_uid = websocket.query_params.get("uid")
+    sid = websocket.query_params.get("sid")
+    if not enc_uid or not sid:
+        print("ws_reject", {"reason": "missing_params"})
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-    user, jti = auth
 
-    # Establish id_codec session context for the duration of this WS
-    from app.core.id_codec import set_current_session, reset_current_session
-    ctx_token = set_current_session(jti)
-
-    # Resolve person and compute my photo url once
-    async with async_session_maker() as db:
-        pid = (await db.execute(select(Person.id).where(Person.app_user_id == user.id))).scalar_one_or_none()
-        if pid is None:
-            print("ws_reject", {"reason": "no_person", "user_id": user.id})
+    # Validate session id and decode user id
+    from app.core.id_codec import set_current_session, reset_current_session, decode_id, OpaqueIdError
+    ctx_token = set_current_session(sid)
+    try:
+        async with async_session_maker() as db:
+            session = await validate_session(db, sid)
+            if not session:
+                print("ws_reject", {"reason": "session_invalid"})
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+        try:
+            user_id = int(decode_id("app_user", enc_uid))
+        except OpaqueIdError:
+            print("ws_reject", {"reason": "uid_decode_failed"})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            reset_current_session(ctx_token)
             return
-        me_has_pic = (await db.execute(select(Person.profile_pic.isnot(None)).where(Person.id == pid))).scalar() or False
-        my_photo_url = f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=xs" if me_has_pic else "/images/pfp-generic.png"
+    finally:
+        try:
+            reset_current_session(ctx_token)
+        except Exception:
+            pass
 
-    print("ws_authenticated", {"user_id": user.id, "person_id": int(pid)})
-    conn = _WSConnection(websocket, user.id, int(pid), my_photo_url)
+    print("ws_authenticated", {"user_id": user_id})
+    conn = _WSConnection(websocket, user_id, sid)
+    await _ws_manager.subscribe_user(conn)
 
     try:
         while True:
             data = await websocket.receive_json()
             action = (data or {}).get("action")
-            if action == "subscribe":
-                ids = data.get("case_ids") or []
-                accepted: list[int] = []
-                denied: list[Any] = []
-                async with async_session_maker() as db:
-                    for cid in ids:
-                        # decode opaque id strictly (no numeric fallback)
-                        try:
-                            pk = decode_id("case", cid)
-                        except Exception:
-                            denied.append(cid)
-                            continue
-                        if await can_user_access_case(db, user.id, int(pk)):
-                            await _ws_manager.subscribe(int(pk), conn)
-                            accepted.append(int(pk))
-                        else:
-                            denied.append(cid)
-                print("ws_subscribe", {
-                    "user_id": conn.user_id,
-                    "person_id": conn.person_id,
-                    "accepted": accepted,
-                    "denied": denied,
-                })
-                await websocket.send_json({"type": "subscribed", "accepted": accepted, "denied": denied})
-            elif action == "unsubscribe":
-                ids = data.get("case_ids") or []
-                for cid in ids:
-                    try:
-                        pk = decode_id("case", cid)
-                    except Exception:
-                        continue
-                    await _ws_manager.unsubscribe(int(pk), conn)
-                print("ws_unsubscribe", {
-                    "user_id": conn.user_id,
-                    "person_id": conn.person_id,
-                    "case_ids": ids,
-                })
-                await websocket.send_json({"type": "unsubscribed", "case_ids": ids})
-            elif action == "ping":
+            if action == "ping":
                 await websocket.send_json({"type": "pong"})
             else:
-                print("ws_unknown_action", {"action": action})
-                await websocket.send_json({"type": "error", "error": "Unknown action"})
+                # no-op for unknown/legacy actions
+                await websocket.send_json({"type": "ok"})
     except WebSocketDisconnect:
-        print("ws_disconnect", {"user_id": conn.user_id, "person_id": conn.person_id})
+        print("ws_disconnect", {"user_id": conn.user_id})
     finally:
         await _ws_manager.disconnect(conn)
-        try:
-            reset_current_session(ctx_token)
-        except Exception:
-            pass

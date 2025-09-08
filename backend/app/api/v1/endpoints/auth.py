@@ -283,15 +283,33 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserInfo)
 async def get_current_user_info(
-        current_user: AppUser = Depends(get_current_user)
+        current_user: AppUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+        token: str = Depends(get_bearer_or_cookie_token),
 ):
-    """Get current user information"""
+    """Get current user information.
+    Uses linked Person for name fields; falls back to empty strings if no Person linked.
+    Also includes the current session id (jti) so HttpOnly cookie flows can bootstrap websockets.
+    """
+    from sqlalchemy import select
+    from app.db.models.person import Person
+    from jose import jwt
+
+    person = (await db.execute(select(Person).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    first_name = person.first_name if person and getattr(person, "first_name", None) else ""
+    last_name = person.last_name if person and getattr(person, "last_name", None) else ""
+
+    # Extract jti from the validated token
+    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    jti = payload.get("jti") or ""
+
     return UserInfo(
         id=current_user.id,
         email=EmailStr(current_user.email),
-        first_name=current_user.first_name,
-        last_name=current_user.last_name,
-        is_active=current_user.is_active
+        first_name=first_name,
+        last_name=last_name,
+        is_active=current_user.is_active,
+        session_id=jti,
     )
 
 
@@ -326,8 +344,15 @@ async def request_password_reset(
     reset_url = f"{base_url}{reset_path}"
 
     subject = f"{settings.project_name} - Password Reset Request"
+
+    # Determine a friendly name for salutation
+    from sqlalchemy import select
+    from app.db.models.person import Person
+    person = (await db.execute(select(Person).where(Person.app_user_id == user.id))).scalar_one_or_none()
+    display_name = (person.first_name if person and getattr(person, "first_name", None) else (user.email.split("@")[0] if user.email else ""))
+
     text = (
-        f"Hello {user.first_name},\n\n"
+        f"Hello {display_name},\n\n"
         f"We received a request to reset your password.\n"
         f"Use the following link to reset your password (it expires in "
         f"{getattr(settings, 'password_reset_token_expire_minutes', 60)} minutes):\n\n"
@@ -339,7 +364,7 @@ async def request_password_reset(
     html = (
         f"""
         <div style=\"font-family: Arial, sans-serif; line-height:1.6; color:#222;\">
-          <p>Hello {user.first_name},</p>
+          <p>Hello {display_name},</p>
           <p>We received a request to reset your password. Click the button below to proceed. This link expires in {getattr(settings, 'password_reset_token_expire_minutes', 60)} minutes.</p>
           <p style=\"margin: 24px 0;\">
             <a href=\"{reset_url}\" target=\"_blank\" style=\"background-color:#8B0000; color:#ffffff; padding:12px 20px; border-radius:6px; text-decoration:none; display:inline-block; font-weight:600;\">Reset Password</a>

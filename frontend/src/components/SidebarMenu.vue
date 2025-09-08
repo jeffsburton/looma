@@ -5,6 +5,7 @@ import { useToast } from 'primevue/usetoast'
 import api from '../lib/api'
 import { getCookie, setCookie, deleteCookie } from '../lib/cookies'
 import { hasPermission, clearPermissions } from '../lib/permissions'
+import { disconnectMessagesWS, gMessageCounts } from '../lib/messages_ws'
 // Sidebar for internal pages: vertical stack with Material icons.
 // Handles logout internally by calling the API and clearing client state.
 
@@ -34,6 +35,8 @@ async function logout() {
     // We intentionally ignore errors here and proceed to clear client state
   } finally {
     try {
+      // Disconnect websocket and clear global counts on explicit logout
+      try { disconnectMessagesWS({ clearCounts: true }) } catch {}
       deleteCookie('access_token')
       localStorage.removeItem('user_email')
       localStorage.removeItem('user_name')

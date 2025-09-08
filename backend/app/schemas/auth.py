@@ -36,6 +36,7 @@ class UserInfo(OpaqueIdMixin):
     first_name: str
     last_name: str
     is_active: bool
+    session_id: str
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -44,7 +45,8 @@ class UserInfo(OpaqueIdMixin):
                 "email": "user@example.com",
                 "first_name": "Jane",
                 "last_name": "Doe",
-                "is_active": True
+                "is_active": True,
+                "session_id": "b1d2c3e4-...-jti"
             }
         }
     )
