@@ -311,6 +311,90 @@ async def set_message_reaction(
     return {"ok": True}
 
 
+@router.get("/messages/new_messages/case/{case_id}", summary="List new (unseen) messages for a case for the current user", response_model=List[MessageRead])
+@router.get("/cases/messages/new_messages/case/{case_id}", include_in_schema=False, response_model=List[MessageRead])
+async def list_new_case_messages(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    """Return messages for the given case that are currently marked as not seen
+    by the current user (i.e., there exists a message_not_seen record for the
+    message and this person). The payload shape matches list_case_messages.
+    """
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve current user's person id
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    # Precompute current user's photo URL once
+    me_has_pic = (await db.execute(select(Person.profile_pic.isnot(None)).where(Person.id == pid))).scalar() or False
+    my_photo_url = f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=xs" if me_has_pic else "/images/pfp-generic.png"
+
+    P = Person
+    M = Message
+    MP = MessagePerson
+    M2 = aliased(M)
+    MNS = MessageNotSeen
+
+    q = (
+        select(
+            M.id,
+            M.case_id,
+            M.written_by_id,
+            M.message,
+            M.reply_to_id,
+            M.created_at,
+            M.updated_at,
+            (P.first_name + sa.literal(" ") + P.last_name).label("writer_name"),
+            P.profile_pic.isnot(None).label("writer_has_pic"),
+            MP.id.isnot(None).label("seen"),
+            MP.reaction.label("reaction"),
+            M2.message.label("reply_to_text"),
+        )
+        .select_from(M)
+        .join(P, P.id == M.written_by_id, isouter=True)
+        .join(MP, sa.and_(MP.message_id == M.id, MP.person_id == pid), isouter=True)
+        .join(M2, M2.id == M.reply_to_id, isouter=True)
+        .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid))
+        .where(M.case_id == pk)
+        .order_by(sa.asc(M.created_at), sa.asc(M.id))
+    )
+
+    rows = (await db.execute(q)).all()
+
+    items: list[MessageRead] = []
+    for r in rows:
+        written_by_id = int(r.written_by_id) if r.written_by_id is not None else None
+        is_mine = (written_by_id == int(pid)) if written_by_id is not None else False
+        writer_photo_url = (
+            f"/api/v1/media/pfp/person/{encode_id('person', int(written_by_id))}?s=xs" if getattr(r, "writer_has_pic", False) and written_by_id is not None else "/images/pfp-generic.png"
+        )
+        items.append(
+            MessageRead(
+                id=int(r.id),
+                case_id=int(r.case_id),
+                written_by_id=written_by_id,
+                message=r.message,
+                reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                writer_name=getattr(r, "writer_name", None),
+                seen=bool(getattr(r, "seen", False)),
+                reaction=getattr(r, "reaction", None),
+                reply_to_text=getattr(r, "reply_to_text", None),
+                is_mine=bool(is_mine),
+                writer_photo_url=writer_photo_url,
+                my_photo_url=my_photo_url,
+            )
+        )
+    return items
+
+
 
 
 # Standalone function: get unseen message counts for a user across all related cases

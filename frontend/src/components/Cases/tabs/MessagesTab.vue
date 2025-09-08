@@ -5,6 +5,7 @@ import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
 import Popover from 'primevue/popover'
 import api from '@/lib/api'
+import { gMessageCounts } from '@/lib/messages_ws'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
@@ -15,6 +16,17 @@ const loading = ref(false)
 const sending = ref(false)
 const error = ref('')
 const messages = ref([]) // [{ id, case_id, written_by_id, message, reply_to_id, created_at, updated_at, writer_name, seen, reaction, reply_to_text, is_mine, writer_photo_url, my_photo_url }]
+
+// Observe global unseen counts for this case
+const unseenCountForCase = computed(() => {
+  const cid = String(props.caseId || '')
+  if (!cid) return 0
+  const key = `count_${cid}`
+  const m = gMessageCounts.value || {}
+  return Number(m[key] || 0)
+})
+
+const _lastUnseenCount = ref(0)
 
 // Composer state
 const composer = ref('')
@@ -42,17 +54,6 @@ async function loadMessages() {
     error.value = 'Failed to load messages.'
   } finally {
     loading.value = false
-  }
-}
-
-async function refreshUnseenCount() {
-  if (!props.caseId) { emit('unseen-count', 0); return }
-  try {
-    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/unseen_count`)
-    const count = Number(data?.count || 0)
-    emit('unseen-count', count)
-  } catch (e) {
-    console.error(e)
   }
 }
 
@@ -89,16 +90,6 @@ async function sendMessage() {
   }
 }
 
-async function toggleReaction(m) {
-  try {
-    const next = m.reaction ? null : '👍'
-    await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(String(m.id))}/reaction`, { reaction: next })
-    m.reaction = next
-  } catch (e) {
-    console.error(e)
-  }
-}
-
 // Emoji picker support
 const emojiPanel = ref(null)
 const emojiTargetMessage = ref(null)
@@ -128,8 +119,11 @@ async function chooseEmoji(val) {
 watch(() => props.caseId, (val) => {
   if (val) {
     loadMessages()
+    // Reset last unseen baseline for new case
+    _lastUnseenCount.value = unseenCountForCase.value
   } else {
     messages.value = []
+    _lastUnseenCount.value = 0
   }
 }, { immediate: true })
 
@@ -150,6 +144,42 @@ const groups = computed(() => {
 
 function fmtTime(date) { return new Date(date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }
 function fmtDate(date) { return new Date(date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) }
+
+// Fetch only the new/unseen messages for this case and append to the end
+async function fetchAndAppendNewMessages() {
+  const cid = String(props.caseId || '')
+  if (!cid) return
+  try {
+    const url = `/api/v1/cases/messages/new_messages/case/${encodeURIComponent(cid)}`
+    const { data } = await api.get(url)
+    const arr = Array.isArray(data) ? data : []
+    if (!arr.length) return
+    const have = new Set(messages.value.map(m => String(m.id)))
+    for (const m of arr) {
+      if (!have.has(String(m.id))) {
+        messages.value.push(m)
+      }
+    }
+    // Do not scroll; leave position unchanged by requirement
+  } catch (e) {
+    // Silently ignore to avoid user disruption
+    console.error(e)
+  }
+}
+
+// Watch unseen count and fetch new messages when it increases
+watch(() => unseenCountForCase.value, (newVal, oldVal) => {
+  // Establish baseline if needed
+  if (_lastUnseenCount.value === 0 && oldVal === undefined) {
+    _lastUnseenCount.value = Number(newVal || 0)
+    return
+  }
+  if (!props.caseId) return
+  if (Number(newVal || 0) > Number(_lastUnseenCount.value || 0)) {
+    fetchAndAppendNewMessages()
+  }
+  _lastUnseenCount.value = Number(newVal || 0)
+})
 </script>
 
 <template>
