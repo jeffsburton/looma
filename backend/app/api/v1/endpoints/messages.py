@@ -23,6 +23,7 @@ from app.db.models.permission import Permission
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
 from .case_utils import _decode_or_404, can_user_access_case
+from app.schemas.message import MessageRead
 
 router = APIRouter()
 
@@ -41,7 +42,7 @@ class ReactionRequest(_BaseModel_MSG):
     reaction: _Optional_MSG[str] = None
 
 
-@router.get("/{case_id}/messages", summary="List messages for a case")
+@router.get("/{case_id}/messages", summary="List messages for a case", response_model=List[MessageRead])
 async def list_case_messages(
     case_id: str,
     db: AsyncSession = Depends(get_db),
@@ -89,33 +90,35 @@ async def list_case_messages(
     )
     rows = (await db.execute(q)).all()
 
-    items = []
+    items: list[MessageRead] = []
     for r in rows:
         written_by_id = int(r.written_by_id) if r.written_by_id is not None else None
         is_mine = (written_by_id == int(pid)) if written_by_id is not None else False
         writer_photo_url = (
             f"/api/v1/media/pfp/person/{encode_id('person', int(written_by_id))}?s=xs" if getattr(r, "writer_has_pic", False) and written_by_id is not None else "/images/pfp-generic.png"
         )
-        items.append({
-            "id": int(r.id),
-            "case_id": int(r.case_id),
-            "written_by_id": written_by_id,
-            "message": r.message,
-            "reply_to_id": int(r.reply_to_id) if r.reply_to_id is not None else None,
-            "created_at": r.created_at,
-            "updated_at": r.updated_at,
-            "writer_name": getattr(r, "writer_name", None),
-            "seen": bool(getattr(r, "seen", False)),
-            "reaction": getattr(r, "reaction", None),
-            "reply_to_text": getattr(r, "reply_to_text", None),
-            "is_mine": bool(is_mine),
-            "writer_photo_url": writer_photo_url,
-            "my_photo_url": my_photo_url,
-        })
+        items.append(
+            MessageRead(
+                id=int(r.id),
+                case_id=int(r.case_id),
+                written_by_id=written_by_id,
+                message=r.message,
+                reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                writer_name=getattr(r, "writer_name", None),
+                seen=bool(getattr(r, "seen", False)),
+                reaction=getattr(r, "reaction", None),
+                reply_to_text=getattr(r, "reply_to_text", None),
+                is_mine=bool(is_mine),
+                writer_photo_url=writer_photo_url,
+                my_photo_url=my_photo_url,
+            )
+        )
     return items
 
 
-@router.post("/{case_id}/messages", summary="Create a new message in a case")
+@router.post("/{case_id}/messages", summary="Create a new message in a case", response_model=MessageRead)
 async def create_case_message(
     case_id: str,
     payload: MessageCreate,
@@ -133,7 +136,7 @@ async def create_case_message(
     rid: _Optional_MSG[int] = None
     if payload.reply_to_id:
         try:
-            rid = decode_id("message", payload.reply_to_id) if not str(payload.reply_to_id).isdigit() else int(payload.reply_to_id)
+            rid = decode_id("message", payload.reply_to_id)
         except OpaqueIdError:
             rid = None
 
@@ -234,37 +237,34 @@ async def create_case_message(
     if msg.reply_to_id is not None:
         reply_to_text = (await db.execute(select(Message.message).where(Message.id == msg.reply_to_id))).scalar_one_or_none()
 
-    base_payload = {
-        "id": int(msg.id),
-        "case_id": int(msg.case_id),
-        "written_by_id": int(msg.written_by_id) if msg.written_by_id is not None else None,
-        "message": msg.message,
-        "reply_to_id": int(msg.reply_to_id) if msg.reply_to_id is not None else None,
-        "created_at": msg.created_at,
-        "updated_at": msg.updated_at,
-        "writer_name": writer_name,
-        "reaction": None,
-        "reply_to_text": reply_to_text,
-        "writer_photo_url": writer_photo_url,
-    }
+    # Build response model (also used for websocket payload)
+    msg_model = MessageRead(
+        id=int(msg.id),
+        case_id=int(msg.case_id),
+        written_by_id=int(msg.written_by_id) if msg.written_by_id is not None else None,
+        message=msg.message,
+        reply_to_id=int(msg.reply_to_id) if msg.reply_to_id is not None else None,
+        created_at=msg.created_at,
+        updated_at=msg.updated_at,
+        writer_name=writer_name,
+        reaction=None,
+        reply_to_text=reply_to_text,
+        is_mine=True,  # author sees their own pushed message as mine
+        writer_photo_url=writer_photo_url,
+        my_photo_url=None,  # filled per-connection in ws manager
+    )
 
     # Publish to subscribers of this case (per-connection fields will be added by manager)
     try:
-        await _ws_manager.publish(int(msg.case_id), base_payload)
+        ws_payload = msg_model.model_dump(mode="json")
+        ws_payload["author_person_id"] = int(pid)
+        await _ws_manager.publish(int(msg.case_id), ws_payload)
     except Exception:
         # Do not fail the request if broadcasting fails
         pass
 
-    # Return minimal payload as before
-    return {
-        "id": int(msg.id),
-        "case_id": int(msg.case_id),
-        "written_by_id": int(msg.written_by_id) if msg.written_by_id is not None else None,
-        "message": msg.message,
-        "reply_to_id": int(msg.reply_to_id) if msg.reply_to_id is not None else None,
-        "created_at": msg.created_at,
-        "updated_at": msg.updated_at,
-    }
+    # Return encrypted payload
+    return msg_model
 
 
 
@@ -285,7 +285,7 @@ async def set_message_reaction(
         raise HTTPException(status_code=400, detail="Current user is not linked to a person")
 
     try:
-        mid = decode_id("message", message_id) if not str(message_id).isdigit() else int(message_id)
+        mid = decode_id("message", message_id)
     except OpaqueIdError:
         raise HTTPException(status_code=404, detail="Message not found")
 
@@ -334,6 +334,77 @@ async def unseen_message_count(
 
     count = (await db.execute(q)).scalar() or 0
     return {"count": int(count)}
+
+
+@router.get("/messages/unseen_counts", summary="Get unseen message counts for current user across all related cases")
+async def unseen_counts_all_cases(
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    # Resolve current user's person id
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    M = Message
+    MNS = MessageNotSeen
+
+    # Single grouped query: by case and mutually exclusive dimension ids
+    q = (
+        select(
+            M.case_id.label("case_id"),
+            M.rfi_id.label("rfi_id"),
+            M.ops_plan_id.label("ops_plan_id"),
+            M.task_id.label("task_id"),
+            sa.func.count().label("cnt"),
+        )
+        .select_from(MNS)
+        .join(M, M.id == MNS.message_id)
+        .where(MNS.person_id == pid)
+        .group_by(M.case_id, M.rfi_id, M.ops_plan_id, M.task_id)
+    )
+
+    rows = (await db.execute(q)).all()
+
+    # Aggregate into the requested JSON shape
+    by_case: dict[int, dict] = {}
+    for r in rows:
+        cid = int(r.case_id)
+        cnt = int(getattr(r, "cnt", 0) or 0)
+        if cnt <= 0:
+            continue
+        entry = by_case.setdefault(
+            cid,
+            {
+                "case_id": encode_id("case", cid),
+                "count": 0,
+                "rfis": [],
+                "ops_plans": [],
+                "tasks": [],
+            },
+        )
+        # Add to total
+        entry["count"] += cnt
+
+        # Breakdown arrays, respecting mutual exclusivity
+        rid = r.rfi_id
+        oid = r.ops_plan_id
+        tid = r.task_id
+        if rid is not None:
+            entry["rfis"].append({"rfi_id": encode_id("rfi", int(rid)), "count": cnt})
+        elif oid is not None:
+            entry["ops_plans"].append({"ops_plan_id": int(oid), "count": cnt})
+        elif tid is not None:
+            # Note: spec uses key 'tasks_id' inside tasks array
+            entry["tasks"].append({"tasks_id": int(tid), "count": cnt})
+        else:
+            # Plain case-level messages without rfi/ops_plan/task: only included in total
+            pass
+
+    # Return as a list; omit cases with zero total (none collected)
+    # Optionally sort by total desc, then by case id
+    result = sorted(by_case.values(), key=lambda x: (-int(x["count"]), str(x["case_id"])))
+    return result
 
 # --- WebSocket Messaging Infrastructure ---
 import asyncio
@@ -408,14 +479,19 @@ class _CaseWSManager:
         print("publish", {
             "event": "publish",
             "case_id": int(case_id),
-            "message_id": int(base_payload.get("id") or 0),
-            "written_by_id": int(base_payload.get("written_by_id") or 0),
+            "message_id": base_payload.get("id"),
+            "written_by_id": base_payload.get("written_by_id"),
             "subscriber_count": len(subs),
         })
         for conn in subs:
             try:
-                is_mine = (int(base_payload.get("written_by_id") or 0) == conn.person_id)
+                # Prefer an internal raw author_person_id if provided
+                raw_author_id = base_payload.get("author_person_id")
+                is_mine = (int(raw_author_id) == conn.person_id) if raw_author_id is not None else False
                 payload = dict(base_payload)
+                # Remove internal field before sending to client
+                if "author_person_id" in payload:
+                    payload.pop("author_person_id", None)
                 payload["is_mine"] = bool(is_mine)
                 payload["my_photo_url"] = conn.my_photo_url
                 # For pushed items, mark seen True for the author, False for others
@@ -428,7 +504,7 @@ class _CaseWSManager:
                 print("delivered", {
                     "event": "deliver",
                     "case_id": int(case_id),
-                    "message_id": int(base_payload.get("id") or 0),
+                    "message_id": base_payload.get("id"),
                     "to_person_id": conn.person_id,
                     "to_user_id": conn.user_id,
                     "is_mine": bool(is_mine),
@@ -444,7 +520,7 @@ class _CaseWSManager:
 
 _ws_manager = _CaseWSManager()
 
-async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[AppUser]:
+async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[tuple[AppUser, str]]:
     token: Optional[str] = None
     auth_header = websocket.headers.get("authorization") or websocket.headers.get("Authorization")
     if auth_header and auth_header.lower().startswith("bearer "):
@@ -477,17 +553,22 @@ async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[AppUser]:
         if not user:
             print("ws_auth_user_not_found", {"email": email})
             return None
-        return user
+        return (user, jti)
 
 @router.websocket("/messages/ws")
 async def websocket_messages(websocket: WebSocket):
     await websocket.accept()
     print("ws_accept")
-    user = await _auth_ws_and_get_user(websocket)
-    if not user:
+    auth = await _auth_ws_and_get_user(websocket)
+    if not auth:
         print("ws_reject", {"reason": "auth_failed"})
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    user, jti = auth
+
+    # Establish id_codec session context for the duration of this WS
+    from app.core.id_codec import set_current_session, reset_current_session
+    ctx_token = set_current_session(jti)
 
     # Resolve person and compute my photo url once
     async with async_session_maker() as db:
@@ -495,6 +576,7 @@ async def websocket_messages(websocket: WebSocket):
         if pid is None:
             print("ws_reject", {"reason": "no_person", "user_id": user.id})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            reset_current_session(ctx_token)
             return
         me_has_pic = (await db.execute(select(Person.profile_pic.isnot(None)).where(Person.id == pid))).scalar() or False
         my_photo_url = f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=xs" if me_has_pic else "/images/pfp-generic.png"
@@ -512,9 +594,9 @@ async def websocket_messages(websocket: WebSocket):
                 denied: list[Any] = []
                 async with async_session_maker() as db:
                     for cid in ids:
-                        # decode allowing numeric or opaque
+                        # decode opaque id strictly (no numeric fallback)
                         try:
-                            pk = int(cid) if str(cid).isdigit() else decode_id("case", cid)
+                            pk = decode_id("case", cid)
                         except Exception:
                             denied.append(cid)
                             continue
@@ -534,7 +616,7 @@ async def websocket_messages(websocket: WebSocket):
                 ids = data.get("case_ids") or []
                 for cid in ids:
                     try:
-                        pk = int(cid) if str(cid).isdigit() else decode_id("case", cid)
+                        pk = decode_id("case", cid)
                     except Exception:
                         continue
                     await _ws_manager.unsubscribe(int(pk), conn)
@@ -553,3 +635,7 @@ async def websocket_messages(websocket: WebSocket):
         print("ws_disconnect", {"user_id": conn.user_id, "person_id": conn.person_id})
     finally:
         await _ws_manager.disconnect(conn)
+        try:
+            reset_current_session(ctx_token)
+        except Exception:
+            pass

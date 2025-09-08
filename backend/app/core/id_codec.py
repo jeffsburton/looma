@@ -142,20 +142,11 @@ def encode_id(model: str, pk: int) -> str:
     if not model:
         raise OpaqueIdError("Model namespace is required")
 
-    # If a session identifier is present, use deterministic AES-SIV (version 2)
+    # Require a stable session identifier; no fallback to v1 allowed
     session_id = _SESSION_ID.get()
-    if session_id:
-        return _aessiv_encrypt_for_session(model, pk, session_id)
-
-    # Fallback: existing Fernet probabilistic mode (version from settings)
-    entry = _current_key_entry()
-    payload = {
-        "m": model,
-        "k": pk,
-    }
-    blob = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    token = _get_fernet_for_version(entry.version).encrypt(blob)
-    return f"{entry.version}." + token.decode("utf-8")
+    if not session_id:
+        raise OpaqueIdError("Session context required to encode opaque ID")
+    return _aessiv_encrypt_for_session(model, pk, session_id)
 
 
 def decode_id(model: str, eid: str) -> int:
@@ -177,13 +168,8 @@ def decode_id(model: str, eid: str) -> int:
             raise OpaqueIdError("Session context required to decode opaque ID")
         payload = _aessiv_decrypt_for_session(model, token, session_id)
     else:
-        try:
-            data = _get_fernet_for_version(version).decrypt(token.encode("utf-8"), ttl=None)
-            payload = json.loads(data.decode("utf-8"))
-        except InvalidToken:
-            raise OpaqueIdError("Invalid opaque ID token")
-        except Exception:
-            raise OpaqueIdError("Malformed opaque ID payload")
+        # Disallow legacy versions entirely
+        raise OpaqueIdError("Unsupported opaque ID version")
 
     if payload.get("m") != model:
         raise OpaqueIdError("Opaque ID model mismatch")

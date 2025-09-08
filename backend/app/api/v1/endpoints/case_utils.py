@@ -13,11 +13,9 @@ from app.db.models.team_case import TeamCase
 
 def _decode_or_404(model: str, opaque_id: str) -> int:
     """
-    Decode an opaque id for a given model, allowing plain numeric ids as-is.
-    Raises 404 HTTPException if the id is invalid.
+    Decode an opaque id for a given model. Plain numeric ids are NOT accepted.
+    Raises 404 HTTPException if the id is invalid or session context is missing.
     """
-    if str(opaque_id).isdigit():
-        return int(opaque_id)
     try:
         return decode_id(model, opaque_id)
     except OpaqueIdError:

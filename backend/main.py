@@ -35,19 +35,39 @@ from typing import Optional as _Optional
 
 @app.middleware("http")
 async def opaque_id_session_middleware(request: Request, call_next):
-    # Prefer Bearer token; fall back to common cookie names
-    sid: _Optional[str] = None
-    auth = request.headers.get("authorization") or request.headers.get("Authorization")
-    if auth and auth.lower().startswith("bearer "):
-        sid = auth.split(" ", 1)[1].strip()
-    if not sid:
-        sid = request.cookies.get("session") or request.cookies.get("access_token") or None
+    # Establish a stable session context for opaque IDs using the JWT jti (server session id)
+    from jose import jwt
+    from app.db.session import async_session_maker
+    from app.services.auth import validate_session as _validate_session
 
-    token = set_current_session(sid)
+    sid: _Optional[str] = None
+    # Extract bearer or cookie token
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    token_str: _Optional[str] = None
+    if auth and auth.lower().startswith("bearer "):
+        token_str = auth.split(" ", 1)[1].strip()
+    if not token_str:
+        token_str = request.cookies.get(getattr(settings, "cookie_name", "access_token")) or None
+
+    if token_str:
+        try:
+            payload = jwt.decode(token_str, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+            jti = payload.get("jti")
+            if jti:
+                # Validate session is active; if valid, use jti as stable session id
+                async with async_session_maker() as _db:
+                    sess = await _validate_session(_db, jti)
+                    if sess:
+                        sid = jti
+        except Exception:
+            # Leave sid as None on any failure; encode/decode will fail accordingly
+            sid = None
+
+    ctx_token = set_current_session(sid)
     try:
         response = await call_next(request)
     finally:
-        reset_current_session(token)
+        reset_current_session(ctx_token)
     return response
 
 # Configure a basic logger if not already configured
