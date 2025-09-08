@@ -103,6 +103,16 @@ const items = [
 ]
 
 const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPermission(i.requiredPerm)))
+
+const messagesBadgeCount = computed(() => {
+  const m = gMessageCounts.value || {}
+  return Number(m.count || 0)
+})
+
+const tasksBadgeCount = computed(() => {
+  const m = gMessageCounts.value || {}
+  return Number(m.count_tasks || 0)
+})
 </script>
 
 <template>
@@ -136,8 +146,8 @@ const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPerm
         >
           <span class="icon-wrap">
             <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
-            <span v-if="item.label === 'Messages'" class="badge" aria-label="7 unread messages">7</span>
-            <span v-if="item.label === 'Tasks'" class="badge" aria-label="3 tasks">3</span>
+            <span v-if="item.label === 'Messages' && messagesBadgeCount > 0" class="badge" :aria-label="`${messagesBadgeCount} unread messages`">{{ messagesBadgeCount }}</span>
+            <span v-if="item.label === 'Tasks' && tasksBadgeCount > 0" class="badge" :aria-label="`${tasksBadgeCount} tasks`">{{ tasksBadgeCount }}</span>
           </span>
           <span v-show="!collapsed" class="label text-800 font-medium">{{ item.label }}</span>
         </div>

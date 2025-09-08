@@ -41,6 +41,10 @@ class MarkSeenRequest(_BaseModel_MSG):
 class ReactionRequest(_BaseModel_MSG):
     reaction: _Optional_MSG[str] = None
 
+class MarkSeenUpToResponse(_BaseModel_MSG):
+    ok: bool = True
+    cleared: int = 0
+
 
 @router.get("/{case_id}/messages", summary="List messages for a case", response_model=List[MessageRead])
 async def list_case_messages(
@@ -65,6 +69,7 @@ async def list_case_messages(
     M = Message
     MP = MessagePerson
     M2 = aliased(M)
+    MNS = MessageNotSeen
 
     q = (
         select(
@@ -77,7 +82,8 @@ async def list_case_messages(
             M.updated_at,
             (P.first_name + sa.literal(" ") + P.last_name).label("writer_name"),
             P.profile_pic.isnot(None).label("writer_has_pic"),
-            MP.id.isnot(None).label("seen"),
+            # seen = no corresponding MessageNotSeen row for this user
+            (MNS.id.is_(None)).label("seen"),
             MP.reaction.label("reaction"),
             M2.message.label("reply_to_text"),
         )
@@ -85,6 +91,7 @@ async def list_case_messages(
         .join(P, P.id == M.written_by_id, isouter=True)
         .join(MP, sa.and_(MP.message_id == M.id, MP.person_id == pid), isouter=True)
         .join(M2, M2.id == M.reply_to_id, isouter=True)
+        .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid), isouter=True)
         .where(M.case_id == pk)
         .order_by(sa.asc(M.created_at), sa.asc(M.id))
     )
@@ -352,7 +359,8 @@ async def list_new_case_messages(
             M.updated_at,
             (P.first_name + sa.literal(" ") + P.last_name).label("writer_name"),
             P.profile_pic.isnot(None).label("writer_has_pic"),
-            MP.id.isnot(None).label("seen"),
+            # seen = no corresponding MessageNotSeen row (but here we INNER JOIN MNS, so this is always False)
+            (MNS.id.is_(None)).label("seen"),
             MP.reaction.label("reaction"),
             M2.message.label("reply_to_text"),
         )
@@ -393,6 +401,60 @@ async def list_new_case_messages(
             )
         )
     return items
+
+
+@router.post("/{case_id}/messages/mark_seen_up_to/{message_id}", summary="Mark messages as seen up to the given message id (inclusive) for current user", response_model=MarkSeenUpToResponse)
+async def mark_messages_seen_up_to(
+    case_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve current user's person id
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    # Decode message id and ensure the message belongs to this case
+    try:
+        mid = int(decode_id("message", message_id))
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    owns = (await db.execute(select(Message.id).where(Message.id == mid, Message.case_id == pk))).scalar_one_or_none()
+    if owns is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Count how many unseen rows would be cleared
+    M = Message
+    MNS = MessageNotSeen
+    count_q = (
+        select(sa.func.count())
+        .select_from(MNS)
+        .join(M, M.id == MNS.message_id)
+        .where(MNS.person_id == pid, M.case_id == pk, M.id <= mid)
+    )
+    to_clear = int((await db.execute(count_q)).scalar() or 0)
+
+    if to_clear:
+        # Delete matching rows
+        del_stmt = (
+            sa.delete(MNS)
+            .where(MNS.person_id == pid)
+            .where(MNS.message_id.in_(select(M.id).where(M.case_id == pk, M.id <= mid)))
+        )
+        await db.execute(del_stmt)
+        await db.commit()
+        try:
+            await _ws_manager.publish(int(pk))
+        except Exception:
+            pass
+
+    return MarkSeenUpToResponse(ok=True, cleared=to_clear)
 
 
 
