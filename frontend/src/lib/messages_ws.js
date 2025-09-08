@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import api from '@/lib/api'
 import { getCookie } from '@/lib/cookies'
+import router from '@/router'
 
 // Global reactive map of counts keyed as specified, e.g.,
 // count, count_rfis, count_<enc_case_id>, count_rfis_<enc_case_id>, ...
@@ -216,6 +217,15 @@ export function disconnectMessagesWS(options = {}) {
 export async function maybeInitMessagesWSOnLoad() {
   try {
     if (_inited || _ws) return
+
+    // Do not probe auth/me on public routes (e.g., login) to avoid 419 + toast on first arrival
+    try {
+      const current = router?.currentRoute?.value
+      const isPublic = !!(current?.meta && current.meta.public)
+      const isLogin = current?.name === 'login'
+      if (isPublic || isLogin) return
+    } catch (_) { /* noop */ }
+
     // Fast check via /api/v1/auth/me (works with HttpOnly cookie or Authorization header)
     let me = null
     try {

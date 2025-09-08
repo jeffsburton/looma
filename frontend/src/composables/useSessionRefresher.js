@@ -106,8 +106,14 @@ export function useSessionRefresher(options = {}) {
     if (!recentActivity) return false
 
     const minLeft = minutesUntilExp()
-    // If we cannot read the cookie/JWT exp (e.g., HttpOnly), fall back to time-based refresh while active
-    if (minLeft === null) return true
+    // If we cannot read the cookie/JWT exp (e.g., HttpOnly), only refresh when the app believes user is authenticated
+    if (minLeft === null) {
+      try {
+        const flag = typeof window !== 'undefined' && window.localStorage?.getItem('is_authenticated') === '1'
+        if (!flag) return false
+      } catch (_) { return false }
+      return true
+    }
     return minLeft <= refreshWhenExpInMin
   }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import api from '../lib/api'
@@ -24,6 +24,33 @@ const toggleCollapsed = () => {
   collapsed.value = !collapsed.value
   // Persist preference for 1 year, cookie scoped to site root
   setCookie(COOKIE_KEY, collapsed.value ? '1' : '0', { maxAge: 60 * 60 * 24 * 365, sameSite: 'Lax' })
+}
+
+// Logged-in user's profile picture (data URL or absolute URL)
+const profilePicUrl = ref('')
+
+function normalizeDataUrl(data, mimeGuess = 'image/jpeg') {
+  if (!data) return ''
+  // If starts with data: already a data URL
+  if (typeof data === 'string' && data.startsWith('data:')) return data
+  // If looks like a URL (http/https), return as-is
+  if (typeof data === 'string' && /^https?:\/\//i.test(data)) return data
+  // Otherwise assume base64 string and prefix a mime type
+  return `data:${mimeGuess};base64,${data}`
+}
+
+async function loadCurrentUserProfilePic() {
+  try {
+    // Use dedicated endpoint that reports whether current user has a pfp and provides a URL
+    const res = await api.get('/api/v1/persons/me/photo').then(r => r?.data)
+    if (res && res.has_pic && res.photo_url) {
+      profilePicUrl.value = String(res.photo_url)
+    } else {
+      profilePicUrl.value = ''
+    }
+  } catch (_) {
+    profilePicUrl.value = ''
+  }
 }
 
 async function logout() {
@@ -57,6 +84,11 @@ async function logout() {
     router.push({ name: 'login' })
   }
 }
+
+onMounted(() => {
+  // Load profile picture for account icon; no DB mutation
+  loadCurrentUserProfilePic()
+})
 
 // Top section items (excluding Account which is pinned to bottom)
 const items = [
@@ -118,7 +150,12 @@ const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPerm
         class="menu-item p-2 border-round flex align-items-center gap-2 cursor-pointer"
         :class="[{ active: 'Account' === props.active, collapsed }]"
       >
-        <span class="material-symbols-outlined">account_circle</span>
+        <template v-if="profilePicUrl">
+          <img :src="profilePicUrl" alt="Profile picture" class="pfp" />
+        </template>
+        <template v-else>
+          <span class="material-symbols-outlined">account_circle</span>
+        </template>
         <span v-show="!collapsed" class="label text-800 font-medium">Account</span>
       </div>
 
@@ -180,4 +217,13 @@ const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPerm
 .logo-row .brand { text-transform: uppercase; font-size: 0.8rem; }
 .logo-row .brand-text { color: #6b7280; }
 .logo-row .brand-digit { color: var(--p-primary-800, #1D3B52); }
+
+/* Profile picture avatar */
+.pfp {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-block;
+}
 </style>

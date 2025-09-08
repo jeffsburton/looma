@@ -13,6 +13,7 @@ from app.db.models.team import Team
 from app.core.id_codec import encode_id, decode_id, OpaqueIdError
 from app.schemas.person import PersonRead, PersonUpsert
 from pydantic import BaseModel
+from typing import Optional as _OptStr
 
 # Simple authenticated listing for person selection widgets
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -135,6 +136,30 @@ async def list_persons_for_select(
         })
 
     return items
+
+
+class PersonPhotoMe(BaseModel):
+    has_pic: bool
+    photo_url: _OptStr[str] = None
+
+
+@router.get("/persons/me/photo", summary="Current user's profile photo info", response_model=PersonPhotoMe)
+async def get_my_person_photo(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    # Find linked person id
+    pid_row = await db.execute(select(Person.id, Person.profile_pic.isnot(None)).where(Person.app_user_id == current_user.id))
+    row = pid_row.first()
+    if not row:
+        # No person linked; no pic
+        return PersonPhotoMe(has_pic=False, photo_url=None)
+
+    pid, has_pic = int(row[0]), bool(row[1])
+    if not has_pic:
+        return PersonPhotoMe(has_pic=False, photo_url=None)
+
+    opaque_pid = encode_id("person", pid)
+    # Use extra small avatar size for sidebar
+    url = f"/api/v1/media/pfp/person/{opaque_pid}?s=xs"
+    return PersonPhotoMe(has_pic=True, photo_url=url)
 
 
 class PersonPartial(BaseModel):
