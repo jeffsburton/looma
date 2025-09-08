@@ -177,20 +177,15 @@ const daysMissing = computed(() => {
   return Math.max(0, days)
 })
 
-const messagesUnseenCount = ref(0)
-async function refreshMessagesUnseenCount() {
-  try {
-    const cid = String(caseModel.value.id || '')
-    if (!cid) { messagesUnseenCount.value = 0; return }
-    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(cid)}/messages/unseen_count`)
-    messagesUnseenCount.value = Number(data?.count || 0)
-  } catch (e) {
-    console.error(e)
-  }
-}
+import { gMessageCounts } from '@/lib/messages_ws'
 
-watch(() => caseModel.value.id, () => { refreshMessagesUnseenCount() })
-watch(() => active.value, (v) => { if (v === 'messages') refreshMessagesUnseenCount() })
+const messagesUnseenCount = computed(() => {
+  const cid = String(caseModel.value.id || '')
+  if (!cid) return 0
+  const key = `count_${cid}`
+  const m = gMessageCounts.value || {}
+  return Number(m[key] || 0)
+})
 </script>
 
 <template>
