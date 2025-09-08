@@ -14,6 +14,10 @@ import subprocess
 from typing import Optional
 from contextlib import asynccontextmanager
 
+
+
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Use new FastAPI lifespan events instead of deprecated on_event

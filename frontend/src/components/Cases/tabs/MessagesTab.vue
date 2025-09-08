@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
 import Popover from 'primevue/popover'
 import api from '@/lib/api'
+import { getCookie } from '@/lib/cookies'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
@@ -35,9 +36,6 @@ async function loadMessages() {
     // After displaying, mark unseen as seen
     const unseenIds = messages.value.filter(m => !m.seen && !m.is_mine).map(m => String(m.id))
     if (unseenIds.length) {
-      await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/mark_seen`, { message_ids: unseenIds })
-      // Refresh unseen count for badge
-      await refreshUnseenCount()
       // Update local flags to avoid flicker
       for (const m of messages.value) if (!m.seen) m.seen = true
     }
@@ -130,9 +128,190 @@ async function chooseEmoji(val) {
   }
 }
 
-watch(() => props.caseId, (val) => { if (val) { loadMessages(); refreshUnseenCount() } else { messages.value = []; emit('unseen-count', 0) } }, { immediate: true })
+// --- WebSocket client for real-time messages ---
+const wsRef = ref(null)
+const wsConnecting = ref(false)
+let wsReconnectTimer = null
+let wsReconnectAttempts = 0
+let lastSubscribedCaseId = null
+let wsPingTimer = null
+let wsLastPingAt = 0
 
-onMounted(() => { /* additional hooks if needed */ })
+// Enable client-side websocket debug logs by setting localStorage.DEBUG_WS = '1'
+const WS_DEBUG = true;/*(() => {
+  try { return String(localStorage.getItem('DEBUG_WS')) === '1' } catch { return false }
+})()*/
+function wsLog(...args) { if (WS_DEBUG) console.log('[WS]', ...args) }
+
+function getWsUrl() {
+  try {
+    const token = getCookie('access_token') || ''
+    const runtimeBase = (typeof window !== 'undefined') ? (window.__LOOMA_API_URL || (window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl) || '') : ''
+    const baseUrl = runtimeBase ? new URL(runtimeBase, window.location.href) : new URL('/', window.location.href)
+    const wsProto = baseUrl.protocol === 'https:' ? 'wss:' : (baseUrl.protocol === 'http:' ? 'ws:' : (window.location.protocol === 'https:' ? 'wss:' : 'ws:'))
+    // Build path prefix from base (handles cases where API is hosted under subpath)
+    const basePath = (baseUrl.pathname || '/').replace(/\/$/, '')
+    const path = `${basePath}/api/v1/cases/messages/ws`
+    const origin = `${wsProto}//${baseUrl.host}`
+    const url = `${origin}${path}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+    wsLog('url', url)
+    return url
+  } catch (_) {
+    // Fallback to same-origin
+    const token = getCookie('access_token') || ''
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const url = `${wsProto}//${window.location.host}/api/v1/cases/messages/ws${token ? `?token=${encodeURIComponent(token)}` : ''}`
+    wsLog('url-fallback', url)
+    return url
+  }
+}
+
+function scheduleReconnect() {
+  if (wsReconnectTimer) return
+  const delay = Math.min(30000, 1000 * Math.pow(2, wsReconnectAttempts || 0))
+  wsLog('reconnect-scheduled', { attempt: wsReconnectAttempts + 1, delay })
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null
+    wsReconnectAttempts = Math.min(wsReconnectAttempts + 1, 5)
+    connectWS()
+  }, delay)
+}
+
+function connectWS() {
+
+  if (wsRef.value || wsConnecting.value) return
+  wsConnecting.value = true
+  try {
+    const url = getWsUrl()
+
+    wsLog('connecting', { url })
+    const ws = new WebSocket(url)
+    wsRef.value = ws
+
+    ws.onopen = () => {
+      wsConnecting.value = false
+      wsReconnectAttempts = 0
+      wsLog('open')
+      // start ping/heartbeat
+      try { if (wsPingTimer) clearInterval(wsPingTimer) } catch {}
+      wsPingTimer = setInterval(() => {
+        wsLastPingAt = Date.now()
+        sendWS({ action: 'ping' })
+        wsLog('ping')
+      }, 30000)
+      // Resubscribe current case if any
+      if (props.caseId) {
+        sendWS({ action: 'subscribe', case_ids: [ String(props.caseId) ] })
+        wsLog('subscribe', { case_id: String(props.caseId) })
+        lastSubscribedCaseId = String(props.caseId)
+      }
+    }
+
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data || '{}')
+        wsLog('message', data?.type)
+        if (data?.type === 'message.created' && data?.message) {
+          handleIncomingMessage(data.message)
+        } else if (data?.type === 'subscribed') {
+          wsLog('subscribed-ack', { accepted: data.accepted, denied: data.denied })
+        } else if (data?.type === 'unsubscribed') {
+          wsLog('unsubscribed-ack', { case_ids: data.case_ids })
+        } else if (data?.type === 'pong') {
+          if (wsLastPingAt) wsLog('pong', { rtt_ms: Date.now() - wsLastPingAt })
+        }
+      } catch (e) {
+        console.error('WS message parse error', e)
+      }
+    }
+
+    ws.onclose = (evt) => {
+      wsRef.value = null
+      wsConnecting.value = false
+      try { if (wsPingTimer) clearInterval(wsPingTimer); wsPingTimer = null } catch {}
+      wsLog('close', { code: evt?.code, reason: evt?.reason })
+      scheduleReconnect()
+    }
+
+    ws.onerror = (evt) => {
+      wsLog('error', evt)
+      try { ws.close() } catch(_) {}
+    }
+  } catch (e) {
+    wsConnecting.value = false
+    wsLog('connect-failed', e)
+    scheduleReconnect()
+  }
+}
+
+function sendWS(obj) {
+  try {
+    const ws = wsRef.value
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      wsLog('send', obj?.action, obj)
+      ws.send(JSON.stringify(obj))
+    } else {
+      wsLog('send-skipped', obj?.action, { readyState: ws?.readyState })
+    }
+  } catch (e) { wsLog('send-error', e) }
+}
+
+function handleIncomingMessage(payload) {
+  if (!payload) return
+  const id = payload.id
+  if (id == null) return
+  wsLog('incoming', { id, case_id: payload.case_id, is_mine: payload.is_mine, seen: payload.seen })
+  // If message already exists, merge/replace fields
+  const idx = messages.value.findIndex(m => String(m.id) === String(id))
+  if (idx >= 0) {
+    messages.value[idx] = { ...messages.value[idx], ...payload }
+  } else {
+    messages.value.push(payload)
+  }
+  nextTick(() => scrollToBottom())
+  // Update unseen badge count from server (GET only; no DB write)
+  refreshUnseenCount()
+}
+
+watch(() => props.caseId, (val, oldVal) => {
+  if (val) {
+    loadMessages()
+    refreshUnseenCount()
+    // Subscribe to new case; unsubscribe previous if different
+    if (wsRef.value && wsRef.value.readyState === WebSocket.OPEN) {
+      if (oldVal && String(oldVal) !== String(val)) {
+        wsLog('unsubscribe', { case_id: String(oldVal) })
+        sendWS({ action: 'unsubscribe', case_ids: [ String(oldVal) ] })
+      }
+      wsLog('subscribe', { case_id: String(val) })
+      sendWS({ action: 'subscribe', case_ids: [ String(val) ] })
+      lastSubscribedCaseId = String(val)
+    } else {
+      wsLog('subscribe-deferred', { case_id: String(val) })
+    }
+  } else {
+    messages.value = []
+    emit('unseen-count', 0)
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  connectWS()
+})
+
+onBeforeUnmount(() => {
+  try {
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null }
+    if (wsPingTimer) { clearInterval(wsPingTimer); wsPingTimer = null }
+    if (wsRef.value) {
+      if (lastSubscribedCaseId) {
+        wsLog('unsubscribe', { case_id: String(lastSubscribedCaseId) })
+        sendWS({ action: 'unsubscribe', case_ids: [ String(lastSubscribedCaseId) ] })
+      }
+      wsRef.value.close()
+    }
+  } catch (_) { /* noop */ }
+})
 
 const groups = computed(() => {
   const byDate = new Map()

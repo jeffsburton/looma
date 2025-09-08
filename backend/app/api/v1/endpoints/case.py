@@ -17,36 +17,25 @@ from app.db.models.app_user_case import AppUserCase
 from app.db.models.person import Person
 from app.db.models.person_team import PersonTeam
 from app.db.models.team_case import TeamCase
-from app.db.models.message import Message
-from app.db.models.message_person import MessagePerson
 from app.services.auth import user_has_permission
 from app.db.models.app_user import AppUser
 from app.db.models.case_demographics import CaseDemographics
 from app.db.models.case_circumstances import CaseCircumstances
 from app.db.models.case_management import CaseManagement
 from app.db.models.case_pattern_of_life import CasePatternOfLife
-from app.db.models.social_media import SocialMedia
 from app.db.models.ref_value import RefValue
 from app.db.models.case_disposition import CaseDisposition
 from app.db.models.case_exploitation import CaseExploitation
 from app.db.models.case_victimology import CaseVictimology
 from app.db.models.victimology import victimology as Victimology
 from app.db.models.victimology_category import victimologyCategory as VictimologyCategory
-from app.db.models.subject_case import SubjectCase
-from app.db.models.person_case import PersonCase
 from app.db.models.case_search_urgency import CaseSearchUrgency
 from app.schemas.case_search_urgency import CaseSearchUrgencyUpsert
-from app.schemas.case_demographics import CaseDemographicsRead, CaseDemographicsUpsert
+from app.schemas.case_demographics import CaseDemographicsUpsert
 from app.schemas.case_management import CaseManagementUpsert
 from app.schemas.case_pattern_of_life import CasePatternOfLifeUpsert
 from app.schemas.case_circumstances import CaseCircumstancesUpsert
 
-# Images
-from app.db.models.file import File
-from app.db.models.rfi import Rfi
-from app.db.models.person import Person as PersonModel
-from app.services.s3 import get_download_link, create_file
-from fastapi import UploadFile, File as UploadFileParam, Form
 
 
 router = APIRouter(prefix="/cases")

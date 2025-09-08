@@ -14,6 +14,17 @@ import Tooltip from 'primevue/tooltip'
 import router from './router'
 import { installGlobalFetch } from './lib/fetchWrapper'
 
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  window.__LOOMA_API_URL = 'http://localhost:8000'
+    console.log("backend URL (you shouldn't see this in production!): ", window.__LOOMA_API_URL)
+} else {
+  // Keep production unified origin behavior
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete window.__LOOMA_API_URL
+}
+
+
 // Ensure all fetch() calls go through our axios api wrapper and interceptors
 installGlobalFetch()
 
