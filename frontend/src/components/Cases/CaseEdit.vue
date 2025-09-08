@@ -34,9 +34,8 @@ async function loadCase() {
   const num = String(props.caseNumber || '')
   if (!num) return
   try {
-    const resp = await fetch(`/api/v1/cases/by-number/${encodeURIComponent(num)}`, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    if (!resp.ok) throw new Error('Failed to load case')
-    const data = await resp.json()
+    const resp = await api.get(`/api/v1/cases/by-number/${encodeURIComponent(num)}`)
+    const data = resp?.data || {}
     // Header
     const s = data.subject || {}
     const nicks = s.nicknames && String(s.nicknames).trim() ? ` "${String(s.nicknames).trim()}"` : ''
@@ -340,8 +339,15 @@ const messagesUnseenCount = computed(() => {
 </template>
 
 <style scoped>
-.panel { display: flex; flex-direction: column; height: 100%; }
-.tabs { position: sticky; top: 0; z-index: 1; }
+.panel { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+:deep(.p-tabs) { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+:deep(.p-tabs .p-tabpanels) { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* Pin subject header to top */
+.subject-row { position: sticky; top: 0; z-index: 3; background: var(--p-surface-0, #fff); }
+/* Pin the tab list under the subject header (adjust top if subject-row height changes) */
+:deep(.p-tabs .p-tablist) { position: sticky; top: 64px; z-index: 2; background: var(--p-surface-0, #fff); }
+
 .tab-btn { background: transparent; border: 1px solid transparent; }
 .tab-btn:hover { background: var(--p-surface-100, #f5f5f5); }
 .tab-btn.active { background: var(--p-primary-100, #fbd5d5); color: var(--p-primary-800, #1D3B52); border-color: var(--p-primary-200, #C9DFEE); }

@@ -32,6 +32,7 @@ const _lastUnseenCount = ref(0)
 const composer = ref('')
 const replyingTo = ref(null) // { id, message, writer_name }
 const listEl = ref(null)
+const _userScrolled = ref(false)
 
 async function loadMessages() {
   if (!props.caseId) { messages.value = []; return }
@@ -43,12 +44,6 @@ async function loadMessages() {
     messages.value = Array.isArray(data) ? data : []
     await nextTick()
     scrollToBottom()
-    // After displaying, mark unseen as seen
-    const unseenIds = messages.value.filter(m => !m.seen && !m.is_mine).map(m => String(m.id))
-    if (unseenIds.length) {
-      // Update local flags to avoid flicker
-      for (const m of messages.value) if (!m.seen) m.seen = true
-    }
   } catch (e) {
     console.error(e)
     error.value = 'Failed to load messages.'
@@ -68,6 +63,30 @@ function startReply(m) {
 }
 
 function clearReply() { replyingTo.value = null }
+
+// Composition state for IME (to avoid sending while composing)
+const isComposing = ref(false)
+
+function onComposerKeydown(e) {
+  try {
+    if (!e) return
+    // Only handle Enter presses
+    if (e.key !== 'Enter') return
+    // If composing via IME, do not act on Enter
+    if (isComposing.value || e.isComposing) return
+    // Allow Shift+Enter or Ctrl+Enter to insert newline
+    if (e.shiftKey || e.ctrlKey) return
+    // Otherwise, Enter sends
+    e.preventDefault()
+    if (sending.value) return
+    const text = (composer.value || '').trim()
+    if (!text) return
+    // Send the message
+    sendMessage()
+  } catch (_) {
+    // no-op
+  }
+}
 
 async function sendMessage() {
   const text = composer.value.trim()
@@ -180,6 +199,124 @@ watch(() => unseenCountForCase.value, (newVal, oldVal) => {
   }
   _lastUnseenCount.value = Number(newVal || 0)
 })
+
+// Visibility-based mark-as-seen logic
+const _io = ref(null)
+const _observed = new Set()
+const _visibility = new Map() // id(enc) -> ratio
+const _markTimer = ref(null)
+const _lastMarkedId = ref(null)
+
+function _ensureObserver() {
+  if (_io.value || !listEl.value) return
+  _io.value = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const id = e.target?.getAttribute('data-mid')
+      if (!id) continue
+      _visibility.set(String(id), e.isIntersecting ? e.intersectionRatio : 0)
+    }
+    _scheduleMarkSeenCheck()
+  }, { root: listEl.value, threshold: [0, 0.25, 0.5, 0.75, 1] })
+}
+
+function _observeAllRows() {
+  if (!_io.value || !listEl.value) return
+  const nodes = listEl.value.querySelectorAll('.row[data-mid]')
+  nodes.forEach(n => {
+    const id = n.getAttribute('data-mid')
+    if (id && !_observed.has(id)) {
+      _io.value.observe(n)
+      _observed.add(id)
+    }
+  })
+}
+
+function _onScroll() {
+  _userScrolled.value = true
+  _scheduleMarkSeenCheck()
+}
+
+function _scheduleMarkSeenCheck() {
+  if (_markTimer.value) return
+  _markTimer.value = setTimeout(_maybeMarkSeenUpTo, 400)
+}
+
+function _getFurthestVisibleId() {
+  if (!listEl.value) return null
+  const nodes = Array.from(listEl.value.querySelectorAll('.row[data-mid]'))
+  let furthest = null
+  for (const n of nodes) {
+    const id = n.getAttribute('data-mid')
+    if (!id) continue
+    const m = messages.value.find(x => String(x.id) === String(id))
+    if (!m || m.is_mine) continue
+    const ratio = _visibility.get(String(id)) || 0
+    if (ratio >= 0.5) furthest = id
+  }
+  return furthest
+}
+
+async function _maybeMarkSeenUpTo() {
+
+  console.log("checking for viewing unseen messages...");
+
+  _markTimer.value = null
+  const cid = String(props.caseId || '')
+  if (!cid) return
+  const targetId = _getFurthestVisibleId()
+  if (!targetId) return
+  if (_lastMarkedId.value && String(targetId) === String(_lastMarkedId.value)) return
+  _lastMarkedId.value = String(targetId)
+  // Update local flags and start 20s fade immediately upon visibility
+  const idxMap = new Map(messages.value.map((m, i) => [String(m.id), i]))
+  const targetIdx = idxMap.get(String(targetId))
+  if (typeof targetIdx === 'number') {
+    for (let i = 0; i <= targetIdx; i++) {
+      const m = messages.value[i]
+      if (!m || m.is_mine) continue
+      const wasUnseen = !m.seen
+      if (wasUnseen) {
+        m.seen = true
+        m._fadingUnseen = true
+        setTimeout(() => { m._fadingUnseen = false }, 20000)
+      }
+    }
+  }
+  try {
+    await api.post(`/api/v1/cases/${encodeURIComponent(cid)}/messages/mark_seen_up_to/${encodeURIComponent(String(targetId))}`)
+  } catch (e) {
+    // ignore API failure; local fade already shown
+  }
+}
+
+onMounted(async () => {
+  await nextTick()
+  _ensureObserver()
+  _observeAllRows()
+  window.addEventListener('resize', _scheduleMarkSeenCheck)
+  const el = listEl.value
+  if (el) el.addEventListener('scroll', _onScroll, { passive: true })
+})
+
+watch(messages, async () => {
+  await nextTick()
+  _ensureObserver()
+  _observeAllRows()
+  _scheduleMarkSeenCheck()
+})
+
+onBeforeUnmount(() => {
+  try { if (_io.value) _io.value.disconnect() } catch {}
+  _io.value = null
+  _observed.clear()
+  _visibility.clear()
+  try { if (_markTimer.value) clearTimeout(_markTimer.value) } catch {}
+  _markTimer.value = null
+  const el = listEl.value
+  if (el) {
+    try { el.removeEventListener('scroll', _onScroll) } catch {}
+  }
+})
 </script>
 
 <template>
@@ -191,7 +328,7 @@ watch(() => unseenCountForCase.value, (newVal, oldVal) => {
     <div class="list" ref="listEl">
       <div v-for="group in groups" :key="group.key" class="date-group">
         <div class="date-chip">{{ fmtDate(group.date) }}</div>
-        <div v-for="m in group.items" :key="m.id" class="row" :class="{ unseen: !m.seen }">
+        <div v-for="m in group.items" :key="m.id" class="row" :data-mid="m.id" :class="{ unseen: (!!m._fadingUnseen && !m.is_mine) }">
           <div class="pfp left">
             <img v-if="!m.is_mine" :src="m.writer_photo_url || '/images/pfp-generic.png'" alt="pfp" class="avatar" />
           </div>
@@ -230,7 +367,10 @@ watch(() => unseenCountForCase.value, (newVal, oldVal) => {
       </div>
       <div class="composer-row w-full space-y-1">
         <FloatLabel variant="on" class="flex-1 min-w-0 align-content-center">
-          <Textarea id="msg-input" v-model="composer" autoResize rows="1" class="w-full" />
+          <Textarea id="msg-input" v-model="composer" autoResize rows="1" class="w-full"
+                    @keydown="onComposerKeydown"
+                    @compositionstart="isComposing = true"
+                    @compositionend="isComposing = false" />
           <label for="msg-input">Type a message</label>
         </FloatLabel>
         <Button label="Send" icon="pi pi-send" @click="sendMessage" :loading="sending" :disabled="!composer.trim()" class="shrink-0 align-content-center"/>
@@ -269,7 +409,8 @@ watch(() => unseenCountForCase.value, (newVal, oldVal) => {
 .date-group { padding-top: 8px; }
 .date-chip { display: inline-block; margin: 8px auto; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--p-surface-300, #d1d5db); background: var(--p-surface-50, #f9fafb); font-size: 0.85rem; color: var(--p-text-color, #374151); position: sticky; top: 6px; z-index: 1; align-self: center; }
 .actions :deep(.p-button) { padding: 2px 6px; }
-.row.unseen .bubble { border-color: var(--p-primary-300, #93c5fd); box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+.row.unseen .bubble { border-color: var(--p-primary-300, #93c5fd); border-width: 2px; box-shadow: 0 0 0 4px rgba(59,130,246,0.20); animation: unseenFade 20s ease-out forwards; }
+@keyframes unseenFade { 0% { border-color: var(--p-primary-300, #93c5fd); box-shadow: 0 0 0 4px rgba(59,130,246,0.20); } 100% { border-color: var(--p-surface-300, #d1d5db); box-shadow: 0 1px 1px rgba(0,0,0,0.04); } }
 .composer { border-top: 1px solid var(--p-surface-200, #e5e7eb); background: var(--p-surface-0, #fff); }
 .composer-row { display: flex; gap: 8px; align-items: flex-end; }
 .replying-chip { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--p-surface-100, #f3f4f6); margin-bottom: 6px; }
