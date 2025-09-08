@@ -17,16 +17,17 @@ function goBackToList() {
 </script>
 
 <template>
-  <div class="min-h-screen surface-50">
-    <div class="p-2 max-w-6xl mx-auto">
-      <div class="flex gap-2">
-        <!-- Sidebar -->
-        <div class="flex-none">
-          <SidebarMenu :active="'Cases'" />
-        </div>
 
-        <!-- Main Content -->
-        <div class="flex-1 min-w-0 flex flex-column" style="min-height: calc(100vh - 2rem)">
+  <div class="h-screen flex surface-50">
+    <!-- Left Panel -->
+    <div class="flex-shrink-0 overflow-hidden p-2">
+      <SidebarMenu :active="'Cases'" />
+    </div>
+
+    <!-- Right Side Container -->
+    <div class="flex-1 flex flex-col min-w-0 p-2" style="flex-direction: column;">
+      <!-- Top Right Panel -->
+      <div class="flex-shrink-0 bg-blue-100 border-b">
           <div class="surface-card border-round p-2 flex-1 ">
             <!-- Header with back arrow -->
             <div class="flex align-items-center gap-2 mb-2">
@@ -35,12 +36,18 @@ function goBackToList() {
               </button>
               <div class="text-lg font-semibold">Case {{ caseNumber }}</div>
             </div>
-            <CaseEdit :caseNumber="caseNumber" :tab="tab" :subtab="subtab" />
           </div>
-        </div>
+      </div>
+
+      <!-- Bottom Right Panel (Scrollable) -->
+      <div class="flex-1 overflow-auto ">
+
+            <CaseEdit :caseNumber="caseNumber" :tab="tab" :subtab="subtab" />
       </div>
     </div>
   </div>
+
+
 </template>
 
 <style scoped>
