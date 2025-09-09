@@ -97,6 +97,24 @@ async def list_case_messages(
     )
     rows = (await db.execute(q)).all()
 
+    # Aggregate reactions across all persons per message
+    mids = [int(r.id) for r in rows] if rows else []
+    reaction_map: dict[int, list[dict]] = {}
+    if mids:
+        agg_q = (
+            select(MP.message_id, MP.reaction, sa.func.count().label("cnt"))
+            .where(MP.message_id.in_(mids), MP.reaction.is_not(None))
+            .group_by(MP.message_id, MP.reaction)
+        )
+        agg_rows = (await db.execute(agg_q)).all()
+        for ar in agg_rows:
+            mid = int(ar.message_id)
+            emoji = ar.reaction
+            cnt = int(getattr(ar, "cnt", 0) or 0)
+            if emoji is None or cnt <= 0:
+                continue
+            reaction_map.setdefault(mid, []).append({"emoji": emoji, "count": cnt})
+
     items: list[MessageRead] = []
     for r in rows:
         written_by_id = int(r.written_by_id) if r.written_by_id is not None else None
@@ -116,6 +134,7 @@ async def list_case_messages(
                 writer_name=getattr(r, "writer_name", None),
                 seen=bool(getattr(r, "seen", False)),
                 reaction=getattr(r, "reaction", None),
+                reactions=reaction_map.get(int(r.id), []),
                 reply_to_text=getattr(r, "reply_to_text", None),
                 is_mine=bool(is_mine),
                 writer_photo_url=writer_photo_url,
@@ -255,6 +274,7 @@ async def create_case_message(
         updated_at=msg.updated_at,
         writer_name=writer_name,
         reaction=None,
+        reactions=[],
         reply_to_text=reply_to_text,
         is_mine=True,  # author sees their own pushed message as mine
         writer_photo_url=writer_photo_url,
@@ -375,6 +395,24 @@ async def list_new_case_messages(
 
     rows = (await db.execute(q)).all()
 
+    # Aggregate reactions across all persons per message
+    mids = [int(r.id) for r in rows] if rows else []
+    reaction_map: dict[int, list[dict]] = {}
+    if mids:
+        agg_q = (
+            select(MP.message_id, MP.reaction, sa.func.count().label("cnt"))
+            .where(MP.message_id.in_(mids), MP.reaction.is_not(None))
+            .group_by(MP.message_id, MP.reaction)
+        )
+        agg_rows = (await db.execute(agg_q)).all()
+        for ar in agg_rows:
+            mid = int(ar.message_id)
+            emoji = ar.reaction
+            cnt = int(getattr(ar, "cnt", 0) or 0)
+            if emoji is None or cnt <= 0:
+                continue
+            reaction_map.setdefault(mid, []).append({"emoji": emoji, "count": cnt})
+
     items: list[MessageRead] = []
     for r in rows:
         written_by_id = int(r.written_by_id) if r.written_by_id is not None else None
@@ -394,6 +432,7 @@ async def list_new_case_messages(
                 writer_name=getattr(r, "writer_name", None),
                 seen=bool(getattr(r, "seen", False)),
                 reaction=getattr(r, "reaction", None),
+                reactions=reaction_map.get(int(r.id), []),
                 reply_to_text=getattr(r, "reply_to_text", None),
                 is_mine=bool(is_mine),
                 writer_photo_url=writer_photo_url,

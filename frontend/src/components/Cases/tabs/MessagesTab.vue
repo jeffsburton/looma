@@ -121,7 +121,30 @@ async function chooseEmoji(val) {
   if (!m) return
   try {
     await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(String(m.id))}/reaction`, { reaction: val || null })
+    // Update my reaction
+    const prev = m.reaction || null
     m.reaction = val || null
+    // Adjust aggregated reactions locally for immediate UI feedback
+    if (!Array.isArray(m.reactions)) m.reactions = []
+    // Decrement previous emoji count
+    if (prev) {
+      const idx = m.reactions.findIndex(r => r.emoji === prev)
+      if (idx >= 0) {
+        m.reactions[idx].count = Math.max(0, Number(m.reactions[idx].count || 0) - 1)
+        if (m.reactions[idx].count <= 0) {
+          m.reactions.splice(idx, 1)
+        }
+      }
+    }
+    // Increment new emoji count
+    if (val) {
+      const idx2 = m.reactions.findIndex(r => r.emoji === val)
+      if (idx2 >= 0) {
+        m.reactions[idx2].count = Number(m.reactions[idx2].count || 0) + 1
+      } else {
+        m.reactions.push({ emoji: val, count: 1 })
+      }
+    }
   } catch (e) {
     log.error(e)
   } finally {
@@ -260,7 +283,15 @@ async function executeWhenVisible(entry) {
             </div>
             <div class="text">{{ m.message }}</div>
             <div class="footer flex align-items-center justify-content-between mt-1">
-              <span class="time">{{ fmtTime(m.created_at) }}</span>
+              <span class="left-info flex align-items-center gap-2">
+                <span class="time">{{ fmtTime(m.created_at) }}</span>
+                <span v-if="Array.isArray(m.reactions) && m.reactions.length" class="reactions-list flex align-items-center gap-1">
+                  <span v-for="rg in m.reactions" :key="rg.emoji" class="reaction-pill">
+                    <span class="emoji">{{ rg.emoji }}</span>
+                    <span class="count-badge">{{ rg.count }}</span>
+                  </span>
+                </span>
+              </span>
               <span v-if="!m.is_mine" class="actions flex align-items-center gap-2">
                 <Button size="small" text @click="startReply(m)">
                   <span class="material-symbols-outlined">reply</span>
@@ -336,4 +367,7 @@ async function executeWhenVisible(entry) {
 .composer-row { display: flex; gap: 8px; align-items: flex-end; }
 .replying-chip { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--p-surface-100, #f3f4f6); margin-bottom: 6px; }
 .replying-chip .x { background: transparent; border: none; cursor: pointer; }
+.reactions-list { display: inline-flex; gap: 6px; }
+.reaction-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--p-surface-100, #f3f4f6); border: 1px solid var(--p-surface-300, #d1d5db); border-radius: 999px; padding: 1px 6px; font-size: 0.8rem; }
+.reaction-pill .count-badge { display: inline-block; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--p-surface-200, #e5e7eb); color: var(--p-text-color, #374151); text-align: center; font-size: 0.72rem; }
 </style>

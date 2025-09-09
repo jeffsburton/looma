@@ -1,9 +1,14 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, field_serializer
 
 from app.schemas.mixins import OpaqueIdMixin
 from app.core.id_codec import encode_id
+
+
+class ReactionGroup(BaseModel):
+    emoji: str
+    count: int
 
 
 class MessageRead(OpaqueIdMixin):
@@ -29,6 +34,7 @@ class MessageRead(OpaqueIdMixin):
     writer_name: Optional[str] = None
     seen: Optional[bool] = None
     reaction: Optional[str] = None
+    reactions: Optional[List[ReactionGroup]] = None
     reply_to_text: Optional[str] = None
     is_mine: Optional[bool] = None
 

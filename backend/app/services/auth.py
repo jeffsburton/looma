@@ -86,7 +86,7 @@ async def invalidate_session(db: AsyncSession, jti: str) -> bool:
     return False
 
 
-async def cleanup_expired_sessions(db: AsyncSession, older_than_days: int = 7) -> int:
+async def cleanup_expired_sessions(db: AsyncSession, older_than_days: int = 7):
     """
     Delete expired sessions older than specified days.
     Returns the number of deleted sessions.
@@ -100,7 +100,6 @@ async def cleanup_expired_sessions(db: AsyncSession, older_than_days: int = 7) -
     result = await db.execute(stmt)
     await db.commit()
 
-    return await result.rowcount
 
 
 async def extend_session(db: AsyncSession, jti: str, minutes: int) -> Optional[AppUserSession]:
