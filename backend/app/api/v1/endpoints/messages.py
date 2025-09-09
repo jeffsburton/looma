@@ -112,6 +112,7 @@ async def list_case_messages(
             M.written_by_id,
             M.message,
             M.reply_to_id,
+            M.rule_out,
             M.created_at,
             M.updated_at,
             (P.first_name + sa.literal(" ") + P.last_name).label("writer_name"),
@@ -149,6 +150,7 @@ async def list_case_messages(
                 written_by_id=written_by_id,
                 message=r.message,
                 reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
+                rule_out=bool(getattr(r, "rule_out", False)),
                 created_at=r.created_at,
                 updated_at=r.updated_at,
                 writer_name=getattr(r, "writer_name", None),
@@ -292,6 +294,7 @@ async def create_case_message(
         written_by_id=int(msg.written_by_id) if msg.written_by_id is not None else None,
         message=msg.message,
         reply_to_id=int(msg.reply_to_id) if msg.reply_to_id is not None else None,
+        rule_out=bool(getattr(msg, "rule_out", False)),
         created_at=msg.created_at,
         updated_at=msg.updated_at,
         writer_name=writer_name,
@@ -409,6 +412,103 @@ async def get_message_reactions(
         my_reaction=my_reaction,
     )
 
+
+# ------------------------------------------------------------
+# Update a message (rule_out only)
+# ------------------------------------------------------------
+from pydantic import BaseModel as _BM_Partial
+class MessagePartial(_BM_Partial):
+    rule_out: _Optional_MSG[bool] = None
+
+@router.patch("/{case_id}/messages/{message_id}", summary="Update a message (author only)")
+async def update_message(
+    case_id: str,
+    message_id: str,
+    payload: MessagePartial = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve current user's person id
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    try:
+        mid = int(decode_id("message", message_id))
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    row = (await db.execute(select(Message).where(Message.id == mid, Message.case_id == pk))).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Only the author can update
+    if int(row.written_by_id or 0) != int(pid):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    fields_set = getattr(payload, "model_fields_set", set())
+    if "rule_out" in fields_set:
+        row.rule_out = bool(payload.rule_out) if payload.rule_out is not None else False
+
+    await db.commit()
+    return {"ok": True, "rule_out": bool(row.rule_out)}
+
+
+# ------------------------------------------------------------
+# Delete a message (author within 1 hour)
+# ------------------------------------------------------------
+@router.delete("/{case_id}/messages/{message_id}", summary="Delete a message (author within 1 hour)")
+async def delete_message(
+    case_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve current user's person id
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    try:
+        mid = int(decode_id("message", message_id))
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    row = (await db.execute(select(Message).where(Message.id == mid, Message.case_id == pk))).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Only the author can delete
+    if int(row.written_by_id or 0) != int(pid):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    # Only within 1 hour of creation
+    try:
+        now = datetime.now(timezone.utc)
+    except Exception:
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+    created = row.created_at
+    if created is None:
+        raise HTTPException(status_code=400, detail="Invalid message timestamp")
+    # Normalize timezone-awareness
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if (now - created) > timedelta(hours=1):
+        raise HTTPException(status_code=403, detail="Delete window has expired")
+
+    # Proceed to delete; rely on ON DELETE constraints for related rows
+    await db.delete(row)
+    await db.commit()
+    return {"ok": True}
+
 # ------------------------------------------------------------
 # get new messages for a case
 # ------------------------------------------------------------
@@ -449,6 +549,7 @@ async def list_new_case_messages(
             M.written_by_id,
             M.message,
             M.reply_to_id,
+            M.rule_out,
             M.created_at,
             M.updated_at,
             (P.first_name + sa.literal(" ") + P.last_name).label("writer_name"),
@@ -487,6 +588,7 @@ async def list_new_case_messages(
                 written_by_id=written_by_id,
                 message=r.message,
                 reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
+                rule_out=bool(getattr(r, "rule_out", False)),
                 created_at=r.created_at,
                 updated_at=r.updated_at,
                 writer_name=getattr(r, "writer_name", None),

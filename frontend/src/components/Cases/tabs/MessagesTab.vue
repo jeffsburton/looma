@@ -18,7 +18,7 @@ const log = createClientLogger('MessagesTab')
 const loading = ref(false)
 const sending = ref(false)
 const error = ref('')
-const messages = ref([]) // [{ id, case_id, written_by_id, message, reply_to_id, created_at, updated_at, writer_name, seen, reaction, reply_to_text, is_mine, writer_photo_url, my_photo_url }]
+const messages = ref([]) // [{ id, case_id, written_by_id, message, reply_to_id, rule_out, created_at, updated_at, writer_name, seen, reaction, reply_to_text, is_mine, writer_photo_url, my_photo_url }]
 
 const _lastUnseenCount = ref(0);
 
@@ -111,6 +111,36 @@ async function loadMessages() {
 function startReply(m) {
   if (!m || m.is_mine) return
   replyingTo.value = { id: m.id, message: m.message, writer_name: m.writer_name }
+}
+
+function isWithinFirstHour(m) {
+  try {
+    const created = new Date(m.created_at)
+    const ageMs = Date.now() - created.getTime()
+    return ageMs <= 60 * 60 * 1000
+  } catch (_) { return false }
+}
+
+async function deleteMessage(m) {
+  if (!props.caseId || !m?.id) return
+  try {
+    await api.delete(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(String(m.id))}`)
+    const idx = messages.value.findIndex(x => String(x.id) === String(m.id))
+    if (idx >= 0) messages.value.splice(idx, 1)
+  } catch (e) {
+    log.error(e)
+  }
+}
+
+async function toggleRuleOut(m) {
+  if (!props.caseId || !m?.id) return
+  try {
+    const next = !Boolean(m.rule_out)
+    const { data } = await api.patch(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(String(m.id))}`, { rule_out: next })
+    m.rule_out = Boolean((data && data.rule_out) ?? next)
+  } catch (e) {
+    log.error(e)
+  }
 }
 
 function clearReply() { replyingTo.value = null }
@@ -368,7 +398,7 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined tiny">reply</span>
               <span class="ellipsis">{{ m.reply_to_text }}</span>
             </div>
-            <div class="text">{{ m.message }}</div>
+            <div class="text" :class="{ 'ruled-out': !!m.rule_out }">{{ m.message }}</div>
             <div class="footer flex align-items-center justify-content-between mt-1">
               <span class="left-info flex align-items-center gap-2">
                 <span class="time">{{ fmtTime(m.created_at) }}</span>
@@ -386,6 +416,15 @@ onBeforeUnmount(() => {
                 <Button size="small" text @click="openEmojiPicker($event, m)">
                   <span v-if="m.reaction">{{ m.reaction }}</span>
                   <span v-else class="material-symbols-outlined">mood</span>
+                </Button>
+              </span>
+              <span v-else class="actions flex align-items-center gap-2">
+                <Button v-if="isWithinFirstHour(m)" size="small" text @click="deleteMessage(m)" :aria-label="'Delete message'">
+                  <span class="material-symbols-outlined">delete</span>
+                </Button>
+                <Button v-else size="small" text @click="toggleRuleOut(m)" :aria-label="m.rule_out ? 'Undo rule out' : 'Rule out'">
+                  <span class="material-symbols-outlined" v-if="m.rule_out">change_circle</span>
+                  <span class="material-symbols-outlined" v-else>cancel</span>
                 </Button>
               </span>
             </div>
@@ -441,6 +480,7 @@ onBeforeUnmount(() => {
 .emoji-btn.clear { font-size: 12px; }
 .sender { font-weight: 600; }
 .text { white-space: pre-wrap; word-break: break-word; }
+.text.ruled-out { text-decoration: line-through; opacity: 0.8; }
 .time { font-size: 0.8rem; color: var(--p-text-color, #6b7280); }
 .reply-preview { font-size: 0.85rem; color: var(--p-text-color, #6b7280); padding: 4px 8px; border-left: 3px solid var(--p-surface-300, #d1d5db); margin: 4px 0; background: var(--p-surface-50, #f9fafb); border-radius: 6px; }
 .reply-preview .tiny { font-size: 16px; vertical-align: middle; }

@@ -25,6 +25,7 @@ class MessageRead(OpaqueIdMixin):
     # Content
     message: str
     reply_to_id: Optional[int] = None
+    rule_out: bool = False
 
     # Timestamps
     created_at: datetime
