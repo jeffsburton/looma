@@ -371,9 +371,9 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.chat-tab { display: flex; flex-direction: column; height: 100%; }
+.chat-tab { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .header { border-bottom: 1px solid var(--p-surface-200, #e5e7eb); }
-.list { flex: 1; overflow: auto; padding: 0 12px 12px 12px; background: var(--p-surface-0, #fff); }
+.list { flex: 1; overflow: auto; padding: 0 12px 12px 12px; background: var(--p-surface-0, #fff); min-height: 0; }
 .row { display: grid; grid-template-columns: 40px 1fr 40px; gap: 8px; padding: 8px 4px; align-items: start; }
 .pfp { width: 40px; height: 40px; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--p-surface-200, #e5e7eb); border: 2px solid var(--p-surface-200, #e5e7eb); }
@@ -395,11 +395,12 @@ onBeforeUnmount(() => {
 .actions :deep(.p-button) { padding: 2px 6px; }
 .row.unseen .bubble { border-color: var(--p-primary-300, #93c5fd); border-width: 2px; box-shadow: 0 0 0 4px rgba(59,130,246,0.20); animation: unseenFade 20s ease-out forwards; }
 @keyframes unseenFade { 0% { border-color: var(--p-primary-300, #93c5fd); box-shadow: 0 0 0 4px rgba(59,130,246,0.20); } 100% { border-color: var(--p-surface-300, #d1d5db); box-shadow: 0 1px 1px rgba(0,0,0,0.04); } }
-.composer { border-top: 1px solid var(--p-surface-200, #e5e7eb); background: var(--p-surface-0, #fff); }
+.composer { position: sticky; bottom: 8px; z-index: 5; border-top: 1px solid var(--p-surface-200, #e5e7eb); background: var(--p-surface-0, #fff);  }
 .composer-row { display: flex; gap: 8px; align-items: flex-end; }
 .replying-chip { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--p-surface-100, #f3f4f6); margin-bottom: 6px; }
 .replying-chip .x { background: transparent; border: none; cursor: pointer; }
 .reactions-list { display: inline-flex; gap: 6px; }
 .reaction-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--p-surface-100, #f3f4f6); border: 1px solid var(--p-surface-300, #d1d5db); border-radius: 999px; padding: 1px 6px; font-size: 0.8rem; }
 .reaction-pill .count-badge { display: inline-block; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--p-surface-200, #e5e7eb); color: var(--p-text-color, #374151); text-align: center; font-size: 0.72rem; }
+
 </style>

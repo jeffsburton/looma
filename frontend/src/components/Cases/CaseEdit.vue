@@ -341,7 +341,7 @@ const messagesUnseenCount = computed(() => {
 <style scoped>
 .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
 :deep(.p-tabs) { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-:deep(.p-tabs .p-tabpanels) { flex: 1 1 auto; min-height: 0; overflow: auto; }
+:deep(.p-tabs .p-tabpanels) { flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 0px !important; }
 
 
 .panel { display: flex; flex-direction: column; height: 100%; }

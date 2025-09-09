@@ -592,7 +592,7 @@ const intakeDate = computed({
 <template>
   <div class="p-3" @input.capture="hasUserInteracted = true">
     <Fieldset legend="Missing Person">
-      <div class="mp-grid">
+      <div class="row row-4">
         <div>
           <FloatLabel variant="on">
             <InputText id="mp-first" v-model="mSubject.first_name" class="w-full" />
