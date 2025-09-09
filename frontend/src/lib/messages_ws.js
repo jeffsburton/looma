@@ -3,6 +3,9 @@ import api from '@/lib/api'
 import { getCookie } from '@/lib/cookies'
 import router from '@/router'
 
+import { createClientLogger } from '@/lib/util'
+const log = createClientLogger('WebSockets')
+
 // Global reactive map of counts keyed as specified, e.g.,
 // count, count_rfis, count_<enc_case_id>, count_rfis_<enc_case_id>, ...
 export const gMessageCounts = ref({})
@@ -36,7 +39,7 @@ function getWsUrl(encUid, sid) {
     const origin = `${wsProto}//${baseUrl.host}`
     const url = `${origin}${path}?uid=${encodeURIComponent(encUid)}&sid=${encodeURIComponent(sid)}`
 
-    console.log("ws url:", url)
+    log.debug("ws url:", url)
 
     return url
   } catch (_) {
@@ -89,15 +92,17 @@ async function _ensureIds() {
 
 function _connect() {
 
-  console.log("_connect start")
+  log.debug("_connect start")
 
-  if (_ws || _connecting) return
+  if (_ws || _connecting) {
+    log.info("_connect skipped: already connected or connecting")
+    return
+  }
 
-  console.log("_connect already connecting")
-
-  if (!_encUserId || !_sessionId) return
-
-  console.log("_connect bad user or session")
+  if (!_encUserId || !_sessionId) {
+    log.warn("_connect blocked: missing encUserId or sessionId", { _encUserId: !!_encUserId, _sessionId: !!_sessionId })
+    return
+  }
 
   _connecting = true
   try {
@@ -109,7 +114,7 @@ function _connect() {
       _connecting = false
       _reconnectAttempts = 0
 
-      console.log("_connect success")
+      log.debug("_connect success")
 
       // Initialize counts immediately on connect via API (in case no push yet)
       // Uses api wrapper per project guidelines
@@ -119,7 +124,7 @@ function _connect() {
           .then(data => {
             if (data && typeof data === 'object') {
               gMessageCounts.value = { ...data }
-              console.log('counts.init', data)
+              log.debug('counts.init', data)
             }
           })
           .catch(() => {})
@@ -133,8 +138,10 @@ function _connect() {
           // Replace counts object (keep it simple; consumers should watch ref value)
           gMessageCounts.value = { ...data.counts }
 
-          console.log("counts.update", data.counts)
+          log.debug("counts.update", data.counts)
 
+        } else if (data?.type == "reactions.update") {
+          log.debug("reactions.update", data)
         } else if (data?.type === 'pong') {
           // noop
         }
@@ -160,23 +167,24 @@ function _connect() {
 
 export async function initMessagesWS() {
 
-  console.log("initMessagesWS start")
+  log.debug("initMessagesWS start")
 
-  if (_inited) return
+  if (_inited) {
+    log.info("initMessagesWS: already initialized; skipping")
+    return
+  }
   _shouldReconnect = true
-
-  console.log("initMessagesWS already inited")
 
   await _ensureIds()
 
-  console.log("initMessagesWS ensureIds done", _encUserId, _sessionId)
+  log.debug("initMessagesWS ensureIds done", _encUserId, _sessionId)
 
   if (_encUserId && _sessionId) {
     _inited = true
     _connect()
   } else {
 
-    console.log("initMessagesWS bad user or session")
+    log.debug("initMessagesWS bad user or session")
 
     if (!_initRetryTimer) {
       _initRetryTimer = setInterval(async () => {

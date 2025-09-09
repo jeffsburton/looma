@@ -109,7 +109,8 @@ export function createClientLogger(namespace = '') {
   return {
     log: wrap(console.log.bind(console)),
     info: wrap((console.info || console.log).bind(console)),
-    debug: wrap((console.debug || console.log).bind(console)),
+    // Use console.log for debug so messages are visible at default console levels.
+    debug: wrap(console.log.bind(console)),
     warn: wrap((console.warn || console.log).bind(console)),
     error: wrap((console.error || console.log).bind(console)),
     group: (...args) => {

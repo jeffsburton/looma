@@ -45,7 +45,9 @@ class MarkSeenUpToResponse(_BaseModel_MSG):
     ok: bool = True
     cleared: int = 0
 
-
+# ------------------------------------------------------------
+# Get messages for a case
+# ------------------------------------------------------------
 @router.get("/{case_id}/messages", summary="List messages for a case", response_model=List[MessageRead])
 async def list_case_messages(
     case_id: str,
@@ -143,7 +145,9 @@ async def list_case_messages(
         )
     return items
 
-
+# ------------------------------------------------------------
+# Create a new message
+# ------------------------------------------------------------
 @router.post("/{case_id}/messages", summary="Create a new message in a case", response_model=MessageRead)
 async def create_case_message(
     case_id: str,
@@ -285,7 +289,7 @@ async def create_case_message(
     try:
         ws_payload = msg_model.model_dump(mode="json")
         ws_payload["author_person_id"] = int(pid)
-        await _ws_manager.publish(int(msg.case_id))
+        await _ws_manager.publish_count_change(int(msg.case_id))
     except Exception:
         # Do not fail the request if broadcasting fails
         pass
@@ -294,7 +298,9 @@ async def create_case_message(
     return msg_model
 
 
-
+# ------------------------------------------------------------
+# Add a reaction to a message
+# ------------------------------------------------------------
 @router.post("/{case_id}/messages/{message_id}/reaction", summary="Set reaction emoji for current user on a message")
 async def set_message_reaction(
     case_id: str,
@@ -335,9 +341,13 @@ async def set_message_reaction(
 
     await db.commit()
 
+    await _ws_manager.publish_new_reaction(pk, mid, reaction_val)
+
     return {"ok": True}
 
-
+# ------------------------------------------------------------
+# get new messages for a case
+# ------------------------------------------------------------
 @router.get("/messages/new_messages/case/{case_id}", summary="List new (unseen) messages for a case for the current user", response_model=List[MessageRead])
 @router.get("/cases/messages/new_messages/case/{case_id}", include_in_schema=False, response_model=List[MessageRead])
 async def list_new_case_messages(
@@ -442,6 +452,9 @@ async def list_new_case_messages(
     return items
 
 
+# ------------------------------------------------------------
+# Delete message_not_seen records
+# ------------------------------------------------------------
 @router.post("/{case_id}/messages/mark_seen_up_to/{message_id}", summary="Mark messages as seen up to the given message id (inclusive) for current user", response_model=MarkSeenUpToResponse)
 async def mark_messages_seen_up_to(
     case_id: str,
@@ -489,8 +502,9 @@ async def mark_messages_seen_up_to(
         await db.execute(del_stmt)
         await db.commit()
         try:
-            await _ws_manager.publish(int(pk))
+            await _ws_manager.publish_count_change(int(pk))
         except Exception:
+
             pass
 
     return MarkSeenUpToResponse(ok=True, cleared=to_clear)
@@ -498,8 +512,10 @@ async def mark_messages_seen_up_to(
 
 
 
+# ------------------------------------------------------------
 # Standalone function: get unseen message counts for a user across all related cases
 # Not a FastAPI route; accepts encrypted user id and session id, manages its own DB session
+# ------------------------------------------------------------
 async def unseen_counts_all_cases(encrypted_user_id: str, session_id: str) -> dict[str, int]:
     from app.core.id_codec import set_current_session, reset_current_session, decode_id, encode_id, OpaqueIdError
     from app.db.session import async_session_maker
@@ -601,6 +617,10 @@ async def unseen_counts_all_cases(encrypted_user_id: str, session_id: str) -> di
             pass
 
 
+# ------------------------------------------------------------
+# Get new message counts
+# ------------------------------------------------------------
+
 @router.get("/messages/unseen_messages_counts", summary="Get unseen message counts for current user across all related cases")
 async def get_unseen_messages_counts(
     current_user: AppUser = Depends(get_current_user),
@@ -640,7 +660,10 @@ async def get_unseen_messages_counts(
     # counts already uses encrypted ids and is a flat dict[str, int]
     return counts
 
-# --- WebSocket Messaging Infrastructure ---
+# ============================================================
+# WebSocket Messaging Infrastructure
+# ============================================================
+
 import asyncio
 import logging
 from typing import Dict, Set, Any
@@ -664,6 +687,7 @@ class _CaseWSManager:
         self._lock = asyncio.Lock()
         #print("WS Manager initialized")
 
+    # SUBSCRIBE -------------------------------------------------
     async def subscribe_user(self, conn: _WSConnection) -> None:
         async with self._lock:
             s = self._subs_by_user.setdefault(int(conn.user_id), set())
@@ -675,6 +699,7 @@ class _CaseWSManager:
             #    "sub_count": len(s),
             #})
 
+    # DISCONNECT -------------------------------------------------
     async def disconnect(self, conn: _WSConnection) -> None:
         async with self._lock:
             for uid, s in list(self._subs_by_user.items()):
@@ -689,7 +714,19 @@ class _CaseWSManager:
                     if not s:
                         self._subs_by_user.pop(uid, None)
 
-    async def publish(self, case_id: int) -> None:
+    # PUBLISH Message Count Change ---------------------------
+    async def publish_count_change(self, case_id: int):
+        await self.publish( "counts.update", case_id)
+
+    # PUBLISH New Reaction ---------------------------
+    async def publish_new_reaction(self, case_id: int, message_id: int, reaction: str):
+        await self.publish( "reactions.update", case_id, message_id=message_id, content=reaction)
+
+    # PUBLISH -------------------------------------------------
+    async def publish(self, type: str, case_id: int, message_id: int = None, content: str = None) -> None:
+
+        # print("publish", type, case_id, message_id, content)
+
         # Determine which users can see this case, then push counts to connected users
         from .case_utils import list_user_ids_for_case
         from app.core.id_codec import set_current_session, reset_current_session, encode_id
@@ -698,10 +735,11 @@ class _CaseWSManager:
         async with self._lock:
             # Snapshot of all current connections keyed by user id
             subs_map = {uid: list(conns) for uid, conns in self._subs_by_user.items() if uid in set(user_ids)}
-        """print("publish_counts", {
-            "event": "publish_counts",
+        """print("publishing", {
+            "type": type,
             "case_id": int(case_id),
-            "target_user_count": len(subs_map),
+            "message_id": message_id,
+            "content": content,
         })"""
         for uid, conns in subs_map.items():
             for conn in conns:
@@ -715,13 +753,22 @@ class _CaseWSManager:
                             reset_current_session(ctx)
                         except Exception:
                             pass
-                    # Compute counts for this user under their session id
-                    counts = await unseen_counts_all_cases(enc_uid, conn.session_id)
-                    await conn.websocket.send_json({
-                        "type": "counts.update",
-                        "counts": counts,
-                    })
-                    print("delivered_counts", {"to_user_id": uid})
+
+                    if type == "counts.update":
+                        # Compute counts for this user under their session id
+                        counts = await unseen_counts_all_cases(enc_uid, conn.session_id)
+                        await conn.websocket.send_json({
+                            "type": type,
+                            "counts": counts,
+                        })
+                        # print("delivered_counts", counts)
+                    else:
+                        await conn.websocket.send_json({
+                            "type": type,
+                            "message_id": encode_id("message", message_id),
+                            "reaction": content,
+                        })
+                        # print("delivered_reaction", content)
                 except Exception:
                     try:
                         await conn.websocket.close()
@@ -766,6 +813,9 @@ async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[tuple[AppUser,
             return None
         return (user, jti)
 
+# ------------------------------------------------------------
+# Call from client to setup a websocket
+# ------------------------------------------------------------
 @router.websocket("/messages/ws")
 async def websocket_messages(websocket: WebSocket):
     await websocket.accept()
@@ -815,6 +865,9 @@ async def websocket_messages(websocket: WebSocket):
                 await websocket.send_json({"type": "ok"})
     except WebSocketDisconnect:
 
+
         print("ws_disconnect", {"user_id": conn.user_id})
+
+
     finally:
         await _ws_manager.disconnect(conn)
