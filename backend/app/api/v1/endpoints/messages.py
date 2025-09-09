@@ -37,6 +37,10 @@ class MessageCreate(_BaseModel_MSG):
     message: str
     reply_to_id: _Optional_MSG[str] = None
     file_id: _Optional_MSG[str] = None
+    # Optional filtering/context fields. If provided when creating a message,
+    # the corresponding foreign key on Message will be populated.
+    filter_by_field_name: _Optional_MSG[str] = None  # one of: rfi_id, ops_plan_id, task_id
+    filter_by_field_id: _Optional_MSG[str] = None    # encrypted id for corresponding entity
 
 class MarkSeenRequest(_BaseModel_MSG):
     message_ids: _List_MSG[str]
@@ -86,6 +90,8 @@ async def _build_reaction_map(db: AsyncSession, mids: list[int]) -> dict[int, li
 @router.get("/{case_id}/messages", summary="List messages for a case", response_model=List[MessageRead])
 async def list_case_messages(
     case_id: str,
+    filter_by_field_name: Optional[str] = None,
+    filter_by_field_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
@@ -107,6 +113,23 @@ async def list_case_messages(
     MP = MessagePerson
     M2 = aliased(M)
     MNS = MessageNotSeen
+
+    # Optional filtering by related field id when provided
+    conditions = [M.case_id == pk]
+    if filter_by_field_name and filter_by_field_id:
+        allowed = {"rfi_id": "rfi", "ops_plan_id": "ops_plan", "task_id": "task"}
+        if filter_by_field_name not in allowed:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_name")
+        try:
+            raw_related_id = int(decode_id(allowed[filter_by_field_name], filter_by_field_id))
+        except OpaqueIdError:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_id")
+        # Append condition on dynamic column
+        try:
+            column_attr = getattr(M, filter_by_field_name)
+        except AttributeError:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_name")
+        conditions.append(column_attr == raw_related_id)
 
     q = (
         select(
@@ -136,7 +159,7 @@ async def list_case_messages(
         .join(M2, M2.id == M.reply_to_id, isouter=True)
         .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid), isouter=True)
         .join(OtherFile, OtherFile.id == M.file_id, isouter=True)
-        .where(M.case_id == pk)
+        .where(*conditions)
         .order_by(sa.asc(M.created_at), sa.asc(M.id))
     )
     rows = (await db.execute(q)).all()
@@ -216,7 +239,24 @@ async def create_case_message(
             except Exception:
                 fid = None
 
-    msg = Message(case_id=pk, written_by_id=int(pid), message=payload.message, reply_to_id=rid, file_id=fid)
+    # Apply optional related field (rfi_id / ops_plan_id / task_id) if provided
+    extra_kwargs = {}
+    fbfn = getattr(payload, 'filter_by_field_name', None)
+    fbfid = getattr(payload, 'filter_by_field_id', None)
+    if fbfn and fbfid:
+        allowed = {"rfi_id": "rfi", "ops_plan_id": "ops_plan", "task_id": "task"}
+        if fbfn not in allowed:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_name")
+        try:
+            raw_related_id = int(decode_id(allowed[fbfn], fbfid))
+        except OpaqueIdError:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_id")
+        # Ensure the Message model actually has this attribute
+        if not hasattr(Message, fbfn):
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_name")
+        extra_kwargs[fbfn] = raw_related_id
+
+    msg = Message(case_id=pk, written_by_id=int(pid), message=payload.message, reply_to_id=rid, file_id=fid, **extra_kwargs)
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
@@ -706,6 +746,8 @@ async def delete_message(
 @router.get("/cases/messages/new_messages/case/{case_id}", include_in_schema=False, response_model=List[MessageRead])
 async def list_new_case_messages(
     case_id: str,
+    filter_by_field_name: Optional[str] = None,
+    filter_by_field_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
@@ -731,6 +773,22 @@ async def list_new_case_messages(
     MP = MessagePerson
     M2 = aliased(M)
     MNS = MessageNotSeen
+
+    # Optional filtering by related field id when provided
+    conditions = [M.case_id == pk]
+    if filter_by_field_name and filter_by_field_id:
+        allowed = {"rfi_id": "rfi", "ops_plan_id": "ops_plan", "task_id": "task"}
+        if filter_by_field_name not in allowed:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_name")
+        try:
+            raw_related_id = int(decode_id(allowed[filter_by_field_name], filter_by_field_id))
+        except OpaqueIdError:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_id")
+        try:
+            column_attr = getattr(M, filter_by_field_name)
+        except AttributeError:
+            raise HTTPException(status_code=400, detail="Invalid filter_by_field_name")
+        conditions.append(column_attr == raw_related_id)
 
     q = (
         select(
@@ -760,7 +818,7 @@ async def list_new_case_messages(
         .join(M2, M2.id == M.reply_to_id, isouter=True)
         .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid))
         .join(OtherFile, OtherFile.id == M.file_id, isouter=True)
-        .where(M.case_id == pk)
+        .where(*conditions)
         .order_by(sa.asc(M.created_at), sa.asc(M.id))
     )
 

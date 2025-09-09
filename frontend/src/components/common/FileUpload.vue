@@ -12,6 +12,8 @@ import api from '@/lib/api'
 const props = defineProps({
   caseId: { type: [String, Number], required: true },
   singleFile: { type: Boolean, default: false },
+  // Optional encrypted rfi id to associate the file to
+  rfi_id: { type: String, default: null },
 })
 
 const emit = defineEmits(['uploaded'])
@@ -99,6 +101,12 @@ async function onUploadFiles(files, uploadedFiles) {
         console.warn('Thumbnail append failed:', e)
       }
       console.log(props.caseId);
+      // Attach optional rfi_id if provided
+      try {
+        if (props.rfi_id) {
+          fd.append('rfi_id', props.rfi_id)
+        }
+      } catch (e) { /* noop */ }
       const resp = await api.post(`/api/v1/cases/${casePathId(props.caseId)}/files/upload`, fd, {
         onUploadProgress: (evt) => {
           const loaded = evt.loaded || 0

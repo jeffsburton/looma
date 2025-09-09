@@ -13,9 +13,12 @@ import FileUpload from '@/components/common/FileUpload.vue'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
+  // Optional filters: when both provided, backend will filter on the matching field
+  filterByFieldName: { type: String, required: false, default: null }, // one of: 'rfi_id','ops_plan_id','task_id'
+  filterByFieldId: { type: String, required: false, default: null },    // encrypted id for the field
 })
 
-const log = createClientLogger('MessagesTab')
+const log = createClientLogger('Messages')
 
 
 const loading = ref(false)
@@ -104,7 +107,13 @@ async function loadMessages() {
   loading.value = true
   error.value = ''
   try {
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages`
+    let url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages`
+    if (props.filterByFieldName && props.filterByFieldId) {
+      const usp = new URLSearchParams()
+      usp.set('filter_by_field_name', String(props.filterByFieldName))
+      usp.set('filter_by_field_id', String(props.filterByFieldId))
+      url += `?${usp.toString()}`
+    }
     const { data } = await api.get(url)
     messages.value = Array.isArray(data) ? data : []
     log.debug('messages loaded', messages.value)
@@ -187,6 +196,10 @@ async function onUploadedFromComposer(uploaded) {
     if (!uploaded || !uploaded.id || !props.caseId) return
     sending.value = true
     const payload = { message: '', reply_to_id: replyingTo.value ? String(replyingTo.value.id) : null, file_id: String(uploaded.id) }
+    if (props.filterByFieldName && props.filterByFieldId) {
+      payload.filter_by_field_name = String(props.filterByFieldName)
+      payload.filter_by_field_id = String(props.filterByFieldId)
+    }
     const { data } = await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages`, payload)
     const myPhoto = (messages.value.find(x => x?.my_photo_url)?.my_photo_url) || '/images/pfp-generic.png'
     messages.value.push({ ...data, seen: true, is_mine: true, my_photo_url: myPhoto })
@@ -217,6 +230,10 @@ async function sendMessage() {
   sending.value = true
   try {
     const payload = { message: text, reply_to_id: replyingTo.value ? String(replyingTo.value.id) : null }
+    if (props.filterByFieldName && props.filterByFieldId) {
+      payload.filter_by_field_name = String(props.filterByFieldName)
+      payload.filter_by_field_id = String(props.filterByFieldId)
+    }
     const { data } = await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages`, payload)
     // Append and reset composer
     const myPhoto = (messages.value.find(x => x?.my_photo_url)?.my_photo_url) || '/images/pfp-generic.png'
@@ -403,7 +420,13 @@ async function fetchAndAppendNewMessages() {
   const cid = String(props.caseId || '')
   if (!cid) return
   try {
-    const url = `/api/v1/cases/messages/new_messages/case/${encodeURIComponent(cid)}`
+    let url = `/api/v1/cases/messages/new_messages/case/${encodeURIComponent(cid)}`
+    if (props.filterByFieldName && props.filterByFieldId) {
+      const usp = new URLSearchParams()
+      usp.set('filter_by_field_name', String(props.filterByFieldName))
+      usp.set('filter_by_field_id', String(props.filterByFieldId))
+      url += `?${usp.toString()}`
+    }
     const { data } = await api.get(url)
     const arr = Array.isArray(data) ? data : []
     if (!arr.length) return
@@ -618,7 +641,7 @@ onBeforeUnmount(() => {
           </Button>
           <FloatLabel variant="on" class="flex-1 min-w-0 align-content-center">
             <div class="w-full">
-              <FileUpload :caseId="caseId" :singleFile="true" @uploaded="onUploadedFromComposer" />
+              <FileUpload :caseId="caseId" :singleFile="true" :rfi_id="(filterByFieldName === 'rfi_id' && filterByFieldId) ? String(filterByFieldId) : null" @uploaded="onUploadedFromComposer" />
             </div>
           </FloatLabel>
         </template>

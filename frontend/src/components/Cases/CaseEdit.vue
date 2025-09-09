@@ -14,7 +14,7 @@ import SocialMediaTab from './tabs/SocialMediaTab.vue'
 import TimelineTab from './tabs/TimelineTab.vue'
 import DocsTab from './tabs/DocsTab.vue'
 import ActivityTab from './tabs/ActivityTab.vue'
-import MessagesTab from './tabs/MessagesTab.vue'
+import Messages from '../Messages.vue'
 
 import OverlayBadge from 'primevue/overlaybadge'
 import api from '../../lib/api'
@@ -323,7 +323,7 @@ const messagesUnseenCount = computed(() => {
       <TabPanel value="messages">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <MessagesTab :caseId="caseModel.id" @unseen-count="(n) => (messagesUnseenCount = Number(n||0))" />
+            <Messages :caseId="caseModel.id" @unseen-count="(n) => (messagesUnseenCount = Number(n||0))" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
