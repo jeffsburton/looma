@@ -96,6 +96,8 @@ const items = [
   { icon: 'cases', label: 'Cases', routeName: 'cases', requiredPerm: 'CASES' },
   { icon: '3p', label: 'Messages', routeName: 'messages' },
   { icon: 'list_alt_check', label: 'Tasks', routeName: 'tasks' },
+  { icon: 'quiz', label: "RFI's", routeName: 'rfis', requiredPerm: 'RFIS' },
+  { icon: 'map_pin_review', label: 'Ops Plans', routeName: 'ops-plans', requiredPerm: 'OPS_PLANS' },
   { icon: 'patient_list', label: 'Contacts', routeName: 'contacts', requiredPerm: 'CONTACTS' },
   { icon: 'groups', label: 'Teams', routeName: 'teams' },
   { icon: 'festival', label: 'Events', routeName: 'events', requiredPerm: 'EVENTS' },
@@ -140,6 +142,12 @@ const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPerm
               <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
             </UnseenMessageCount>
             <UnseenMessageCount v-else-if="item.label === 'Tasks'" TableName="tasks">
+              <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+            </UnseenMessageCount>
+            <UnseenMessageCount v-else-if="item.label === `RFI's`" TableName="rfi">
+              <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+            </UnseenMessageCount>
+            <UnseenMessageCount v-else-if="item.label === 'Ops Plans'" TableName="ops_plan">
               <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
             </UnseenMessageCount>
             <template v-else>

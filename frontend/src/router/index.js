@@ -24,6 +24,8 @@ const routes = [
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },
     { path: '/tasks', name: 'tasks', component: () => import('../views/TasksView.vue') },
+    { path: '/rfis', name: 'rfis', component: () => import('../views/RfisView.vue') },
+    { path: '/ops-plans', name: 'ops-plans', component: () => import('../views/OpsPlansView.vue') },
     { path: '/teams', name: 'teams', component: TeamsView },
     { path: '/reports', name: 'reports', component: () => import('../views/ReportsView.vue') },
     { path: '/events', name: 'events', component: () => import('../views/EventsView.vue') },
