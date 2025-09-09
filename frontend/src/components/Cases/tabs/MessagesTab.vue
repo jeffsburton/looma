@@ -4,6 +4,8 @@ import Button from 'primevue/button'
 import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
 import Popover from 'primevue/popover'
+import InputText from 'primevue/inputtext'
+import ToggleSwitch from 'primevue/toggleswitch'
 import api from '@/lib/api'
 import { gMessageCounts, gMessageEvents } from '@/lib/messages_ws'
 import { createClientLogger } from '@/lib/util'
@@ -20,6 +22,9 @@ const loading = ref(false)
 const sending = ref(false)
 const error = ref('')
 const messages = ref([]) // [{ id, case_id, written_by_id, message, reply_to_id, rule_out, created_at, updated_at, writer_name, seen, reaction, reply_to_text, is_mine, writer_photo_url, my_photo_url }]
+
+// Search state
+const searchQuery = ref('')
 
 const _lastUnseenCount = ref(0);
 
@@ -188,6 +193,17 @@ async function onUploadedFromComposer(uploaded) {
     showUploader.value = false
     replyingTo.value = null
     await nextTick()
+    try {
+      const list = listEl.value
+      if (list) {
+        const container = getScrollableParent(list)
+        if (container?.scrollTo) {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+        } else {
+          container.scrollTop = container.scrollHeight
+        }
+      }
+    } catch (_) { /* noop */ }
   } catch (e) {
     log.error(e)
   } finally {
@@ -208,6 +224,17 @@ async function sendMessage() {
     composer.value = ''
     replyingTo.value = null
     await nextTick()
+    try {
+      const list = listEl.value
+      if (list) {
+        const container = getScrollableParent(list)
+        if (container?.scrollTo) {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+        } else {
+          container.scrollTop = container.scrollHeight
+        }
+      }
+    } catch (_) { /* noop */ }
   } catch (e) {
     log.error(e)
   } finally {
@@ -273,9 +300,34 @@ watch(() => props.caseId, (val) => {
   }
 }, { immediate: true })
 
+// Local filter for search
+const filteredMessages = computed(() => {
+  const q = (searchQuery.value || '').trim().toLowerCase()
+  if (!q) return messages.value
+  return messages.value.filter(m => {
+    const parts = [
+      (m.message || ''),
+      (m.writer_name || ''),
+      (m.file_name || ''),
+      (m.reply_to_text || ''),
+    ].join(' ').toLowerCase()
+    return parts.includes(q)
+  })
+})
+
+// Toggle search within composer
+const showSearch = ref(false)
+const searchInputEl = ref(null)
+watch(() => showSearch.value, async (val) => {
+  if (val) {
+    await nextTick()
+    try { searchInputEl.value?.focus?.() } catch (_) {}
+  }
+})
+
 const groups = computed(() => {
   const byDate = new Map()
-  const sorted = messages.value.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  const sorted = filteredMessages.value.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
   for (const m of sorted) {
     const dt = new Date(m.created_at)
     const y = dt.getFullYear()
@@ -547,8 +599,20 @@ onBeforeUnmount(() => {
         <span>Replying to {{ replyingTo.writer_name }}: {{ replyingTo.message }}</span>
         <button class="x" @click="clearReply" aria-label="Cancel reply">×</button>
       </div>
+
+      <!-- Toggleable Search above composer row -->
+      <div v-if="showSearch" class="mb-2">
+        <FloatLabel variant="on" class="w-full">
+          <InputText id="msg-search" ref="searchInputEl" v-model="searchQuery" class="w-full" placeholder=" " />
+          <label for="msg-search">Search messages</label>
+        </FloatLabel>
+      </div>
+
       <div class="composer-row w-full space-y-1">
         <template v-if="showUploader">
+          <Button text @click="showSearch = !showSearch" class="shrink-0" :aria-label="showSearch ? 'Hide search' : 'Show search'">
+            <i class="pi pi-search"></i>
+          </Button>
           <Button text @click="showUploader = false" class="shrink-0" :aria-label="'Close uploader'">
             <span class="material-symbols-outlined">close</span>
           </Button>
@@ -559,6 +623,10 @@ onBeforeUnmount(() => {
           </FloatLabel>
         </template>
         <template v-else>
+          <Button text @click="showSearch = !showSearch" class="shrink-0" :aria-label="showSearch ? 'Hide search' : 'Show search'" variant="outlined">
+            <span v-if="showSearch" class="material-symbols-outlined">search_off</span>
+            <span v-else class="material-symbols-outlined">search</span>
+          </Button>
           <Button text @click="showUploader = true" class="shrink-0" :aria-label="'Attach file'">
             <span class="material-symbols-outlined">attach_file</span>
           </Button>
@@ -600,7 +668,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .chat-tab { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.header { border-bottom: 1px solid var(--p-surface-200, #e5e7eb); }
+.header {  top: 0; z-index: 6; border-bottom: 1px solid var(--p-surface-200, #e5e7eb); background: var(--p-surface-0, #fff); }
 .list { flex: 1; overflow: auto; padding: 0 12px 12px 12px; background: var(--p-surface-0, #fff); min-height: 0; }
 .row { display: grid; grid-template-columns: 40px 1fr 40px; gap: 8px; padding: 8px 4px; align-items: start; }
 .pfp { width: 40px; height: 40px; }
@@ -646,5 +714,6 @@ onBeforeUnmount(() => {
 .lightbox-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2vw; }
 .lightbox-content { max-width: 80vw; max-height: 90vh; background: transparent; display: flex; align-items: center; justify-content: center; }
 .lightbox-media { max-width: 80vw; max-height: 90vh; object-fit: contain; display: block; }
+
 
 </style>
