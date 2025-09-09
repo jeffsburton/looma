@@ -14,6 +14,7 @@ import SocialMediaTab from './tabs/SocialMediaTab.vue'
 import TimelineTab from './tabs/TimelineTab.vue'
 import DocsTab from './tabs/DocsTab.vue'
 import ActivityTab from './tabs/ActivityTab.vue'
+import TasksTab from './tabs/TasksTab.vue'
 import Messages from '../Messages.vue'
 
 import api from '../../lib/api'
@@ -70,7 +71,7 @@ const route = useRoute()
 const active = ref('core')
 const intakeSubActive = ref('intake')
 const docsSubActive = ref('files')
-const VALID_TABS = ['core','contacts','social','timeline','docs','activity','messages']
+const VALID_TABS = ['core','contacts','social','timeline','docs','tasks','activity','messages']
 const VALID_DOCS_SUBTABS = ['files','ops','intel','rfis','eod','flyer']
 
 // Sync initial tab from route/prop and keep in sync
@@ -231,6 +232,14 @@ const daysMissing = computed(() => {
           <span class="material-symbols-outlined">folder_open</span>
           <span class="ml-1">Docs</span>
         </Tab>
+        <Tab value="tasks">
+          <UnseenMessageCount TableName="task" :CaseId="caseModel.id" size="normal">
+            <div class="flex align-items-center">
+              <span class="material-symbols-outlined">list_alt_check</span>
+              <span class="ml-1">Tasks</span>
+            </div>
+          </UnseenMessageCount>
+        </Tab>
         <Tab value="messages">
           <UnseenMessageCount TableName="case" :CaseId="caseModel.id" size="normal">
             <div class="flex align-items-center">
@@ -287,6 +296,16 @@ const daysMissing = computed(() => {
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <DocsTab :caseId="caseModel.id" :subtab="docsSubActive" @update:subtab="(v) => (docsSubActive = v)" />
+            <template #fallback>
+              <div class="p-3 text-600">Loading...</div>
+            </template>
+          </Suspense>
+        </div>
+      </TabPanel>
+      <TabPanel value="tasks">
+        <div class="surface-card border-round p-2 flex-1 ">
+          <Suspense>
+            <TasksTab :caseId="caseModel.id" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
