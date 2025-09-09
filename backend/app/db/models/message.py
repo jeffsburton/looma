@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Text, DateTime
+from sqlalchemy import Column, Integer, ForeignKey, Text, DateTime, Boolean
 from sqlalchemy.sql import func
 
 from app.db import Base
@@ -13,6 +13,7 @@ class Message(Base):
     # who wrote the message.
     written_by_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"), nullable=False)
 
+    rule_out = Column(Boolean, nullable=False, server_default="false")
 
     message = Column(Text, nullable=False)
     reply_to_id = Column(Integer, ForeignKey("message.id", ondelete="SET NULL"), nullable=True)

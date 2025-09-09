@@ -22,6 +22,59 @@ const messages = ref([]) // [{ id, case_id, written_by_id, message, reply_to_id,
 
 const _lastUnseenCount = ref(0);
 
+// Scrolling
+const listEl = ref(null)
+const didInitialScroll = ref(false)
+
+function getScrollableParent(el) {
+  try {
+    let cur = el
+    while (cur) {
+      const style = window.getComputedStyle(cur)
+      const oy = style ? style.overflowY : ''
+      const ox = style ? style.overflowX : ''
+      const canScrollY = (oy === 'auto' || oy === 'scroll') && cur.scrollHeight > cur.clientHeight
+      const canScrollX = (ox === 'auto' || ox === 'scroll') && cur.scrollWidth > cur.clientWidth
+      if (canScrollY || canScrollX) return cur
+      cur = cur.parentElement
+    }
+  } catch (_) { /* noop */ }
+  return document.scrollingElement || document.documentElement
+}
+
+async function initialScrollIfNeeded() {
+  if (didInitialScroll.value) return
+  await nextTick()
+  const list = listEl.value
+  if (!list) return
+  const container = getScrollableParent(list)
+  log.debug('scroll container', container)
+  // Find first unseen within the list content
+  const firstUnseen = list.querySelector('.row[data-unseen="true"]')
+
+  log.debug('initialScrollIfNeeded firstUnseen', firstUnseen)
+
+  if (firstUnseen) {
+    try {
+      firstUnseen.scrollIntoView({ behavior: 'auto', block: 'center' })
+    } catch (_) {
+      // Fallback: manual scroll relative to container
+      const rect = firstUnseen.getBoundingClientRect()
+      const crect = container.getBoundingClientRect()
+      container.scrollTop += (rect.top - crect.top) - (crect.height / 2)
+    }
+  } else {
+    // No unseen: scroll to bottom of the actual scroll container
+    container.scrollTop = container.scrollHeight
+    // As some containers require scrollHeight - clientHeight, ensure max
+    if (container.scrollTop === 0 && container.scrollHeight > container.clientHeight) {
+      container.scrollTop = container.scrollHeight - container.clientHeight
+    }
+    log.debug('scrollTop after', container.scrollTop, container.scrollHeight, 'clientHeight', container.clientHeight)
+  }
+  didInitialScroll.value = true
+}
+
 // Observe global unseen counts for this case
 const unseenCountForCase = computed(() => {
   const cid = String(props.caseId || '')
@@ -45,7 +98,8 @@ async function loadMessages() {
     messages.value = Array.isArray(data) ? data : []
     log.debug('messages loaded', messages.value)
     await nextTick()
-      await observeUnseenRows();
+    await observeUnseenRows()
+    await initialScrollIfNeeded()
   } catch (e) {
     log.error(e)
     error.value = 'Failed to load messages.'
@@ -155,6 +209,7 @@ async function chooseEmoji(val) {
 
 
 watch(() => props.caseId, (val) => {
+  didInitialScroll.value = false
   if (val) {
     loadMessages()
   } else {
