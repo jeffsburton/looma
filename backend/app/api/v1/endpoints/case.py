@@ -1,3 +1,4 @@
+from operator import truediv
 from typing import List, Optional
 from datetime import date as Date
 
@@ -94,8 +95,15 @@ async def can_user_access_case(db: AsyncSession, user_id: int, case_id: int) -> 
         .where(and_(Person.app_user_id == user_id, TeamCase.case_id == case_id))
         .limit(1)
     )
+
     team_exists = (await db.execute(team_exists_stmt)).first() is not None
-    return team_exists
+    if team_exists:
+        return True
+
+    if user_has_permission(db, user_id, "CASES.ALL_CASES"):
+        return True
+    else:
+        return False
 
 
 @router.get("/select", summary="List active cases for selection")
