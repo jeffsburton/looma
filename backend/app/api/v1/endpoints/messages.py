@@ -623,30 +623,30 @@ class _CaseWSManager:
         # Keyed by raw user_id
         self._subs_by_user: Dict[int, Set[_WSConnection]] = {}
         self._lock = asyncio.Lock()
-        print("WS Manager initialized")
+        #print("WS Manager initialized")
 
     async def subscribe_user(self, conn: _WSConnection) -> None:
         async with self._lock:
             s = self._subs_by_user.setdefault(int(conn.user_id), set())
             s.add(conn)
-            print("subscribed", {
-                "event": "subscribe_user",
-                "user_id": conn.user_id,
-                "session_id": conn.session_id,
-                "sub_count": len(s),
-            })
+            #print("subscribed", {
+            #    "event": "subscribe_user",
+            #    "user_id": conn.user_id,
+            #    "session_id": conn.session_id,
+            #    "sub_count": len(s),
+            #})
 
     async def disconnect(self, conn: _WSConnection) -> None:
         async with self._lock:
             for uid, s in list(self._subs_by_user.items()):
                 if conn in s:
                     s.remove(conn)
-                    print("disconnected", {
+                    """ print("disconnected", {
                         "event": "disconnect",
                         "user_id": conn.user_id,
                         "session_id": conn.session_id,
                         "sub_count": len(s),
-                    })
+                    })"""
                     if not s:
                         self._subs_by_user.pop(uid, None)
 
@@ -659,11 +659,11 @@ class _CaseWSManager:
         async with self._lock:
             # Snapshot of all current connections keyed by user id
             subs_map = {uid: list(conns) for uid, conns in self._subs_by_user.items() if uid in set(user_ids)}
-        print("publish_counts", {
+        """print("publish_counts", {
             "event": "publish_counts",
             "case_id": int(case_id),
             "target_user_count": len(subs_map),
-        })
+        })"""
         for uid, conns in subs_map.items():
             for conn in conns:
                 try:
@@ -702,7 +702,7 @@ async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[tuple[AppUser,
     if not token:
         token = websocket.cookies.get(getattr(settings, "cookie_name", "access_token"))
     if not token:
-        print("ws_auth_missing_token")
+        #print("ws_auth_missing_token")
         return None
 
     try:
@@ -710,32 +710,32 @@ async def _auth_ws_and_get_user(websocket: WebSocket) -> Optional[tuple[AppUser,
         email: str = payload.get("sub")
         jti: str = payload.get("jti")
         if not email or not jti:
-            print("ws_auth_invalid_payload")
+            #print("ws_auth_invalid_payload")
             return None
     except JWTError:
-        print("ws_auth_jwt_error")
+        #print("ws_auth_jwt_error")
         return None
 
     async with async_session_maker() as db:
         session = await validate_session(db, jti)
         if not session:
-            print("ws_auth_session_not_found", {"jti": jti})
+            #print("ws_auth_session_not_found", {"jti": jti})
             return None
         user = (await db.execute(select(AppUser).where(AppUser.email == email, AppUser.is_active == True))).scalars().first()
         if not user:
-            print("ws_auth_user_not_found", {"email": email})
+            #print("ws_auth_user_not_found", {"email": email})
             return None
         return (user, jti)
 
 @router.websocket("/messages/ws")
 async def websocket_messages(websocket: WebSocket):
     await websocket.accept()
-    print("ws_accept")
+    #print("ws_accept")
     # Expect two query parameters: uid (encrypted app_user.id), sid (session id/jti)
     enc_uid = websocket.query_params.get("uid")
     sid = websocket.query_params.get("sid")
     if not enc_uid or not sid:
-        print("ws_reject", {"reason": "missing_params"})
+        #print("ws_reject", {"reason": "missing_params"})
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
@@ -746,13 +746,13 @@ async def websocket_messages(websocket: WebSocket):
         async with async_session_maker() as db:
             session = await validate_session(db, sid)
             if not session:
-                print("ws_reject", {"reason": "session_invalid"})
+                #print("ws_reject", {"reason": "session_invalid"})
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
         try:
             user_id = int(decode_id("app_user", enc_uid))
         except OpaqueIdError:
-            print("ws_reject", {"reason": "uid_decode_failed"})
+            #print("ws_reject", {"reason": "uid_decode_failed"})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
     finally:
@@ -761,7 +761,7 @@ async def websocket_messages(websocket: WebSocket):
         except Exception:
             pass
 
-    print("ws_authenticated", {"user_id": user_id})
+    #print("ws_authenticated", {"user_id": user_id})
     conn = _WSConnection(websocket, user_id, sid)
     await _ws_manager.subscribe_user(conn)
 
@@ -775,6 +775,7 @@ async def websocket_messages(websocket: WebSocket):
                 # no-op for unknown/legacy actions
                 await websocket.send_json({"type": "ok"})
     except WebSocketDisconnect:
+
         print("ws_disconnect", {"user_id": conn.user_id})
     finally:
         await _ws_manager.disconnect(conn)

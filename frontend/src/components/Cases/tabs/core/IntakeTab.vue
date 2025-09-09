@@ -930,11 +930,6 @@ const intakeDate = computed({
     </template>
 
     <style scoped>
-    .mp-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-}
 .row { display: grid; gap: 1rem; margin-bottom: 1rem; grid-template-columns: 1fr; }
 /* On medium+ screens, enforce the desired columns per row */
 @media (min-width: 700px) {

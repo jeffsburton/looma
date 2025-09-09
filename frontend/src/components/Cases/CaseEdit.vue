@@ -214,7 +214,7 @@ const messagesUnseenCount = computed(() => {
     </div>
 
     <!-- Tabs -->
-    <Tabs :value="active" @update:value="(v) => (active = v)" :lazy="true">
+    <Tabs :value="active" @update:value="(v) => (active = v)" :lazy="true" style="overflow: unset">
       <TabList class="mb-1">
         <Tab value="core">
           <span class="material-symbols-outlined">article</span>
@@ -345,13 +345,16 @@ const messagesUnseenCount = computed(() => {
 
 
 .panel { display: flex; flex-direction: column; height: 100%; }
-.tabs { position: sticky; top: 0; z-index: 1; }
 
 .tab-btn { background: transparent; border: 1px solid transparent; }
 .tab-btn:hover { background: var(--p-surface-100, #f5f5f5); }
 .tab-btn.active { background: var(--p-primary-100, #fbd5d5); color: var(--p-primary-800, #1D3B52); border-color: var(--p-primary-200, #C9DFEE); }
 .tab-btn.inactive { color: var(--p-text-color, inherit); }
 .wrap { flex-wrap: wrap; }
+
+:deep(.p-tablist) {
+overflow: unset !important;
+}
 
 /* PFP styles */
 .pfp { width: 40px; height: 40px; border-radius: 9999px; object-fit: cover; display: block; border: 2px solid var(--p-surface-200, #e5e7eb); }

@@ -6,10 +6,13 @@ import FloatLabel from 'primevue/floatlabel'
 import Popover from 'primevue/popover'
 import api from '@/lib/api'
 import { gMessageCounts } from '@/lib/messages_ws'
+import { createClientLogger } from '@/lib/util'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
 })
+
+const log = createClientLogger('MessagesTab')
 
 
 const loading = ref(false)
@@ -40,11 +43,11 @@ async function loadMessages() {
     const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages`
     const { data } = await api.get(url)
     messages.value = Array.isArray(data) ? data : []
-    console.log(messages.value);
+    log.debug('messages loaded', messages.value)
     await nextTick()
       await observeUnseenRows();
   } catch (e) {
-    console.error(e)
+    log.error(e)
     error.value = 'Failed to load messages.'
   } finally {
     loading.value = false
@@ -96,7 +99,7 @@ async function sendMessage() {
     replyingTo.value = null
     await nextTick()
   } catch (e) {
-    console.error(e)
+    log.error(e)
   } finally {
     sending.value = false
   }
@@ -120,7 +123,7 @@ async function chooseEmoji(val) {
     await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(String(m.id))}/reaction`, { reaction: val || null })
     m.reaction = val || null
   } catch (e) {
-    console.error(e)
+    log.error(e)
   } finally {
     if (emojiPanel.value?.hide) emojiPanel.value.hide()
     emojiTargetMessage.value = null
@@ -173,7 +176,7 @@ async function fetchAndAppendNewMessages() {
     // Do not scroll; leave position unchanged by requirement
   } catch (e) {
     // Silently ignore to avoid user disruption
-    console.error(e)
+    log.error(e)
   }
 }
 
@@ -196,7 +199,7 @@ watch(() => unseenCountForCase.value, (newVal, oldVal) => {
 async function observeUnseenRows() {
   await nextTick();
   const nodes = Array.from(document.querySelectorAll('.row[data-unseen="true"]'));
-  console.log("observeUnseenRows", nodes);
+  log.debug('observeUnseenRows', nodes);
   for (const node of nodes) {
     observer.observe(node);
   }
@@ -217,7 +220,7 @@ async function observeUnseenRows() {
   });
 
 async function executeWhenVisible(entry) {
-  console.log('Element is visible!', entry);
+  log.debug('Element is visible', entry);
   observer.unobserve(entry.target);
   let id = entry.target.getAttribute('data-mid');
   for (const m of messages.value) {
@@ -227,7 +230,7 @@ async function executeWhenVisible(entry) {
         try {
           await api.post(`/api/v1/cases/${encodeURIComponent(props.caseId)}/messages/mark_seen_up_to/${encodeURIComponent(String(m.id))}`)
         } catch (e) {
-          console.log(e);
+          log.error(e);
           // ignore API failure; local fade already shown
         }
       setTimeout(() => { m._fadingUnseen = false }, 20000);
@@ -235,130 +238,6 @@ async function executeWhenVisible(entry) {
   }
 }
 
-/*
-// Visibility-based mark-as-seen logic
-const _io = ref(null)
-const _observed = new Set()
-const _visibility = new Map() // id(enc) -> ratio
-const _markTimer = ref(null)
-const _lastMarkedId = ref(null)
-
-function _ensureObserver() {
-  console.log("ensuring observer...");
-  if (_io.value || !listEl.value) return
-  _io.value = new IntersectionObserver((entries) => {
-    console.log(entries);
-    for (const e of entries) {
-      const id = e.target?.getAttribute('data-mid')
-      if (!id) continue
-      _visibility.set(String(id), e.isIntersecting ? e.intersectionRatio : 0)
-    }
-    _scheduleMarkSeenCheck()
-  }, { root: listEl.value, threshold: [0, 0.25, 0.5, 0.75, 1] })
-}
-
-function _observeAllRows() {
-  if (!_io.value || !listEl.value) return
-  const nodes = listEl.value.querySelectorAll('.row[data-mid]')
-  nodes.forEach(n => {
-    const id = n.getAttribute('data-mid')
-    if (id && !_observed.has(id)) {
-      _io.value.observe(n)
-      _observed.add(id)
-    }
-  })
-}
-
-function _onScroll() {
-  _userScrolled.value = true
-  _scheduleMarkSeenCheck()
-}
-
-function _scheduleMarkSeenCheck() {
-  if (_markTimer.value) return
-  _markTimer.value = setTimeout(_maybeMarkSeenUpTo, 400)
-}
-
-function _getFurthestVisibleId() {
-  if (!listEl.value) return null
-  const nodes = Array.from(listEl.value.querySelectorAll('.row[data-mid]'))
-  let furthest = null
-  for (const n of nodes) {
-    const id = n.getAttribute('data-mid')
-    if (!id) continue
-    const m = messages.value.find(x => String(x.id) === String(id))
-    if (!m || m.is_mine) continue
-    const ratio = _visibility.get(String(id)) || 0
-    if (ratio >= 0.5) furthest = id
-  }
-  return furthest
-}
-
-async function _maybeMarkSeenUpTo() {
-
-  console.log("checking for viewing unseen messages...");
-
-  _markTimer.value = null
-  const cid = String(props.caseId || '')
-  if (!cid) return
-  const targetId = _getFurthestVisibleId()
-  if (!targetId) return
-  if (_lastMarkedId.value && String(targetId) === String(_lastMarkedId.value)) return
-  _lastMarkedId.value = String(targetId)
-  // Update local flags and start 20s fade immediately upon visibility
-  const idxMap = new Map(messages.value.map((m, i) => [String(m.id), i]))
-  const targetIdx = idxMap.get(String(targetId))
-  if (typeof targetIdx === 'number') {
-    for (let i = 0; i <= targetIdx; i++) {
-      const m = messages.value[i]
-      if (!m || m.is_mine) continue
-      const wasUnseen = !m.seen
-      if (wasUnseen) {
-        m.seen = true
-        m._fadingUnseen = true
-        setTimeout(() => { m._fadingUnseen = false }, 20000)
-      }
-    }
-  }
-  try {
-    await api.post(`/api/v1/cases/${encodeURIComponent(cid)}/messages/mark_seen_up_to/${encodeURIComponent(String(targetId))}`)
-  } catch (e) {
-    // ignore API failure; local fade already shown
-  }
-}
-
-onMounted(async () => {
-  console.log("mounted...");
-  await nextTick()
-  console.log("onMounted nextTick...");
-  _ensureObserver()
-  _observeAllRows()
-  window.addEventListener('resize', _scheduleMarkSeenCheck)
-  const el = listEl.value
-  if (el) el.addEventListener('scroll', _onScroll, { passive: true })
-})
-
-watch(messages, async () => {
-  console.log("messages changed...");
-  await nextTick()
-  console.log("watch nextTick...");
-  _ensureObserver()
-  _observeAllRows()
-  _scheduleMarkSeenCheck()
-})
-
-onBeforeUnmount(() => {
-  try { if (_io.value) _io.value.disconnect() } catch {}
-  _io.value = null
-  _observed.clear()
-  _visibility.clear()
-  try { if (_markTimer.value) clearTimeout(_markTimer.value) } catch {}
-  _markTimer.value = null
-  const el = listEl.value
-  if (el) {
-    try { el.removeEventListener('scroll', _onScroll) } catch {}
-  }
-}) */
 </script>
 
 <template>
