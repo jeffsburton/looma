@@ -45,6 +45,38 @@ class MarkSeenUpToResponse(_BaseModel_MSG):
     ok: bool = True
     cleared: int = 0
 
+class ReactionGroup(_BaseModel_MSG):
+    emoji: str
+    count: int
+
+class MessageReactionsRead(_BaseModel_MSG):
+    message_id: str
+    reactions: _List_MSG[ReactionGroup] = []
+    my_reaction: _Optional_MSG[str] = None
+
+async def _build_reaction_map(db: AsyncSession, mids: list[int]) -> dict[int, list[dict]]:
+    """Aggregate reactions across all persons per message ids in `mids`.
+    Returns a mapping: raw_message_id -> [{ emoji, count }, ...]
+    """
+    reaction_map: dict[int, list[dict]] = {}
+    if not mids:
+        return reaction_map
+    MP = MessagePerson
+    agg_q = (
+        select(MP.message_id, MP.reaction, sa.func.count().label("cnt"))
+        .where(MP.message_id.in_(mids), MP.reaction.is_not(None))
+        .group_by(MP.message_id, MP.reaction)
+    )
+    agg_rows = (await db.execute(agg_q)).all()
+    for ar in agg_rows:
+        mid = int(ar.message_id)
+        emoji = ar.reaction
+        cnt = int(getattr(ar, "cnt", 0) or 0)
+        if emoji is None or cnt <= 0:
+            continue
+        reaction_map.setdefault(mid, []).append({"emoji": emoji, "count": cnt})
+    return reaction_map
+
 # ------------------------------------------------------------
 # Get messages for a case
 # ------------------------------------------------------------
@@ -101,21 +133,7 @@ async def list_case_messages(
 
     # Aggregate reactions across all persons per message
     mids = [int(r.id) for r in rows] if rows else []
-    reaction_map: dict[int, list[dict]] = {}
-    if mids:
-        agg_q = (
-            select(MP.message_id, MP.reaction, sa.func.count().label("cnt"))
-            .where(MP.message_id.in_(mids), MP.reaction.is_not(None))
-            .group_by(MP.message_id, MP.reaction)
-        )
-        agg_rows = (await db.execute(agg_q)).all()
-        for ar in agg_rows:
-            mid = int(ar.message_id)
-            emoji = ar.reaction
-            cnt = int(getattr(ar, "cnt", 0) or 0)
-            if emoji is None or cnt <= 0:
-                continue
-            reaction_map.setdefault(mid, []).append({"emoji": emoji, "count": cnt})
+    reaction_map: dict[int, list[dict]] = await _build_reaction_map(db, mids)
 
     items: list[MessageRead] = []
     for r in rows:
@@ -346,6 +364,52 @@ async def set_message_reaction(
     return {"ok": True}
 
 # ------------------------------------------------------------
+# Get grouped reactions for a single message
+# ------------------------------------------------------------
+@router.get("/{case_id}/messages/{message_id}/reactions", summary="Get grouped reactions for a message", response_model=MessageReactionsRead)
+async def get_message_reactions(
+    case_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    try:
+        mid = int(decode_id("message", message_id))
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Ensure message belongs to the case
+    owns = (await db.execute(select(Message.id).where(Message.id == mid, Message.case_id == pk))).scalar_one_or_none()
+    if owns is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Grouped reactions
+    reaction_map = await _build_reaction_map(db, [mid])
+    groups = reaction_map.get(int(mid), [])
+
+    # Current user's reaction
+    my_reaction = (
+        await db.execute(
+            select(MessagePerson.reaction).where(MessagePerson.message_id == mid, MessagePerson.person_id == pid)
+        )
+    ).scalar_one_or_none()
+
+    enc_mid = encode_id("message", int(mid))
+    return MessageReactionsRead(
+        message_id=enc_mid,
+        reactions=[ReactionGroup(**g) for g in groups],
+        my_reaction=my_reaction,
+    )
+
+# ------------------------------------------------------------
 # get new messages for a case
 # ------------------------------------------------------------
 @router.get("/messages/new_messages/case/{case_id}", summary="List new (unseen) messages for a case for the current user", response_model=List[MessageRead])
@@ -407,21 +471,7 @@ async def list_new_case_messages(
 
     # Aggregate reactions across all persons per message
     mids = [int(r.id) for r in rows] if rows else []
-    reaction_map: dict[int, list[dict]] = {}
-    if mids:
-        agg_q = (
-            select(MP.message_id, MP.reaction, sa.func.count().label("cnt"))
-            .where(MP.message_id.in_(mids), MP.reaction.is_not(None))
-            .group_by(MP.message_id, MP.reaction)
-        )
-        agg_rows = (await db.execute(agg_q)).all()
-        for ar in agg_rows:
-            mid = int(ar.message_id)
-            emoji = ar.reaction
-            cnt = int(getattr(ar, "cnt", 0) or 0)
-            if emoji is None or cnt <= 0:
-                continue
-            reaction_map.setdefault(mid, []).append({"emoji": emoji, "count": cnt})
+    reaction_map: dict[int, list[dict]] = await _build_reaction_map(db, mids)
 
     items: list[MessageRead] = []
     for r in rows:
@@ -763,9 +813,21 @@ class _CaseWSManager:
                         })
                         # print("delivered_counts", counts)
                     else:
+                        # Encode IDs under this connection's session context to ensure correct encryption
+                        from app.core.id_codec import set_current_session as _set_sess2, reset_current_session as _reset_sess2, encode_id as _enc2
+                        _ctx2 = _set_sess2(conn.session_id)
+                        try:
+                            enc_case = _enc2("case", int(case_id))
+                            enc_mid = _enc2("message", int(message_id)) if message_id is not None else None
+                        finally:
+                            try:
+                                _reset_sess2(_ctx2)
+                            except Exception:
+                                pass
                         await conn.websocket.send_json({
                             "type": type,
-                            "message_id": encode_id("message", message_id),
+                            "case_id": enc_case,
+                            "message_id": enc_mid,
                             "reaction": content,
                         })
                         # print("delivered_reaction", content)

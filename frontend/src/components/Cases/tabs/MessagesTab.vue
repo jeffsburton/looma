@@ -5,7 +5,7 @@ import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
 import Popover from 'primevue/popover'
 import api from '@/lib/api'
-import { gMessageCounts } from '@/lib/messages_ws'
+import { gMessageCounts, gMessageEvents } from '@/lib/messages_ws'
 import { createClientLogger } from '@/lib/util'
 
 const props = defineProps({
@@ -260,6 +260,38 @@ async function executeWhenVisible(entry) {
     }
   }
 }
+
+// Listen for reaction updates via global event bus and refresh targeted message
+const _onReactionUpdate = async (evt) => {
+  try {
+    const det = (evt && evt.detail) ? evt.detail : null
+    if (!det) return
+    const encCase = String(det.case_id || '')
+    const encMid = String(det.message_id || '')
+    if (!encCase || !encMid) return
+    if (String(props.caseId || '') !== encCase) return
+    // Find the message in current list
+    const idx = messages.value.findIndex(m => String(m.id) === encMid)
+    if (idx < 0) return
+    // Fetch grouped reactions and my_reaction
+    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(encMid)}/reactions`
+    const { data } = await api.get(url)
+    if (!data) return
+    const m = messages.value[idx]
+    m.reactions = Array.isArray(data.reactions) ? data.reactions : []
+    if (Object.prototype.hasOwnProperty.call(data, 'my_reaction')) {
+      m.reaction = data.my_reaction || null
+    }
+  } catch (_) { /* noop */ }
+}
+
+onMounted(() => {
+  try { gMessageEvents?.addEventListener?.('message-reaction-update', _onReactionUpdate) } catch (_) { /* noop */ }
+})
+
+onBeforeUnmount(() => {
+  try { gMessageEvents?.removeEventListener?.('message-reaction-update', _onReactionUpdate) } catch (_) { /* noop */ }
+})
 
 </script>
 

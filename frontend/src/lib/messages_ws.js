@@ -9,6 +9,12 @@ const log = createClientLogger('WebSockets')
 // Global reactive map of counts keyed as specified, e.g.,
 // count, count_rfis, count_<enc_case_id>, count_rfis_<enc_case_id>, ...
 export const gMessageCounts = ref({})
+// Global event bus for message-related websocket events
+export const gMessageEvents = (typeof window !== 'undefined' && typeof window.EventTarget !== 'undefined') ? new EventTarget() : {
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent() { return false },
+}
 
 let _ws = null
 let _connecting = false
@@ -142,6 +148,15 @@ function _connect() {
 
         } else if (data?.type == "reactions.update") {
           log.debug("reactions.update", data)
+          try {
+            const detail = {
+              case_id: data?.case_id || null,
+              message_id: data?.message_id || null,
+            }
+            if (detail.case_id && detail.message_id) {
+              gMessageEvents?.dispatchEvent?.(new CustomEvent('message-reaction-update', { detail }))
+            }
+          } catch (_) { /* noop */ }
         } else if (data?.type === 'pong') {
           // noop
         }
