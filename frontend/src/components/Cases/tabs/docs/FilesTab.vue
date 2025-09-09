@@ -23,8 +23,6 @@ function safeEncode(id) {
 }
 function casePathId(id) {
   const s = String(id ?? '')
-  const m = s.match(/^(\d+)/)
-  if (m && m[1]) return m[1]
   return safeEncode(s)
 }
 

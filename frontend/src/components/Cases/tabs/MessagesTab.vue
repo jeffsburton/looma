@@ -7,6 +7,7 @@ import Popover from 'primevue/popover'
 import api from '@/lib/api'
 import { gMessageCounts, gMessageEvents } from '@/lib/messages_ws'
 import { createClientLogger } from '@/lib/util'
+import FileUpload from '@/components/common/FileUpload.vue'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
@@ -87,6 +88,11 @@ const unseenCountForCase = computed(() => {
 // Composer state
 const composer = ref('')
 const replyingTo = ref(null) // { id, message, writer_name }
+const showUploader = ref(false)
+
+// Lightbox for attachments (match FilesTab behavior)
+const showLightbox = ref(false)
+const lightboxItem = ref(null)
 
 async function loadMessages() {
   if (!props.caseId) { messages.value = []; return }
@@ -97,6 +103,8 @@ async function loadMessages() {
     const { data } = await api.get(url)
     messages.value = Array.isArray(data) ? data : []
     log.debug('messages loaded', messages.value)
+
+    console.log(messages.value)
     await nextTick()
     await observeUnseenRows()
     await initialScrollIfNeeded()
@@ -166,6 +174,24 @@ function onComposerKeydown(e) {
     sendMessage()
   } catch (_) {
     // no-op
+  }
+}
+
+async function onUploadedFromComposer(uploaded) {
+  try {
+    if (!uploaded || !uploaded.id || !props.caseId) return
+    sending.value = true
+    const payload = { message: '', reply_to_id: replyingTo.value ? String(replyingTo.value.id) : null, file_id: String(uploaded.id) }
+    const { data } = await api.post(`/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages`, payload)
+    const myPhoto = (messages.value.find(x => x?.my_photo_url)?.my_photo_url) || '/images/pfp-generic.png'
+    messages.value.push({ ...data, seen: true, is_mine: true, my_photo_url: myPhoto })
+    showUploader.value = false
+    replyingTo.value = null
+    await nextTick()
+  } catch (e) {
+    log.error(e)
+  } finally {
+    sending.value = false
   }
 }
 
@@ -264,6 +290,61 @@ const groups = computed(() => {
 
 function fmtTime(date) { return new Date(date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }
 function fmtDate(date) { return new Date(date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) }
+
+function extensionIcon(name) {
+  const n = String(name || '').toLowerCase()
+  if (n.endsWith('.pdf')) return 'pi-file-pdf'
+  if (/\.doc(x|m)?$|\.dot(x)?$/i.test(n)) return 'pi-file-word'
+  if (/\.xls(x|m)?$|\.xlt(x)?$/i.test(n)) return 'pi-file-excel'
+  if (/\.(png|jpg|jpeg|gif|bmp|webp|tif|tiff|svg)$/i.test(n)) return 'pi-image'
+  return 'pi-file'
+}
+
+function downloadMessageFile(m) {
+  try {
+    const href = m?.file_url
+    if (!href) return
+    const a = document.createElement('a')
+    a.href = href
+    a.download = m?.file_name || 'download'
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } catch (e) {
+    try { window.open(m?.file_url, '_blank', 'noopener') } catch (_) {}
+  }
+}
+
+function openLightbox(m) {
+  try {
+    if (!m) return
+    lightboxItem.value = m
+    showLightbox.value = true
+  } catch (_) { /* noop */ }
+}
+
+function closeLightbox() {
+  showLightbox.value = false
+  lightboxItem.value = null
+}
+
+function onLightboxKeydown(e) {
+  if (!showLightbox.value) return
+  const key = e?.key || e?.code || ''
+  if (key === 'Escape' || key === 'Esc') {
+    e.preventDefault()
+    closeLightbox()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onLightboxKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onLightboxKeydown)
+})
 
 // Fetch only the new/unseen messages for this case and append to the end
 async function fetchAndAppendNewMessages() {
@@ -406,6 +487,22 @@ onBeforeUnmount(() => {
               <span class="ellipsis">{{ m.reply_to_text }}</span>
             </div>
             <div class="text" :class="{ 'ruled-out': !!m.rule_out }">{{ m.message }}</div>
+            <div v-if="m.file_id" class="attachment mt-2">
+              <template v-if="m.file_thumb">
+                <img :src="m.file_thumb"
+                     :alt="m.file_name || 'attachment'"
+                     class="attachment-thumb"
+                     @click="openLightbox(m)" />
+              </template>
+              <template v-else>
+                <button class="attachment-file flex align-items-center gap-2"
+                        @click="downloadMessageFile(m)"
+                        :aria-label="'Download ' + (m.file_name || 'file')">
+                  <i class="pi text-lg" :class="extensionIcon(m.file_name)"></i>
+                  <span class="filename ellipsis">{{ m.file_name || 'file' }}</span>
+                </button>
+              </template>
+            </div>
             <div class="footer flex align-items-center justify-content-between mt-1">
               <span class="left-info flex align-items-center gap-2">
                 <span class="time">{{ fmtTime(m.created_at) }}</span>
@@ -451,14 +548,29 @@ onBeforeUnmount(() => {
         <button class="x" @click="clearReply" aria-label="Cancel reply">×</button>
       </div>
       <div class="composer-row w-full space-y-1">
-        <FloatLabel variant="on" class="flex-1 min-w-0 align-content-center">
-          <Textarea id="msg-input" v-model="composer" autoResize rows="1" class="w-full"
-                    @keydown="onComposerKeydown"
-                    @compositionstart="isComposing = true"
-                    @compositionend="isComposing = false" />
-          <label for="msg-input">Type a message</label>
-        </FloatLabel>
-        <Button label="Send" icon="pi pi-send" @click="sendMessage" :loading="sending" :disabled="!composer.trim()" class="shrink-0 align-content-center"/>
+        <template v-if="showUploader">
+          <Button text @click="showUploader = false" class="shrink-0" :aria-label="'Close uploader'">
+            <span class="material-symbols-outlined">close</span>
+          </Button>
+          <FloatLabel variant="on" class="flex-1 min-w-0 align-content-center">
+            <div class="w-full">
+              <FileUpload :caseId="caseId" :singleFile="true" @uploaded="onUploadedFromComposer" />
+            </div>
+          </FloatLabel>
+        </template>
+        <template v-else>
+          <Button text @click="showUploader = true" class="shrink-0" :aria-label="'Attach file'">
+            <span class="material-symbols-outlined">attach_file</span>
+          </Button>
+          <FloatLabel variant="on" class="flex-1 min-w-0 align-content-center">
+            <Textarea id="msg-input" v-model="composer" autoResize rows="1" class="w-full"
+                      @keydown="onComposerKeydown"
+                      @compositionstart="isComposing = true"
+                      @compositionend="isComposing = false" />
+            <label for="msg-input">Type a message</label>
+          </FloatLabel>
+          <Button label="Send" icon="pi pi-send" @click="sendMessage" :loading="sending" :disabled="!composer.trim()" class="shrink-0 align-content-center"/>
+        </template>
       </div>
     </div>
 
@@ -468,6 +580,21 @@ onBeforeUnmount(() => {
         <button class="emoji-btn clear" @click="chooseEmoji(null)">Clear</button>
       </div>
     </Popover>
+
+    <!-- Lightbox Overlay (match FilesTab) -->
+    <div v-if="showLightbox" class="lightbox" @click.self="closeLightbox">
+      <button class="lightbox-close" type="button" @click="closeLightbox" aria-label="Close">
+        <i class="pi pi-times"></i>
+      </button>
+      <div class="lightbox-center">
+        <div class="lightbox-content">
+          <template v-if="lightboxItem">
+            <video v-if="lightboxItem.file_is_video" :src="lightboxItem.file_url" controls class="lightbox-media"></video>
+            <img v-else-if="lightboxItem.file_is_image" :src="lightboxItem.file_url" alt="preview" class="lightbox-media" />
+          </template>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -504,5 +631,20 @@ onBeforeUnmount(() => {
 .reactions-list { display: inline-flex; gap: 6px; }
 .reaction-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--p-surface-100, #f3f4f6); border: 1px solid var(--p-surface-300, #d1d5db); border-radius: 999px; padding: 1px 6px; font-size: 0.8rem; }
 .reaction-pill .count-badge { display: inline-block; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--p-surface-200, #e5e7eb); color: var(--p-text-color, #374151); text-align: center; font-size: 0.72rem; }
+
+/* Attachment styles */
+.attachment { display: inline-block; }
+.attachment-thumb { max-width: 160px; max-height: 120px; border-radius: 8px; border: 1px solid var(--p-surface-300, #d1d5db); cursor: pointer; object-fit: cover; }
+.attachment-file { background: var(--p-surface-100, #f3f4f6); border: 1px solid var(--p-surface-300, #d1d5db); border-radius: 8px; padding: 4px 8px; cursor: pointer; }
+.attachment-file:hover { background: var(--p-surface-50, #f9fafb); }
+.filename { max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Lightbox (match FilesTab) */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; }
+.lightbox-close { position: fixed; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.4); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1001; }
+.lightbox-close .pi { font-size: 18px; }
+.lightbox-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2vw; }
+.lightbox-content { max-width: 80vw; max-height: 90vh; background: transparent; display: flex; align-items: center; justify-content: center; }
+.lightbox-media { max-width: 80vw; max-height: 90vh; object-fit: contain; display: block; }
 
 </style>

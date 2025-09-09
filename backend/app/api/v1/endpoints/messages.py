@@ -21,6 +21,8 @@ from app.db.models.app_user_role import AppUserRole
 from app.db.models.role_permission import RolePermission
 from app.db.models.permission import Permission
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
+from app.db.models.file import File as OtherFile
+from app.services.s3 import get_download_link
 
 from .case_utils import _decode_or_404, can_user_access_case
 from app.schemas.message import MessageRead
@@ -34,6 +36,7 @@ from typing import Optional as _Optional_MSG, List as _List_MSG
 class MessageCreate(_BaseModel_MSG):
     message: str
     reply_to_id: _Optional_MSG[str] = None
+    file_id: _Optional_MSG[str] = None
 
 class MarkSeenRequest(_BaseModel_MSG):
     message_ids: _List_MSG[str]
@@ -121,12 +124,18 @@ async def list_case_messages(
             (MNS.id.is_(None)).label("seen"),
             MP.reaction.label("reaction"),
             M2.message.label("reply_to_text"),
+            OtherFile.id.label("file_id"),
+            OtherFile.file_name.label("file_name"),
+            OtherFile.mime_type.label("file_mime_type"),
+            OtherFile.is_image.label("file_is_image"),
+            OtherFile.is_video.label("file_is_video"),
         )
         .select_from(M)
         .join(P, P.id == M.written_by_id, isouter=True)
         .join(MP, sa.and_(MP.message_id == M.id, MP.person_id == pid), isouter=True)
         .join(M2, M2.id == M.reply_to_id, isouter=True)
         .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid), isouter=True)
+        .join(OtherFile, OtherFile.id == M.file_id, isouter=True)
         .where(M.case_id == pk)
         .order_by(sa.asc(M.created_at), sa.asc(M.id))
     )
@@ -151,6 +160,13 @@ async def list_case_messages(
                 message=r.message,
                 reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
                 rule_out=bool(getattr(r, "rule_out", False)),
+                file_id=(int(getattr(r, "file_id")) if getattr(r, "file_id", None) is not None else None),
+                file_name=(getattr(r, "file_name", None)),
+                file_mime_type=(getattr(r, "file_mime_type", None)),
+                file_is_image=bool(getattr(r, "file_is_image", False)) if getattr(r, "file_id", None) is not None else None,
+                file_is_video=bool(getattr(r, "file_is_video", False)) if getattr(r, "file_id", None) is not None else None,
+                file_url=(get_download_link("file", int(getattr(r, "file_id")), file_type=(getattr(r, "file_mime_type", None) or None), thumbnail=False, attachment_filename=(getattr(r, "file_name", None) or "download")) if getattr(r, "file_id", None) is not None else None),
+                file_thumb=(get_download_link("file", int(getattr(r, "file_id")), file_type=None, thumbnail=True) if (getattr(r, "file_id", None) is not None and (bool(getattr(r, "file_is_image", False)) or bool(getattr(r, "file_is_video", False)))) else None),
                 created_at=r.created_at,
                 updated_at=r.updated_at,
                 writer_name=getattr(r, "writer_name", None),
@@ -190,7 +206,17 @@ async def create_case_message(
         except OpaqueIdError:
             rid = None
 
-    msg = Message(case_id=pk, written_by_id=int(pid), message=payload.message, reply_to_id=rid)
+    fid: _Optional_MSG[int] = None
+    if getattr(payload, 'file_id', None):
+        try:
+            fid = decode_id("file", payload.file_id)
+        except OpaqueIdError:
+            try:
+                fid = int(payload.file_id)
+            except Exception:
+                fid = None
+
+    msg = Message(case_id=pk, written_by_id=int(pid), message=payload.message, reply_to_id=rid, file_id=fid)
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
@@ -288,6 +314,27 @@ async def create_case_message(
         reply_to_text = (await db.execute(select(Message.message).where(Message.id == msg.reply_to_id))).scalar_one_or_none()
 
     # Build response model (also used for websocket payload)
+    _fid = int(msg.file_id or 0) if getattr(msg, 'file_id', None) else 0
+    _fname = None
+    _fmime = None
+    _fimg = None
+    _fvid = None
+    if _fid:
+        try:
+            frow = (
+                await db.execute(
+                    select(OtherFile.file_name, OtherFile.mime_type, OtherFile.is_image, OtherFile.is_video).where(OtherFile.id == _fid)
+                )
+            ).first()
+            if frow:
+                _fname, _fmime, _fimg, _fvid = frow
+                _fimg = bool(_fimg)
+                _fvid = bool(_fvid)
+        except Exception:
+            _fname = _fname or None
+    _furl = get_download_link("file", _fid, file_type=_fmime or None, thumbnail=False, attachment_filename=_fname or "download") if _fid else None
+    _fthumb = (get_download_link("file", _fid, file_type=None, thumbnail=True) if _fid and (_fimg or _fvid) else None)
+
     msg_model = MessageRead(
         id=int(msg.id),
         case_id=int(msg.case_id),
@@ -295,6 +342,13 @@ async def create_case_message(
         message=msg.message,
         reply_to_id=int(msg.reply_to_id) if msg.reply_to_id is not None else None,
         rule_out=bool(getattr(msg, "rule_out", False)),
+        file_id=(_fid or None),
+        file_name=_fname,
+        file_mime_type=_fmime,
+        file_is_image=_fimg,
+        file_is_video=_fvid,
+        file_url=_furl,
+        file_thumb=_fthumb,
         created_at=msg.created_at,
         updated_at=msg.updated_at,
         writer_name=writer_name,
@@ -471,12 +525,18 @@ async def get_case_message(
             (MNS.id.is_(None)).label("seen"),
             MP.reaction.label("reaction"),
             M2.message.label("reply_to_text"),
+            OtherFile.id.label("file_id"),
+            OtherFile.file_name.label("file_name"),
+            OtherFile.mime_type.label("file_mime_type"),
+            OtherFile.is_image.label("file_is_image"),
+            OtherFile.is_video.label("file_is_video"),
         )
         .select_from(M)
         .join(P, P.id == M.written_by_id, isouter=True)
         .join(MP, sa.and_(MP.message_id == M.id, MP.person_id == pid), isouter=True)
         .join(M2, M2.id == M.reply_to_id, isouter=True)
         .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid), isouter=True)
+        .join(OtherFile, OtherFile.id == M.file_id, isouter=True)
         .where(M.case_id == pk, M.id == mid)
     )
     r = (await db.execute(q)).first()
@@ -492,6 +552,14 @@ async def get_case_message(
         f"/api/v1/media/pfp/person/{encode_id('person', int(written_by_id))}?s=xs" if getattr(r, "writer_has_pic", False) and written_by_id is not None else "/images/pfp-generic.png"
     )
 
+    _fid = int(getattr(r, 'file_id') or 0) if getattr(r, 'file_id', None) is not None else 0
+    _fname = getattr(r, 'file_name', None)
+    _fmime = getattr(r, 'file_mime_type', None)
+    _fimg = bool(getattr(r, 'file_is_image', False)) if _fid else None
+    _fvid = bool(getattr(r, 'file_is_video', False)) if _fid else None
+    _furl = get_download_link("file", int(_fid), file_type=(_fmime or None), thumbnail=False, attachment_filename=(_fname or "download")) if _fid else None
+    _fthumb = (get_download_link("file", int(_fid), file_type=None, thumbnail=True) if _fid and (_fimg or _fvid) else None)
+
     return MessageRead(
         id=int(r.id),
         case_id=int(r.case_id),
@@ -499,6 +567,13 @@ async def get_case_message(
         message=r.message,
         reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
         rule_out=bool(getattr(r, "rule_out", False)),
+        file_id=(_fid or None),
+        file_name=_fname,
+        file_mime_type=_fmime,
+        file_is_image=_fimg,
+        file_is_video=_fvid,
+        file_url=_furl,
+        file_thumb=_fthumb,
         created_at=r.created_at,
         updated_at=r.updated_at,
         writer_name=getattr(r, "writer_name", None),
@@ -673,12 +748,18 @@ async def list_new_case_messages(
             (MNS.id.is_(None)).label("seen"),
             MP.reaction.label("reaction"),
             M2.message.label("reply_to_text"),
+            OtherFile.id.label("file_id"),
+            OtherFile.file_name.label("file_name"),
+            OtherFile.mime_type.label("file_mime_type"),
+            OtherFile.is_image.label("file_is_image"),
+            OtherFile.is_video.label("file_is_video"),
         )
         .select_from(M)
         .join(P, P.id == M.written_by_id, isouter=True)
         .join(MP, sa.and_(MP.message_id == M.id, MP.person_id == pid), isouter=True)
         .join(M2, M2.id == M.reply_to_id, isouter=True)
         .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid))
+        .join(OtherFile, OtherFile.id == M.file_id, isouter=True)
         .where(M.case_id == pk)
         .order_by(sa.asc(M.created_at), sa.asc(M.id))
     )
@@ -696,6 +777,13 @@ async def list_new_case_messages(
         writer_photo_url = (
             f"/api/v1/media/pfp/person/{encode_id('person', int(written_by_id))}?s=xs" if getattr(r, "writer_has_pic", False) and written_by_id is not None else "/images/pfp-generic.png"
         )
+        _fid = int(getattr(r, 'file_id') or 0) if getattr(r, 'file_id', None) is not None else 0
+        _fname = getattr(r, 'file_name', None)
+        _fmime = getattr(r, 'file_mime_type', None)
+        _fimg = bool(getattr(r, 'file_is_image', False)) if _fid else None
+        _fvid = bool(getattr(r, 'file_is_video', False)) if _fid else None
+        _furl = get_download_link("file", int(_fid), file_type=(_fmime or None), thumbnail=False, attachment_filename=(_fname or "download")) if _fid else None
+        _fthumb = (get_download_link("file", int(_fid), file_type=None, thumbnail=True) if _fid and (_fimg or _fvid) else None)
         items.append(
             MessageRead(
                 id=int(r.id),
@@ -704,6 +792,13 @@ async def list_new_case_messages(
                 message=r.message,
                 reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
                 rule_out=bool(getattr(r, "rule_out", False)),
+                file_id=(_fid or None),
+                file_name=_fname,
+                file_mime_type=_fmime,
+                file_is_image=_fimg,
+                file_is_video=_fvid,
+                file_url=_furl,
+                file_thumb=_fthumb,
                 created_at=r.created_at,
                 updated_at=r.updated_at,
                 writer_name=getattr(r, "writer_name", None),

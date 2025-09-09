@@ -10,7 +10,8 @@ import { useToast } from 'primevue/usetoast'
 import api from '@/lib/api'
 
 const props = defineProps({
-  caseId: { type: [String, Number], required: true }
+  caseId: { type: [String, Number], required: true },
+  singleFile: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['uploaded'])
@@ -55,8 +56,7 @@ function onRemoveFile(file, removeFileCallback, index) {
 
 async function onSelectedFiles(event, files, uploadedFiles) {
   const selected = event.files || []
-  const keep = []
-  for (const f of selected) keep.push(f)
+  const keep = props.singleFile ? selected.slice(0, 1) : selected.slice()
   event.files.length = 0
   keep.forEach(f => event.files.push(f))
 
@@ -85,7 +85,7 @@ async function onSelectedFiles(event, files, uploadedFiles) {
 
 async function onUploadFiles(files, uploadedFiles) {
   if (!props.caseId) return
-  console.log(files);
+  //console.log(files);
   const filesToProcess = [...files]
   for (const file of filesToProcess) {
     try {
@@ -98,8 +98,8 @@ async function onUploadFiles(files, uploadedFiles) {
       } catch (e) {
         console.warn('Thumbnail append failed:', e)
       }
-
-      await api.post(`/api/v1/cases/${casePathId(props.caseId)}/files/upload`, fd, {
+      console.log(props.caseId);
+      const resp = await api.post(`/api/v1/cases/${casePathId(props.caseId)}/files/upload`, fd, {
         onUploadProgress: (evt) => {
           const loaded = evt.loaded || 0
           const prev = amountCompleted._filePartial || 0
@@ -116,6 +116,8 @@ async function onUploadFiles(files, uploadedFiles) {
       totalSizePercent.value = Math.min(100, (amountCompleted.value / (totalSize.value || 1)) * 100)
 
       toast.add({ severity: 'success', summary: 'Uploaded', detail: file.name, life: 2500 })
+      const uploaded = resp && resp.data ? resp.data : null
+      if (uploaded) emit('uploaded', uploaded)
       const index = files.findIndex(f => f === file)
       if (index > -1) files.splice(index, 1)
     } catch (e) {
@@ -129,8 +131,6 @@ async function onUploadFiles(files, uploadedFiles) {
 
 function casePathId(id) {
   const s = String(id ?? '')
-  const m = s.match(/^(\d+)/)
-  if (m && m[1]) return m[1]
   try { return encodeURIComponent(s) } catch { return s }
 }
 
@@ -251,6 +251,7 @@ async function onPaste(e) {
         console.warn('Paste thumbnail generation failed:', e)
       }
       newlyQueued.push(file)
+      if (props.singleFile) break
     }
 
     if (!newlyQueued.length) return
@@ -326,7 +327,7 @@ function removePastedFile(file) {
     <div class="flex align-items-center gap-3 mb-3 wrap">
       <div class="w-full">
         <FileUpload name="other[]"
-                    :multiple="true"
+                    :multiple="!singleFile"
                     :auto="false"
                     :maxFileSize="1000000000"
                     @select="onSelectedFiles($event, files, uploadedFiles)"

@@ -27,6 +27,15 @@ class MessageRead(OpaqueIdMixin):
     reply_to_id: Optional[int] = None
     rule_out: bool = False
 
+    # Optional file attachment fields
+    file_id: Optional[int] = None
+    file_name: Optional[str] = None
+    file_mime_type: Optional[str] = None
+    file_is_image: Optional[bool] = None
+    file_is_video: Optional[bool] = None
+    file_url: Optional[str] = None
+    file_thumb: Optional[str] = None
+
     # Timestamps
     created_at: datetime
     updated_at: datetime
@@ -61,3 +70,9 @@ class MessageRead(OpaqueIdMixin):
         if v is None:
             return None
         return encode_id("message", int(v))
+
+    @field_serializer("file_id")
+    def _serialize_file_id(self, v: Optional[int]) -> Optional[str]:
+        if v is None:
+            return None
+        return encode_id("file", int(v))
