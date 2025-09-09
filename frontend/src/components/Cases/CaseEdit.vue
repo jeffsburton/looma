@@ -16,8 +16,8 @@ import DocsTab from './tabs/DocsTab.vue'
 import ActivityTab from './tabs/ActivityTab.vue'
 import Messages from '../Messages.vue'
 
-import OverlayBadge from 'primevue/overlaybadge'
 import api from '../../lib/api'
+import UnseenMessageCount from '../common/UnseenMessageCount.vue'
 
 const props = defineProps({
   caseNumber: { type: [String, Number], required: true },
@@ -176,15 +176,6 @@ const daysMissing = computed(() => {
   return Math.max(0, days)
 })
 
-import { gMessageCounts } from '@/lib/messages_ws'
-
-const messagesUnseenCount = computed(() => {
-  const cid = String(caseModel.value.id || '')
-  if (!cid) return 0
-  const key = `count_${cid}`
-  const m = gMessageCounts.value || {}
-  return Number(m[key] || 0)
-})
 </script>
 
 <template>
@@ -241,20 +232,12 @@ const messagesUnseenCount = computed(() => {
           <span class="ml-1">Docs</span>
         </Tab>
         <Tab value="messages">
-          <template v-if="messagesUnseenCount > 0">
-            <OverlayBadge :value="String(messagesUnseenCount)">
-              <div class="flex align-items-center">
-                <span class="material-symbols-outlined">chat_bubble</span>
-                <span class="ml-1">Messages</span>
-              </div>
-            </OverlayBadge>
-          </template>
-          <template v-else>
+          <UnseenMessageCount TableName="case" :CaseId="caseModel.id" size="normal">
             <div class="flex align-items-center">
               <span class="material-symbols-outlined">chat_bubble</span>
               <span class="ml-1">Messages</span>
             </div>
-          </template>
+          </UnseenMessageCount>
         </Tab>
       </TabList>
 
@@ -323,7 +306,7 @@ const messagesUnseenCount = computed(() => {
       <TabPanel value="messages">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <Messages :caseId="caseModel.id" @unseen-count="(n) => (messagesUnseenCount = Number(n||0))" />
+            <Messages :caseId="caseModel.id" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

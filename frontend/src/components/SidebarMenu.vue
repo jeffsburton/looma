@@ -5,7 +5,8 @@ import { useToast } from 'primevue/usetoast'
 import api from '../lib/api'
 import { getCookie, setCookie, deleteCookie } from '../lib/cookies'
 import { hasPermission, clearPermissions } from '../lib/permissions'
-import { disconnectMessagesWS, gMessageCounts } from '../lib/messages_ws'
+import { disconnectMessagesWS } from '../lib/messages_ws'
+import UnseenMessageCount from './common/UnseenMessageCount.vue'
 // Sidebar for internal pages: vertical stack with Material icons.
 // Handles logout internally by calling the API and clearing client state.
 
@@ -103,16 +104,6 @@ const items = [
 ]
 
 const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPermission(i.requiredPerm)))
-
-const messagesBadgeCount = computed(() => {
-  const m = gMessageCounts.value || {}
-  return Number(m.count || 0)
-})
-
-const tasksBadgeCount = computed(() => {
-  const m = gMessageCounts.value || {}
-  return Number(m.count_tasks || 0)
-})
 </script>
 
 <template>
@@ -145,9 +136,15 @@ const tasksBadgeCount = computed(() => {
           @click="router.push({ name: item.routeName })"
         >
           <span class="icon-wrap">
-            <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
-            <span v-if="item.label === 'Messages' && messagesBadgeCount > 0" class="badge" :aria-label="`${messagesBadgeCount} unread messages`">{{ messagesBadgeCount }}</span>
-            <span v-if="item.label === 'Tasks' && tasksBadgeCount > 0" class="badge" :aria-label="`${tasksBadgeCount} tasks`">{{ tasksBadgeCount }}</span>
+            <UnseenMessageCount v-if="item.label === 'Messages'">
+              <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+            </UnseenMessageCount>
+            <UnseenMessageCount v-else-if="item.label === 'Tasks'" TableName="tasks">
+              <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+            </UnseenMessageCount>
+            <template v-else>
+              <span :title="item.label" class="material-symbols-outlined">{{ item.icon }}</span>
+            </template>
           </span>
           <span v-show="!collapsed" class="label text-800 font-medium">{{ item.label }}</span>
         </div>
