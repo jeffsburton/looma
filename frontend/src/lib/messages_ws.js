@@ -146,15 +146,20 @@ function _connect() {
 
           log.debug("counts.update", data.counts)
 
-        } else if (data?.type == "reactions.update") {
-          log.debug("reactions.update", data)
+        } else if (data?.type === "messages.change" || data?.type == "reactions.update") {
+          log.debug(data?.type, data)
           try {
             const detail = {
               case_id: data?.case_id || null,
               message_id: data?.message_id || null,
             }
             if (detail.case_id && detail.message_id) {
-              gMessageEvents?.dispatchEvent?.(new CustomEvent('message-reaction-update', { detail }))
+              // New generalized event consumers should listen to 'message-change'
+              gMessageEvents?.dispatchEvent?.(new CustomEvent('message-change', { detail }))
+              // Backward compatibility: also dispatch legacy event on reactions.update
+              if (data?.type == "reactions.update") {
+                gMessageEvents?.dispatchEvent?.(new CustomEvent('message-reaction-update', { detail }))
+              }
             }
           } catch (_) { /* noop */ }
         } else if (data?.type === 'pong') {

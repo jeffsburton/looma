@@ -346,8 +346,8 @@ async function executeWhenVisible(entry) {
   }
 }
 
-// Listen for reaction updates via global event bus and refresh targeted message
-const _onReactionUpdate = async (evt) => {
+// Listen for generic message changes via global event bus and refresh targeted message
+const _onMessageChange = async (evt) => {
   try {
     const det = (evt && evt.detail) ? evt.detail : null
     if (!det) return
@@ -358,24 +358,31 @@ const _onReactionUpdate = async (evt) => {
     // Find the message in current list
     const idx = messages.value.findIndex(m => String(m.id) === encMid)
     if (idx < 0) return
-    // Fetch grouped reactions and my_reaction
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(encMid)}/reactions`
-    const { data } = await api.get(url)
-    if (!data) return
-    const m = messages.value[idx]
-    m.reactions = Array.isArray(data.reactions) ? data.reactions : []
-    if (Object.prototype.hasOwnProperty.call(data, 'my_reaction')) {
-      m.reaction = data.my_reaction || null
+    // Fetch the complete message record
+    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/messages/${encodeURIComponent(encMid)}`
+    try {
+      const { data } = await api.get(url)
+      if (data) {
+        messages.value[idx] = data
+      }
+    } catch (err) {
+      // On 404, remove the message locally (was deleted)
+      try {
+        const status = err && err.response && err.response.status
+        if (status === 404) {
+          messages.value.splice(idx, 1)
+        }
+      } catch (_) { /* noop */ }
     }
   } catch (_) { /* noop */ }
 }
 
 onMounted(() => {
-  try { gMessageEvents?.addEventListener?.('message-reaction-update', _onReactionUpdate) } catch (_) { /* noop */ }
+  try { gMessageEvents?.addEventListener?.('message-change', _onMessageChange) } catch (_) { /* noop */ }
 })
 
 onBeforeUnmount(() => {
-  try { gMessageEvents?.removeEventListener?.('message-reaction-update', _onReactionUpdate) } catch (_) { /* noop */ }
+  try { gMessageEvents?.removeEventListener?.('message-change', _onMessageChange) } catch (_) { /* noop */ }
 })
 
 </script>

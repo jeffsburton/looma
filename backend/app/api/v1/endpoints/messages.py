@@ -362,7 +362,11 @@ async def set_message_reaction(
 
     await db.commit()
 
-    await _ws_manager.publish_new_reaction(pk, mid, reaction_val)
+    # Broadcast unified message change event (covers reaction updates)
+    try:
+        await _ws_manager.publish_message_change(pk, mid)
+    except Exception:
+        pass
 
     return {"ok": True}
 
@@ -414,6 +418,101 @@ async def get_message_reactions(
 
 
 # ------------------------------------------------------------
+# Get a single message (enriched) matching list_case_messages shape
+# ------------------------------------------------------------
+@router.get("/{case_id}/messages/{message_id}", summary="Get a single message", response_model=MessageRead)
+async def get_case_message(
+    case_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    pk = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, pk):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Resolve current user's person id
+    pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
+    if pid is None:
+        raise HTTPException(status_code=400, detail="Current user is not linked to a person")
+
+    try:
+        mid = int(decode_id("message", message_id))
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Ensure message belongs to the case
+    owns = (await db.execute(select(Message.id).where(Message.id == mid, Message.case_id == pk))).scalar_one_or_none()
+    if owns is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Precompute current user's photo URL once
+    me_has_pic = (await db.execute(select(Person.profile_pic.isnot(None)).where(Person.id == pid))).scalar() or False
+    my_photo_url = f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=xs" if me_has_pic else "/images/pfp-generic.png"
+
+    P = Person
+    M = Message
+    MP = MessagePerson
+    M2 = aliased(M)
+    MNS = MessageNotSeen
+
+    q = (
+        select(
+            M.id,
+            M.case_id,
+            M.written_by_id,
+            M.message,
+            M.reply_to_id,
+            M.rule_out,
+            M.created_at,
+            M.updated_at,
+            (P.first_name + sa.literal(" ") + P.last_name).label("writer_name"),
+            P.profile_pic.isnot(None).label("writer_has_pic"),
+            (MNS.id.is_(None)).label("seen"),
+            MP.reaction.label("reaction"),
+            M2.message.label("reply_to_text"),
+        )
+        .select_from(M)
+        .join(P, P.id == M.written_by_id, isouter=True)
+        .join(MP, sa.and_(MP.message_id == M.id, MP.person_id == pid), isouter=True)
+        .join(M2, M2.id == M.reply_to_id, isouter=True)
+        .join(MNS, sa.and_(MNS.message_id == M.id, MNS.person_id == pid), isouter=True)
+        .where(M.case_id == pk, M.id == mid)
+    )
+    r = (await db.execute(q)).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Aggregate reactions for this message
+    reaction_map: dict[int, list[dict]] = await _build_reaction_map(db, [mid])
+
+    written_by_id = int(r.written_by_id) if r.written_by_id is not None else None
+    is_mine = (written_by_id == int(pid)) if written_by_id is not None else False
+    writer_photo_url = (
+        f"/api/v1/media/pfp/person/{encode_id('person', int(written_by_id))}?s=xs" if getattr(r, "writer_has_pic", False) and written_by_id is not None else "/images/pfp-generic.png"
+    )
+
+    return MessageRead(
+        id=int(r.id),
+        case_id=int(r.case_id),
+        written_by_id=written_by_id,
+        message=r.message,
+        reply_to_id=int(r.reply_to_id) if r.reply_to_id is not None else None,
+        rule_out=bool(getattr(r, "rule_out", False)),
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        writer_name=getattr(r, "writer_name", None),
+        seen=bool(getattr(r, "seen", False)),
+        reaction=getattr(r, "reaction", None),
+        reactions=reaction_map.get(int(r.id), []),
+        reply_to_text=getattr(r, "reply_to_text", None),
+        is_mine=bool(is_mine),
+        writer_photo_url=writer_photo_url,
+        my_photo_url=my_photo_url,
+    )
+
+
+# ------------------------------------------------------------
 # Update a message (rule_out only)
 # ------------------------------------------------------------
 from pydantic import BaseModel as _BM_Partial
@@ -455,6 +554,11 @@ async def update_message(
         row.rule_out = bool(payload.rule_out) if payload.rule_out is not None else False
 
     await db.commit()
+    # Broadcast unified message change (e.g., rule_out toggled)
+    try:
+        await _ws_manager.publish_message_change(pk, mid)
+    except Exception:
+        pass
     return {"ok": True, "rule_out": bool(row.rule_out)}
 
 
@@ -507,6 +611,17 @@ async def delete_message(
     # Proceed to delete; rely on ON DELETE constraints for related rows
     await db.delete(row)
     await db.commit()
+
+    # Broadcast both: the message changed (deleted) and counts may have changed
+    try:
+        await _ws_manager.publish_message_change(pk, mid)
+    except Exception:
+        pass
+    try:
+        await _ws_manager.publish_count_change(int(pk))
+    except Exception:
+        pass
+
     return {"ok": True}
 
 # ------------------------------------------------------------
@@ -872,7 +987,12 @@ class _CaseWSManager:
 
     # PUBLISH New Reaction ---------------------------
     async def publish_new_reaction(self, case_id: int, message_id: int, reaction: str):
-        await self.publish( "reactions.update", case_id, message_id=message_id, content=reaction)
+        # Legacy alias: publish a reactions.update event (kept for backward compatibility)
+        await self.publish("reactions.update", case_id, message_id=message_id, content=reaction)
+
+    # PUBLISH Message Change ---------------------------
+    async def publish_message_change(self, case_id: int, message_id: int):
+        await self.publish("messages.change", case_id, message_id=message_id)
 
     # PUBLISH -------------------------------------------------
     async def publish(self, type: str, case_id: int, message_id: int = None, content: str = None) -> None:
