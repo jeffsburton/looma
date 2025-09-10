@@ -49,6 +49,7 @@ from . import activity as _case_activity
 from . import social_media as _case_social_media
 from . import case_persons as _case_persons
 from . import case_subjects as _case_subjects
+from . import tasks as _case_tasks
 
 router.include_router(_case_files.router)
 router.include_router(_case_messages.router)
@@ -57,6 +58,7 @@ router.include_router(_case_activity.router)
 router.include_router(_case_social_media.router)
 router.include_router(_case_persons.router)
 router.include_router(_case_subjects.router)
+router.include_router(_case_tasks.router)
 
 # ---------- Helper utilities ----------
 

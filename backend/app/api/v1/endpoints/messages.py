@@ -975,6 +975,10 @@ async def unseen_counts_all_cases(encrypted_user_id: str, session_id: str) -> di
                 .group_by(M.case_id, M.rfi_id, M.ops_plan_id, M.task_id)
             )
 
+            # Get the SQL
+            #sql = str(q.compile(compile_kwargs={"literal_binds": True}))
+            #print(sql)
+
             rows = (await db.execute(q)).all()
 
             # Build flat JSON object with dynamic keys per specification

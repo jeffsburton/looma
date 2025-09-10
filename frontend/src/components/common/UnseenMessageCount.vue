@@ -15,9 +15,8 @@ const props = defineProps({
   // Presentation props
   showZero: { type: Boolean, default: false },
   max: { type: Number, default: 99 },
-  severity: { type: String, default: 'danger' },
+  severity: { type: String, default: 'info' },
   size: { type: String, default: 'small' }, // 'small' | 'normal'
-  position: { type: String, default: 'top-right' },
   ariaLabel: { type: String, default: '' },
   badgeOnly: { type: Boolean, default: false },
 })
@@ -92,8 +91,7 @@ const computedAria = computed(() => props.ariaLabel || `${rawCount.value} unread
       :value="displayValue"
       :severity="severity"
       :aria-label="computedAria"
-      class="umc-badge"
-      :class="[`umc-${size}`, `umc-${position}`]"
+      :size="size"
     >
       <span class="umc-badge-anchor"></span>
     </OverlayBadge>
@@ -104,8 +102,7 @@ const computedAria = computed(() => props.ariaLabel || `${rawCount.value} unread
       :value="displayValue"
       :severity="severity"
       :aria-label="computedAria"
-      class="umc-badge"
-      :class="[`umc-${size}`, `umc-${position}`]"
+      :size="size"
     >
       <slot />
     </OverlayBadge>
@@ -116,8 +113,5 @@ const computedAria = computed(() => props.ariaLabel || `${rawCount.value} unread
 </template>
 
 <style scoped>
-.umc-badge.umc-top-right :deep(.p-overlay-badge) {
-  transform: translate(30%, -30%);
-}
 .umc-badge-anchor { display: inline-block; width: 0.001px; height: 0.001px; }
 </style>

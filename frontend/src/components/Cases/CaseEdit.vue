@@ -233,7 +233,7 @@ const daysMissing = computed(() => {
           <span class="ml-1">Docs</span>
         </Tab>
         <Tab value="tasks">
-          <UnseenMessageCount TableName="task" :CaseId="caseModel.id" size="normal">
+          <UnseenMessageCount TableName="task" :CaseId="caseModel.id">
             <div class="flex align-items-center">
               <span class="material-symbols-outlined">list_alt_check</span>
               <span class="ml-1">Tasks</span>
@@ -241,7 +241,7 @@ const daysMissing = computed(() => {
           </UnseenMessageCount>
         </Tab>
         <Tab value="messages">
-          <UnseenMessageCount TableName="case" :CaseId="caseModel.id" size="normal">
+          <UnseenMessageCount TableName="case" :CaseId="caseModel.id">
             <div class="flex align-items-center">
               <span class="material-symbols-outlined">chat_bubble</span>
               <span class="ml-1">Messages</span>

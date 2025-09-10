@@ -472,8 +472,20 @@ def seed_0001():
 
     perm_id :int = seed("permission", {"name": "RFI's", "code": "RFIS", "description": "Respond to RFI's"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+
+
+
     perm_id :int = seed("permission", {"name": "Ops Plans", "code": "OPS_PLANS", "description": "Oversee Ops Plans"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+
+
+    perm_id :int = seed("permission", {"name": "Create Tasks", "code": "TASKS.CREATE", "description": "Create a new task"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
+
+    perm_id :int = seed("permission", {"name": "Complete a Tasks", "code": "TASKS.COMPLETE", "description": "Set task completion task"})
+    seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
+    seed("role_permission", {"role_id": leader_role_id, "permission_id": perm_id})
 
     perm_id :int = seed("permission", {"name": "Events", "code": "EVENTS", "description": "Search events"})
     seed("role_permission", {"role_id": role_id, "permission_id": perm_id})
