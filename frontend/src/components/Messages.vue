@@ -10,7 +10,6 @@ import api from '@/lib/api'
 import { gMessageCounts, gMessageEvents } from '@/lib/messages_ws'
 import { createClientLogger } from '@/lib/util'
 import FileUpload from '@/components/common/FileUpload.vue'
-import { useRoute } from 'vue-router'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
@@ -20,7 +19,20 @@ const props = defineProps({
 })
 
 const log = createClientLogger('Messages')
-const route = useRoute()
+
+// Case header (case_number) fetched by opaque case id for building deep links
+const caseNumber = ref('')
+
+async function loadCaseHeader() {
+  const cid = String(props.caseId || '')
+  if (!cid) { caseNumber.value = ''; return }
+  try {
+    const { data } = await api.get(`/api/v1/cases/${encodeURIComponent(cid)}/by-id`)
+    caseNumber.value = (data && data.case_number) ? String(data.case_number) : ''
+  } catch (_) {
+    caseNumber.value = ''
+  }
+}
 
 
 const loading = ref(false)
@@ -311,8 +323,10 @@ async function chooseEmoji(val) {
 watch(() => props.caseId, (val) => {
   didInitialScroll.value = false
   if (val) {
+    loadCaseHeader()
     loadMessages()
   } else {
+    caseNumber.value = ''
     messages.value = []
   }
 }, { immediate: true })
@@ -562,12 +576,14 @@ async function search(query) {
       }
     }
   }
-
+console.log(hits);
   return hits
 }
 
 async function showSearchHit(hit) {
   clearHighlights()
+
+  console.log(hit);
 
   const allGroups = Array.isArray(groups.value) ? groups.value : []
   for (const g of allGroups) {
@@ -640,8 +656,8 @@ useSearchable("messages_" + props.caseId, {
               <span class="left-info flex align-items-center gap-2">
                 <span class="time">{{ fmtTime(m.created_at) }}</span>
                 <RouterLink
-                  v-if="m.task_raw_id && filterByFieldName !== 'task_id'"
-                  :to="{ name: 'case-task', params: { caseNumber: String(route.params.caseNumber || ''), rawTaskId: m.task_raw_id } }"
+                  v-if="m.task_raw_id && filterByFieldName !== 'task_id' && caseNumber"
+                  :to="{ name: 'case-task', params: { caseNumber: String(caseNumber || ''), rawTaskId: m.task_raw_id } }"
                   class="p-button p-component p-button-text p-button-sm task-link"
                   title="go to task"
                   aria-label="go to task"

@@ -2,7 +2,7 @@
 import { inject, onMounted, onUnmounted, getCurrentInstance } from 'vue'
 
 export function useSearchable(componentId, searchMethods) {
-  const searchAPI = inject('searchAPI')
+  const searchAPI = inject('searchAPI', null)
 
   if (!searchAPI) {
     //console.warn('useSearchable used outside of SearchWrapper')

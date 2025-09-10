@@ -235,6 +235,8 @@ async function search(query) {
 
   const all = Array.isArray(tasks.value) ? tasks.value : []
   for (const t of all) {
+    if (!showCompleted.value && t.completed)
+      continue
     const title = String(t.title || '')
     const desc = String(t.description || '')
     const resp = String(t.response || '')
@@ -249,20 +251,14 @@ async function search(query) {
   // If we have hits, ensure their panels are open and completed visibility is on when needed
   if (hits.length) {
     // Determine if any hit is on a completed task
-    let needsCompleted = false
     const set = new Set(openPanels.value || [])
     for (const h of hits) {
       const t = all.find(x => String(x.id) === String(h.id))
       if (t) {
         set.add(t.id)
-        if (t.completed) needsCompleted = needsCompleted || true
       }
     }
     openPanels.value = Array.from(set)
-    if (needsCompleted && !showCompleted.value) {
-      showCompleted.value = true
-      await nextTick()
-    }
   }
 
   return hits
