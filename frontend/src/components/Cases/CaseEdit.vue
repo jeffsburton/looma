@@ -110,7 +110,28 @@ watch(
       ? String(intakeSubActive.value || 'intake')
       : (tab === 'docs' ? (VALID_DOCS_SUBTABS.includes(String(docsSubActive.value)) ? String(docsSubActive.value) : 'files') : undefined)
     const curSub = route.params.subtab ? String(route.params.subtab) : undefined
-    // Only update if different to avoid redundant navigations
+    const rawTaskId = route.params.rawTaskId ? String(route.params.rawTaskId) : undefined
+
+    // When on Tasks tab with a deep-linked task, preserve the case-task route and rawTaskId
+    if (tab === 'tasks') {
+      if (rawTaskId) {
+        if (route.name !== 'case-task' || String(route.params.caseNumber || '') !== caseNumber) {
+          router.replace({ name: 'case-task', params: { caseNumber, rawTaskId } })
+        }
+        return
+      }
+      // No rawTaskId: ensure we're on the generic tasks route
+      if (
+        String(route.params.caseNumber || '') !== caseNumber ||
+        String(route.params.tab || '') !== 'tasks' ||
+        route.name !== 'case-detail'
+      ) {
+        router.replace({ name: 'case-detail', params: { caseNumber, tab: 'tasks' } })
+      }
+      return
+    }
+
+    // Default behavior for other tabs
     if (
       String(route.params.caseNumber || '') !== caseNumber ||
       String(route.params.tab || '') !== tab ||

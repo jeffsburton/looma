@@ -102,6 +102,31 @@ async def create_task(
     return TaskRead.model_validate(row)
 
 
+@router.get("/{case_id}/tasks/{task_id}", summary="Get a task for a case", response_model=TaskRead)
+async def get_task(
+    case_id: str,
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    try:
+        task_db_id = int(decode_id("task", task_id)) if not str(task_id).isdigit() else int(task_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    row = (
+        await db.execute(select(Task).where(Task.id == int(task_db_id), Task.case_id == int(case_db_id)))
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return TaskRead.model_validate(row)
+
+
 @router.patch("/{case_id}/tasks/{task_id}", summary="Update a task for a case", response_model=TaskRead)
 async def update_task(
     case_id: str,

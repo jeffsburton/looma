@@ -10,6 +10,7 @@ import api from '@/lib/api'
 import { gMessageCounts, gMessageEvents } from '@/lib/messages_ws'
 import { createClientLogger } from '@/lib/util'
 import FileUpload from '@/components/common/FileUpload.vue'
+import { useRoute } from 'vue-router'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: false },
@@ -19,6 +20,7 @@ const props = defineProps({
 })
 
 const log = createClientLogger('Messages')
+const route = useRoute()
 
 
 const loading = ref(false)
@@ -581,6 +583,15 @@ onBeforeUnmount(() => {
             <div class="footer flex align-items-center justify-content-between mt-1">
               <span class="left-info flex align-items-center gap-2">
                 <span class="time">{{ fmtTime(m.created_at) }}</span>
+                <RouterLink
+                  v-if="m.task_raw_id && filterByFieldName !== 'task_id'"
+                  :to="{ name: 'case-task', params: { caseNumber: String(route.params.caseNumber || ''), rawTaskId: m.task_raw_id } }"
+                  class="p-button p-component p-button-text p-button-sm task-link"
+                  title="go to task"
+                  aria-label="go to task"
+                >
+                  <span class="material-symbols-outlined">assignment</span>
+                </RouterLink>
                 <span v-if="Array.isArray(m.reactions) && m.reactions.length" class="reactions-list flex align-items-center gap-1">
                   <span v-for="rg in m.reactions" :key="rg.emoji" class="reaction-pill">
                     <span class="emoji">{{ rg.emoji }}</span>
@@ -738,5 +749,14 @@ onBeforeUnmount(() => {
 .lightbox-content { max-width: 80vw; max-height: 90vh; background: transparent; display: flex; align-items: center; justify-content: center; }
 .lightbox-media { max-width: 80vw; max-height: 90vh; object-fit: contain; display: block; }
 
+.task-link {
+  text-decoration: none !important;
+}
+.task-link:visited,
+.task-link:hover,
+.task-link:focus,
+.task-link:active {
+  text-decoration: none !important;
+}
 
 </style>

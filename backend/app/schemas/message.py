@@ -27,6 +27,10 @@ class MessageRead(OpaqueIdMixin):
     reply_to_id: Optional[int] = None
     rule_out: bool = False
 
+    # Optional associations
+    task_id: Optional[int] = None  # encrypted task id when present
+    task_raw_id: Optional[int] = None  # raw task id for deep-linking only
+
     # Optional file attachment fields
     file_id: Optional[int] = None
     file_name: Optional[str] = None
@@ -76,3 +80,9 @@ class MessageRead(OpaqueIdMixin):
         if v is None:
             return None
         return encode_id("file", int(v))
+
+    @field_serializer("task_id")
+    def _serialize_task_id(self, v: Optional[int]) -> Optional[str]:
+        if v is None:
+            return None
+        return encode_id("task", int(v))

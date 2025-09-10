@@ -13,6 +13,7 @@ import Messages from '@/components/Messages.vue'
 import api from '@/lib/api'
 import { hasPermission } from '@/lib/permissions'
 import UnseenMessageCount from "@/components/common/UnseenMessageCount.vue";
+import { useRoute } from 'vue-router'
 
 const props = defineProps({
   caseId: { type: [String, Number], required: true }
@@ -29,6 +30,11 @@ const showCompleted = ref(false) // default off per requirements
 // Data
 const loading = ref(false)
 const tasks = ref([])
+
+// Track open panels for programmatic control
+const openPanels = ref([])
+
+const route = useRoute()
 
 // Client-side filter for completed
 const displayedTasks = computed(() => {
@@ -76,6 +82,36 @@ async function loadTasks() {
     // Always load the full list; completion filtering is handled client-side
     const { data } = await api.get(`/api/v1/cases/${props.caseId}/tasks`, { params })
     tasks.value = Array.isArray(data) ? data : []
+
+    // Handle deep-link to a specific task by raw id
+    const rawTaskId = route.params.rawTaskId ? String(route.params.rawTaskId) : null
+    if (rawTaskId) {
+      try {
+        const { data: target } = await api.get(`/api/v1/cases/${props.caseId}/tasks/${encodeURIComponent(rawTaskId)}`)
+        if (target && target.id) {
+          // Ensure completed tasks are visible if needed
+          if (target.completed && !showCompleted.value) {
+            showCompleted.value = true
+            await nextTick()
+          }
+          // Open the accordion panel for this task
+          const val = target.id
+          const set = new Set(openPanels.value || [])
+          set.add(val)
+          openPanels.value = Array.from(set)
+          await nextTick()
+          // Scroll to the panel
+          try {
+            const el = document.querySelector(`[data-task-id="${val}"]`)
+            if (el && el.scrollIntoView) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+          } catch (_) { /* noop */ }
+        }
+      } catch (e) {
+        // ignore if not found or access denied
+      }
+    }
   } finally {
     loading.value = false
   }
@@ -231,8 +267,8 @@ function cancelAdd() {
     </div>
 
     <!-- Task list -->
-    <Accordion multiple :lazy="true" @tab-open="onPanelOpen">
-      <AccordionPanel v-for="(t, idx) in displayedTasks" :key="t.id" :value="t.id">
+    <Accordion multiple :lazy="true" v-model:value="openPanels" @tab-open="onPanelOpen">
+      <AccordionPanel v-for="(t, idx) in displayedTasks" :key="t.id" :value="t.id" :data-task-id="t.id">
         <AccordionHeader >
           <div class="flex align-items-center gap-2">
             <UnseenMessageCount TableName="task" :CaseId="caseId" :TaskId="t.id">
