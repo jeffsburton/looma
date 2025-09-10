@@ -272,6 +272,7 @@ async function showSearchHit(hit) {
   clearHighlights()
   const all = Array.isArray(tasks.value) ? tasks.value : []
   const target = all.find(t => String(t.id) === String(hit.id))
+
   if (target) {
     target[hit.part] = true
     // Ensure panel is open
@@ -307,11 +308,51 @@ function clearHighlights() {
     }
 }
 
+// Map child component instance uid -> task id
+const childUidToTaskId = ref(new Map())
+
+function makeMessagesRef(taskId) {
+  return (comp) => {
+    const uid = comp?.$?.uid
+    if (uid != null) {
+      childUidToTaskId.value.set(uid, taskId)
+    }
+  }
+}
+
+async function childHadSearchHit(data){
+  const uid = data?.uid
+  if (uid == null) return
+
+  const taskId = childUidToTaskId.value.get(uid)
+  if (taskId == null) return
+
+  // Ensure panel is open
+  const set = new Set(openPanels.value || [])
+  set.add(taskId)
+  openPanels.value = Array.from(set)
+
+  // If the task is completed and currently hidden, reveal completed
+  const t = (Array.isArray(tasks.value) ? tasks.value : []).find(x => String(x.id) === String(taskId))
+  if (t?.completed && !showCompleted.value) {
+    showCompleted.value = true
+    await nextTick()
+  }
+
+  // Scroll into view for better UX
+  await nextTick()
+  try {
+    const el = document.querySelector(`[data-task-id="${taskId}"]`)
+    el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+  } catch (_) { /* noop */ }
+}
+
 // Register this component as searchable
-useSearchable(props.caseId, {
+useSearchable("tasks_" + props.caseId, {
   search,
   showSearchHit,
-  clearHighlights
+  clearHighlights,
+  childHadSearchHit
 })
 
 
@@ -355,7 +396,7 @@ useSearchable(props.caseId, {
     </div>
 
     <!-- Task list -->
-    <Accordion multiple :lazy="true" v-model:value="openPanels" @tab-open="onPanelOpen">
+    <Accordion multiple :lazy="false" v-model:value="openPanels" @tab-open="onPanelOpen">
       <AccordionPanel v-for="(t, idx) in displayedTasks" :key="t.id" :value="t.id" :data-task-id="t.id">
         <AccordionHeader >
           <div class="flex align-items-center gap-2">
@@ -411,7 +452,7 @@ useSearchable(props.caseId, {
           <!-- Messages: only for existing records -->
           <div class="mt-3">
             <p>Ask questions, provide updates here:</p>
-            <Messages :caseId="props.caseId" filterByFieldName="task_id" :filterByFieldId="t.id" />
+            <Messages :caseId="props.caseId" filterByFieldName="task_id" :filterByFieldId="t.id" :ref="makeMessagesRef(t.id)" />
           </div>
         </AccordionContent>
       </AccordionPanel>
