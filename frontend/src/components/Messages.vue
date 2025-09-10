@@ -119,8 +119,6 @@ async function loadMessages() {
     const { data } = await api.get(url)
     messages.value = Array.isArray(data) ? data : []
     log.debug('messages loaded', messages.value)
-
-    console.log(messages.value)
     await nextTick()
     await observeUnseenRows()
     await initialScrollIfNeeded()
@@ -554,15 +552,12 @@ async function search(query) {
   const hits = []
   const lowerQuery = String(query || '').toLowerCase()
 
-  console.log('search', lowerQuery);
-
   const allGroups = Array.isArray(groups.value) ? groups.value : []
   for (const g of allGroups) {
     const allMessages = Array.isArray(g.items) ? g.items : []
     for (const m of allMessages) {
       const message = String(m.message || '')
       if (message.toLowerCase().includes(lowerQuery)) {
-        console.log('hit', m.id);
         hits.push({ id: `${m.id}`, part: 'message_hit' })
       }
     }
@@ -595,7 +590,7 @@ function clearHighlights() {
 }
 
 // Register this component as searchable
-useSearchable(props.caseId, {
+useSearchable("messages_" + props.caseId, {
   search,
   showSearchHit,
   clearHighlights
