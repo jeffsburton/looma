@@ -305,7 +305,7 @@ const daysMissing = computed(() => {
         </div>
       </TabPanel>
       <TabPanel value="timeline">
-        <div class="surface-card border-round p-2 flex-1 ">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <TimelineTab :caseId="caseModel.id"  />
             <template #fallback>
@@ -325,7 +325,7 @@ const daysMissing = computed(() => {
         </div>
       </TabPanel>
       <TabPanel value="tasks">
-        <div class="surface-card border-round p-2 flex-1 ">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <SearchWrapper>
               <TasksTab :caseId="caseModel.id" />
@@ -337,7 +337,7 @@ const daysMissing = computed(() => {
         </div>
       </TabPanel>
       <TabPanel value="activity">
-        <div class="surface-card border-round p-2 flex-1 ">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <ActivityTab :caseId="caseModel.id" />
             <template #fallback>
@@ -347,7 +347,7 @@ const daysMissing = computed(() => {
         </div>
       </TabPanel>
       <TabPanel value="messages">
-        <div class="surface-card border-round p-2 flex-1 ">
+        <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
             <Messages :caseId="caseModel.id" />
             <template #fallback>
