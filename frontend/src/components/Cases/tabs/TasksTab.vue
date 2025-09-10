@@ -15,6 +15,7 @@ import { hasPermission } from '@/lib/permissions'
 import UnseenMessageCount from "@/components/common/UnseenMessageCount.vue";
 import { useRoute } from 'vue-router'
 
+
 const props = defineProps({
   caseId: { type: [String, Number], required: true }
 })
@@ -24,7 +25,6 @@ const canCreate = computed(() => hasPermission('TASKS.CREATE'))
 const canComplete = computed(() => hasPermission('TASKS.COMPLETE'))
 
 // Filters
-const search = ref('')
 const showCompleted = ref(false) // default off per requirements
 
 // Data
@@ -78,7 +78,6 @@ async function loadTasks() {
   loading.value = true
   try {
     const params = {}
-    if (search.value && search.value.trim()) params.q = search.value.trim()
     // Always load the full list; completion filtering is handled client-side
     const { data } = await api.get(`/api/v1/cases/${props.caseId}/tasks`, { params })
     tasks.value = Array.isArray(data) ? data : []
@@ -222,19 +221,108 @@ function cancelAdd() {
   newTitle.value = ''
   newDescription.value = ''
 }
+
+
+// ========================
+// Search implementation
+// ========================
+
+
+import { useSearchable } from '../../common/SearchComposable'
+async function search(query) {
+  const hits = []
+  const lowerQuery = String(query || '').toLowerCase()
+
+  const all = Array.isArray(tasks.value) ? tasks.value : []
+  for (const t of all) {
+    const title = String(t.title || '')
+    const desc = String(t.description || '')
+    const resp = String(t.response || '')
+    if (title.toLowerCase().includes(lowerQuery))
+      hits.push({ id: `${t.id}`, part: 'title_hit' })
+    if (desc.toLowerCase().includes(lowerQuery))
+      hits.push({ id: `${t.id}`, part: 'description_hit' })
+    if (resp.toLowerCase().includes(lowerQuery))
+      hits.push({ id: `${t.id}`, part: 'response_hit' })
+  }
+
+  // If we have hits, ensure their panels are open and completed visibility is on when needed
+  if (hits.length) {
+    // Determine if any hit is on a completed task
+    let needsCompleted = false
+    const set = new Set(openPanels.value || [])
+    for (const h of hits) {
+      const t = all.find(x => String(x.id) === String(h.id))
+      if (t) {
+        set.add(t.id)
+        if (t.completed) needsCompleted = needsCompleted || true
+      }
+    }
+    openPanels.value = Array.from(set)
+    if (needsCompleted && !showCompleted.value) {
+      showCompleted.value = true
+      await nextTick()
+    }
+  }
+
+  return hits
+}
+
+async function showSearchHit(hit) {
+  clearHighlights()
+  const all = Array.isArray(tasks.value) ? tasks.value : []
+  const target = all.find(t => String(t.id) === String(hit.id))
+  if (target) {
+    target[hit.part] = true
+    // Ensure panel is open
+    const set = new Set(openPanels.value || [])
+    set.add(target.id)
+    openPanels.value = Array.from(set)
+    // If completed and hidden, reveal
+    if (target.completed && !showCompleted.value) {
+      showCompleted.value = true
+      await nextTick()
+    }
+  }
+
+  // Scroll to the hit element (field-level), fallback to the panel
+  await nextTick()
+  try {
+    const id = String(hit.id)
+    const part = String(hit.part || '')
+    let el = document.querySelector(`[data-task-id="${id}"][data-part="${part}"]`)
+    if (!el) {
+      el = document.querySelector(`[data-task-id="${id}"]`)
+    }
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  } catch (_) { /* noop */ }
+}
+
+function clearHighlights() {
+    const all = Array.isArray(tasks.value) ? tasks.value : []
+    for (const t of all) {
+      t.title_hit = t.description_hit = t.response_hit = false
+    }
+}
+
+// Register this component as searchable
+useSearchable(props.caseId, {
+  search,
+  showSearchHit,
+  clearHighlights
+})
+
+
+
+
 </script>
 
 <template>
   <div class="p-2">
     <!-- Toolbar: search, add (permission), show completed toggle -->
     <div class="flex gap-2 align-items-center flex-wrap mb-3">
-      <div class="w-20rem max-w-full">
-        <FloatLabel variant="on">
-          <InputText id="taskSearch" v-model="search" class="w-full" @keydown.enter.prevent="loadTasks" />
-          <label for="taskSearch">Search tasks</label>
-        </FloatLabel>
-      </div>
-      <Button label="Search" icon="pi pi-search" @click="loadTasks" :disabled="loading" />
       <div class="flex align-items-center gap-2">
           <ToggleSwitch id="showCompleted" v-model="showCompleted" />
           <label for="showCompleted">Show completed</label>
@@ -276,7 +364,7 @@ function cancelAdd() {
                 <span class="material-symbols-outlined text-900 font-medium">assignment</span>
               </div>
             </UnseenMessageCount>
-            <span class="text-900 font-medium">{{ t.title }}</span>
+            <span class="text-900 font-medium" :class="t.title_hit ? 'search_highlight' : ''" :data-task-id="t.id" data-part="title">{{ t.title }}</span>
             <span v-if="t.completed" class="material-symbols-outlined text-green-600" title="Completed">check_circle</span>
             <span v-else-if="t.ready_for_review" class="material-symbols-outlined text-yellow-200" title="Ready for review">hand_gesture</span>
           </div>
@@ -297,13 +385,13 @@ function cancelAdd() {
                 <label for="titleEdit">Task name</label>
               </FloatLabel>
             </div>
-            <div class="col-12">
+            <div class="col-12" :class="t.description_hit ? 'search_highlight' : ''" :data-task-id="t.id" data-part="description">
               <FloatLabel variant="on">
                 <Textarea id="descEdit" :modelValue="(edits[t.id]?.description ?? t.description)" @update:modelValue="val => { ensureEdit(t); edits[t.id].description = val; queueSave(t, { description: val }) }" class="w-full" autoResize rows="3" :disabled="!canCreate" />
                 <label for="descEdit">Description</label>
               </FloatLabel>
             </div>
-            <div class="col-12">
+            <div class="col-12" :class="t.response_hit ? 'search_highlight' : ''" :data-task-id="t.id" data-part="response">
               <FloatLabel variant="on">
                 <Textarea id="responseEdit" :modelValue="(edits[t.id]?.response ?? t.response)" @update:modelValue="val => { ensureEdit(t); edits[t.id].response = val; queueSave(t, { response: val }) }" class="w-full" autoResize rows="3" />
                 <label for="responseEdit">Response</label>

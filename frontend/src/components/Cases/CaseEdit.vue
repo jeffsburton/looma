@@ -16,6 +16,7 @@ import DocsTab from './tabs/DocsTab.vue'
 import ActivityTab from './tabs/ActivityTab.vue'
 import TasksTab from './tabs/TasksTab.vue'
 import Messages from '../Messages.vue'
+import SearchWrapper from '../common/SearchWrapper.vue'
 
 import api from '../../lib/api'
 import UnseenMessageCount from '../common/UnseenMessageCount.vue'
@@ -326,7 +327,9 @@ const daysMissing = computed(() => {
       <TabPanel value="tasks">
         <div class="surface-card border-round p-2 flex-1 ">
           <Suspense>
-            <TasksTab :caseId="caseModel.id" />
+            <SearchWrapper>
+              <TasksTab :caseId="caseModel.id" />
+            </SearchWrapper>
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>

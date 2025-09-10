@@ -543,6 +543,67 @@ onBeforeUnmount(() => {
   try { gMessageEvents?.removeEventListener?.('message-change', _onMessageChange) } catch (_) { /* noop */ }
 })
 
+
+// ========================
+// Search implementation
+// ========================
+
+
+import { useSearchable } from './common/SearchComposable'
+async function search(query) {
+  const hits = []
+  const lowerQuery = String(query || '').toLowerCase()
+
+  console.log('search', lowerQuery);
+
+  const allGroups = Array.isArray(groups.value) ? groups.value : []
+  for (const g of allGroups) {
+    const allMessages = Array.isArray(g.items) ? g.items : []
+    for (const m of allMessages) {
+      const message = String(m.message || '')
+      if (message.toLowerCase().includes(lowerQuery)) {
+        console.log('hit', m.id);
+        hits.push({ id: `${m.id}`, part: 'message_hit' })
+      }
+    }
+  }
+
+  return hits
+}
+
+async function showSearchHit(hit) {
+  clearHighlights()
+
+  const allGroups = Array.isArray(groups.value) ? groups.value : []
+  for (const g of allGroups) {
+    const allMessages = Array.isArray(g.items) ? g.items : []
+    for (const m of allMessages) {
+      if (m.id === hit.id)
+        m.message_hit = true
+    }
+  }
+}
+
+function clearHighlights() {
+  const allGroups = Array.isArray(groups.value) ? groups.value : []
+  for (const g of allGroups) {
+    const allMessages = Array.isArray(g.items) ? g.items : []
+    for (const m of allMessages) {
+      m.message_hit = false
+    }
+  }
+}
+
+// Register this component as searchable
+useSearchable(props.caseId, {
+  search,
+  showSearchHit,
+  clearHighlights
+})
+
+
+
+
 </script>
 
 <template>
@@ -563,7 +624,7 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined tiny">reply</span>
               <span class="ellipsis">{{ m.reply_to_text }}</span>
             </div>
-            <div class="text" :class="{ 'ruled-out': !!m.rule_out }">{{ m.message }}</div>
+            <div class="text" :class="{ 'ruled-out': !!m.rule_out, 'search_highlight': m.message_hit }">{{ m.message }}</div>
             <div v-if="m.file_id" class="attachment mt-2">
               <template v-if="m.file_thumb">
                 <img :src="m.file_thumb"
