@@ -133,7 +133,15 @@ function _connect() {
               log.debug('counts.init', data)
             }
           })
-          .catch(() => {})
+          .catch((err) => {
+            try {
+              const status = err && err.response && err.response.status
+              if (status === 419) {
+                // Session expired while initializing counts; unhook websocket per requirement
+                disconnectMessagesWS({ clearCounts: true })
+              }
+            } catch (_) { /* noop */ }
+          })
       } catch (_) { /* noop */ }
     }
 

@@ -227,7 +227,7 @@ const daysMissing = computed(() => {
     </div>
 
     <!-- Tabs -->
-    <Tabs :value="active" @update:value="(v) => (active = v)" :lazy="true" style="overflow: unset">
+    <Tabs :value="active" @update:value="(v) => (active = v)" :lazy="true">
       <TabList class="mb-1">
         <Tab value="core">
           <span class="material-symbols-outlined">article</span>
@@ -375,9 +375,6 @@ const daysMissing = computed(() => {
 .tab-btn.inactive { color: var(--p-text-color, inherit); }
 .wrap { flex-wrap: wrap; }
 
-:deep(.p-tablist) {
-overflow: unset !important;
-}
 
 /* PFP styles */
 .pfp { width: 40px; height: 40px; border-radius: 9999px; object-fit: cover; display: block; border: 2px solid var(--p-surface-200, #e5e7eb); }
