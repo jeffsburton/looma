@@ -66,6 +66,7 @@ async def list_social_media(
             inv.code,
             Subject.first_name,
             Subject.last_name,
+            Subject.profile_pic,
         )
         .join(plat, plat.id == SocialMedia.platform_id, isouter=True)
         .join(stat, stat.id == SocialMedia.status_id, isouter=True)
@@ -95,13 +96,17 @@ async def list_social_media(
         inv_code,
         first_name,
         last_name,
+        profile_pic,
     ) in rows:
+        photo_url = f"/api/v1/media/pfp/subject/{encode_id('subject', int(subject_id))}?s=sm" if (subject_id is not None and profile_pic) else "/images/pfp-generic.png"
         items.append({
             "id": encode_id("social_media", int(sm_id)),
+            "raw_id": int(sm_id),
             "subject": {
                 "id": encode_id("subject", int(subject_id)) if subject_id is not None else None,
                 "first_name": first_name,
                 "last_name": last_name,
+                "photo_url": photo_url,
             },
             "platform_id": encode_id("ref_value", int(platform_id)) if platform_id is not None else None,
             "platform_other": platform_other,
@@ -120,6 +125,109 @@ async def list_social_media(
 
     return items
 
+
+@router.get("/{case_id}/social-media/{social_media_id}", summary="Get a social media record for a case")
+async def get_social_media(
+    case_id: str,
+    social_media_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    case_db_id = _decode_or_404("case", case_id)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Allow either opaque id or raw integer id in the path, similar to tasks
+    try:
+        sm_db_id = int(decode_id("social_media", social_media_id)) if not str(social_media_id).isdigit() else int(social_media_id)
+    except OpaqueIdError:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    plat = aliased(RefValue)
+    stat = aliased(RefValue)
+    inv = aliased(RefValue)
+
+    row = (
+        await db.execute(
+            select(
+                SocialMedia.id,
+                SocialMedia.subject_id,
+                SocialMedia.platform_id,
+                SocialMedia.platform_other,
+                SocialMedia.url,
+                SocialMedia.notes,
+                SocialMedia.status_id,
+                SocialMedia.investigated_id,
+                SocialMedia.rule_out,
+                plat.name,
+                plat.code,
+                stat.name,
+                stat.code,
+                inv.name,
+                inv.code,
+                Subject.first_name,
+                Subject.last_name,
+                Subject.profile_pic,
+            )
+            .join(plat, plat.id == SocialMedia.platform_id, isouter=True)
+            .join(stat, stat.id == SocialMedia.status_id, isouter=True)
+            .join(inv, inv.id == SocialMedia.investigated_id, isouter=True)
+            .join(Subject, Subject.id == SocialMedia.subject_id, isouter=True)
+            .where(SocialMedia.case_id == int(case_db_id), SocialMedia.id == int(sm_db_id))
+        )
+    ).one_or_none()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Social media record not found")
+
+    (
+        sm_id,
+        subject_id,
+        platform_id,
+        platform_other,
+        url,
+        notes,
+        status_id,
+        investigated_id,
+        rule_out,
+        platform_name,
+        platform_code,
+        status_name,
+        status_code,
+        inv_name,
+        inv_code,
+        first_name,
+        last_name,
+        profile_pic,
+    ) = row
+
+    photo_url = f"/api/v1/media/pfp/subject/{encode_id('subject', int(subject_id))}?s=sm" if (subject_id is not None and profile_pic) else "/images/pfp-generic.png"
+
+    item = {
+        "id": encode_id("social_media", int(sm_id)),
+        "raw_id": int(sm_id),
+        "subject": {
+            "id": encode_id("subject", int(subject_id)) if subject_id is not None else None,
+            "first_name": first_name,
+            "last_name": last_name,
+            "photo_url": photo_url,
+        },
+        "platform_id": encode_id("ref_value", int(platform_id)) if platform_id is not None else None,
+        "platform_other": platform_other,
+        "notes": notes,
+        "url": url,
+        "platform_name": platform_name,
+        "platform_code": platform_code,
+        "status_id": encode_id("ref_value", int(status_id)) if status_id is not None else None,
+        "status_name": status_name,
+        "status_code": status_code,
+        "investigated_id": encode_id("ref_value", int(investigated_id)) if investigated_id is not None else None,
+        "investigated_name": inv_name,
+        "investigated_code": inv_code,
+        "rule_out": bool(rule_out) if rule_out is not None else False,
+    }
+
+    return item
 
 @router.post("/{case_id}/social-media", summary="Create a social media record for a case")
 async def create_social_media(
@@ -173,6 +281,7 @@ async def create_social_media(
 
 
 class SocialMediaPartial(BaseModel):
+    subject_id: Optional[str] = None
     platform_id: Optional[str] = None
     platform_other: Optional[str] = None
     notes: Optional[str] = None
@@ -195,7 +304,7 @@ async def update_social_media(
         raise HTTPException(status_code=404, detail="Case not found")
 
     try:
-        sm_db_id = decode_id("social_media", social_media_id)
+        sm_db_id = int(decode_id("social_media", social_media_id)) if not str(social_media_id).isdigit() else int(social_media_id)
     except OpaqueIdError:
         raise HTTPException(status_code=404, detail="Social media record not found")
 
@@ -214,8 +323,21 @@ async def update_social_media(
         except Exception:
             return None
 
+    def _dec_subject(oid: _OptionalForSM[str]):
+        if oid is None:
+            return None
+        s = str(oid)
+        if s == "":
+            return None
+        try:
+            return int(decode_id("subject", s)) if not s.isdigit() else int(s)
+        except Exception:
+            return None
+
     fields_set = getattr(payload, "model_fields_set", set())
 
+    if "subject_id" in fields_set:
+        row.subject_id = _dec_subject(payload.subject_id)
     if "platform_id" in fields_set:
         row.platform_id = _dec_ref(payload.platform_id)
     if "platform_other" in fields_set:
@@ -347,9 +469,34 @@ async def create_social_media_alias(
         except Exception:
             return None
 
+    # Resolve alias_status_id; if not provided, default to SM_ALIAS "NF" (Waiting),
+    # or fall back to the first SM_ALIAS ref value by sort_order/id.
+    status_id = _dec_ref(payload.alias_status_id)
+    if status_id is None:
+        from app.db.models.ref_type import RefType
+        # Try preferred code 'NF' under SM_ALIAS
+        res = await db.execute(
+            select(RefValue.id)
+            .join(RefType, RefType.id == RefValue.ref_type_id)
+            .where(RefType.code == "SM_ALIAS", RefValue.code == "NF")
+        )
+        status_id = res.scalar_one_or_none()
+        if status_id is None:
+            # Fallback: pick the first by sort_order then id
+            res2 = await db.execute(
+                select(RefValue.id)
+                .join(RefType, RefType.id == RefValue.ref_type_id)
+                .where(RefType.code == "SM_ALIAS")
+                .order_by(asc(RefValue.sort_order), asc(RefValue.id))
+                .limit(1)
+            )
+            status_id = res2.scalar_one_or_none()
+        if status_id is None:
+            raise HTTPException(status_code=400, detail="Alias status reference values (SM_ALIAS) are not configured")
+
     row = SocialMediaAlias(
         social_media_id=int(sm_db_id),
-        alias_status_id=_dec_ref(payload.alias_status_id),
+        alias_status_id=int(status_id),
         alias=getattr(payload, "alias", None),
         alias_owner_id=_dec_person(payload.alias_owner_id),
     )

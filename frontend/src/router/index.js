@@ -22,6 +22,8 @@ const routes = [
     { path: '/cases/:caseNumber', redirect: (to) => ({ name: 'case-detail', params: { caseNumber: to.params.caseNumber, tab: 'core', subtab: 'intake' } }) },
     // Specific deep-link to a task must come BEFORE the generic case-detail route to avoid being swallowed
     { path: '/cases/:caseNumber/tasks/:rawTaskId', name: 'case-task', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'tasks' }) },
+    // Social media deep-link (edit a single social media record)
+    { path: '/cases/:caseNumber/social/:rawSocialId', name: 'case-social', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'social' }) },
     { path: '/cases/:caseNumber/:tab/:subtab?', name: 'case-detail', component: () => import('../views/CaseView.vue'), props: true },
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },

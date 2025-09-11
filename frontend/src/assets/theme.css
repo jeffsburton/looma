@@ -43,3 +43,9 @@ html, body {
     /* Better alignment with text */
     vertical-align: middle;
 }
+
+@layer components {
+  .link {
+    @apply text-blue-600 hover:text-blue-800 underline underline-offset-4 transition-colors;
+  }
+}

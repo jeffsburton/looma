@@ -8,7 +8,11 @@ const route = useRoute()
 const router = useRouter()
 
 const caseNumber = computed(() => String(route.params.caseNumber || ''))
-const tab = computed(() => route.name === 'case-task' ? 'tasks' : String(route.params.tab || 'core'))
+const tab = computed(() => {
+  if (route.name === 'case-task') return 'tasks'
+  if (route.name === 'case-social') return 'social'
+  return String(route.params.tab || 'core')
+})
 const subtab = computed(() => String(route.params.subtab || 'intake'))
 
 function goBackToList() {

@@ -6,4 +6,6 @@
 
 * when a form type UI is loaded, there should be no changes to the database unless iniated by the user. 
 
-* All api endpoint return payloads should be wrapped in pydantic schemas that enforce encryption of database id's. 
+* All api endpoint return payloads should be wrapped in pydantic schemas that enforce encryption of database id's.
+
+* All <a> tags should have class link-btn. 

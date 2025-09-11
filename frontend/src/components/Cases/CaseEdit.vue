@@ -132,6 +132,26 @@ watch(
       return
     }
 
+    // When on Social tab with a deep-linked social record, preserve the case-social route and rawSocialId
+    const rawSocialId = route.params.rawSocialId ? String(route.params.rawSocialId) : undefined
+    if (tab === 'social') {
+      if (rawSocialId) {
+        if (route.name !== 'case-social' || String(route.params.caseNumber || '') !== caseNumber) {
+          router.replace({ name: 'case-social', params: { caseNumber, rawSocialId } })
+        }
+        return
+      }
+      // Ensure we're on the generic social route (case-detail with social tab)
+      if (
+        String(route.params.caseNumber || '') !== caseNumber ||
+        String(route.params.tab || '') !== 'social' ||
+        route.name !== 'case-detail'
+      ) {
+        router.replace({ name: 'case-detail', params: { caseNumber, tab: 'social' } })
+      }
+      return
+    }
+
     // Default behavior for other tabs
     if (
       String(route.params.caseNumber || '') !== caseNumber ||

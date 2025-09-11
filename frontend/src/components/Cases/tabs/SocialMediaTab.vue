@@ -1,33 +1,81 @@
 <script setup>
-import { ref, watch } from 'vue'
-import Divider from 'primevue/divider'
+import { ref, watch, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
-import ToggleSwitch from 'primevue/toggleswitch'
-import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
 import FloatLabel from 'primevue/floatlabel'
+import InputText from 'primevue/inputtext'
 
-import RefSelect from '../../RefSelect.vue'
-import CaseSubjectSelect from '../CaseSubjectSelect.vue'
-import PersonSelect from '../../PersonSelect.vue'
+import api from '../../../lib/api'
+import SocialMediaEdit from './SocialMediaEdit.vue'
 
 const props = defineProps({
-  caseId: { type: String, default: '' },
+  caseId: { type: [String, Number], default: '' },
   primarySubject: { type: Object, default: null },
 })
+
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const error = ref('')
 const rows = ref([])
 
-function href(val) {
-  const s = String(val || '').trim()
+// Helper: display only the part after the last '/'
+function tailAfterLastSlash(val) {
+  const raw = String(val || '').trim()
+  if (!raw) return ''
+  const noHash = raw.split('#')[0]
+  const noQuery = noHash.split('?')[0]
+  const trimmed = noQuery.replace(/\/+$/g, '')
+  const idx = trimmed.lastIndexOf('/')
+  if (idx >= 0) {
+    const tail = trimmed.slice(idx + 1)
+    return tail || trimmed
+  }
+  return trimmed
+}
+
+// Helper: detect platform (by other/name/code)
+function detectPlatform(row) {
+  const otherOrName = String((row?.platform_other && String(row.platform_other).trim())
+    ? row.platform_other
+    : (row?.platform_name || '')).toLowerCase()
+  const code = String(row?.platform_code || '').toLowerCase()
+
+  if (otherOrName.includes('facebook') || code === 'fb') return 'facebook'
+  if (otherOrName.includes('instagram') || otherOrName.includes('insta') || code === 'ig') return 'instagram'
+  if (otherOrName.includes('tiktok') || otherOrName.includes('tik') || otherOrName.includes('tok') || code === 'tik') return 'tiktok'
+  if (otherOrName === 'x' || otherOrName.includes('twitter') || code === 'x') return 'x'
+  if (otherOrName.includes('linkedin') || code === 'li') return 'linkedin'
+  return ''
+}
+
+// Helper: PrimeVue icon class for known platforms
+function platformIcon(row) {
+  const plat = detectPlatform(row)
+  if (plat === 'facebook') return 'pi-facebook'
+  if (plat === 'instagram') return 'pi-instagram'
+  if (plat === 'tiktok') return 'pi-tiktok'
+  if (plat === 'x') return 'pi-twitter'
+  if (plat === 'linkedin') return 'pi-linkedin'
+  return ''
+}
+
+// Helper: final href for a row (existing https URL or guessed for known platforms)
+function linkUrlForRow(row) {
+  const s = String(row?.url || '').trim()
   if (!s) return ''
   if (/^https?:\/\//i.test(s)) return s
-  try {
-    const u = new URL('http://example.com')
-  } catch {}
-  return s.startsWith('http') ? s : `https://${s}`
+  const plat = detectPlatform(row)
+  if (!plat) return ''
+  const handle = s.replace(/^@+/, '').replace(/^\/+/, '')
+  const base = plat === 'facebook' ? 'https://facebook.com/'
+    : plat === 'instagram' ? 'https://instagram.com/'
+    : plat === 'tiktok' ? 'https://tiktok.com/'
+    : ''
+  return base ? (base + handle) : ''
 }
 
 async function load() {
@@ -36,23 +84,10 @@ async function load() {
   error.value = ''
   try {
     const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media`
-    const resp = await fetch(url, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    if (!resp.ok) throw new Error('Failed to load social media')
-    const baseRows = await resp.json()
-    // initialize aliases array
-    rows.value = baseRows.map(r => ({ ...r, aliases: [], _aliasesLoading: true }))
-    // Load aliases for each row in parallel
-    await Promise.all(rows.value.map(async (r) => {
-      try {
-        const aurl = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media/${encodeURIComponent(String(r.id))}/aliases`
-        const aresp = await fetch(aurl, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-        r.aliases = aresp.ok ? (await aresp.json()) : []
-      } catch {
-        r.aliases = []
-      } finally {
-        r._aliasesLoading = false
-      }
-    }))
+    const resp = await api.get(url)
+    const baseRows = resp?.data || []
+    // initialize per-row pfp error flag
+    rows.value = baseRows.map(r => ({ ...r, _pfpError: false }))
   } catch (e) {
     console.error(e)
     error.value = 'Failed to load social media.'
@@ -62,244 +97,123 @@ async function load() {
   }
 }
 
-async function addAlias(row) {
-  if (!props.caseId || !row?.id) return
-  try {
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media/${encodeURIComponent(String(row.id))}/aliases`
-    const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-    if (!resp.ok) console.error('Failed to create alias')
-  } catch (e) {
-    console.error(e)
-  } finally {
-    await loadAliases(row)
-  }
-}
-
-async function loadAliases(row) {
-  if (!props.caseId || !row?.id) return
-  row._aliasesLoading = true
-  try {
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media/${encodeURIComponent(String(row.id))}/aliases`
-    const resp = await fetch(url, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    row.aliases = resp.ok ? (await resp.json()) : []
-  } catch (e) {
-    console.error(e)
-    row.aliases = []
-  } finally {
-    row._aliasesLoading = false
-  }
-}
-
-async function patchAlias(row, alias, patch) {
-  if (!props.caseId || !row?.id || !alias?.id) return
-  try {
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media/${encodeURIComponent(String(row.id))}/aliases/${encodeURIComponent(String(alias.id))}`
-    const resp = await fetch(url, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
-    if (!resp.ok) throw new Error('Failed to save alias change')
-  } catch (e) {
-    console.error(e)
-    await loadAliases(row)
-  }
-}
-
 watch(() => props.caseId, () => { load() }, { immediate: true })
 
-async function patchRow(row, patch) {
-  if (!row?.id || !props.caseId) return
+const caseNumber = computed(() => String(route.params.caseNumber || ''))
+const isEditing = computed(() => !!route.params.rawSocialId)
+
+function openEdit(row) {
+  const raw = row?.raw_id || row?.rawId || row?.id
+  if (!raw) return
+  const cn = caseNumber.value
+  const url = `/cases/${encodeURIComponent(String(cn))}/social/${encodeURIComponent(String(raw))}`
+  console.log(url);
+  router.push({ path: url})
+}
+
+function openAdd() {
+  const cn = caseNumber.value
+  router.push({ path: `/cases/${encodeURIComponent(String(cn))}/social/new` })
+}
+
+// Refresh a single row by raw id and splice into rows while preserving local flags
+async function refreshRowByRawId(rawId) {
   try {
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media/${encodeURIComponent(String(row.id))}`
-    const resp = await fetch(url, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    })
-    if (!resp.ok) throw new Error('Failed to save change')
+    const cid = String(props.caseId || '')
+    if (!cid || !rawId) return
+    const url = `/api/v1/cases/${encodeURIComponent(cid)}/social-media/${encodeURIComponent(String(rawId))}`
+    const { data } = await api.get(url)
+    if (!data) return
+
+    // Find existing row by raw_id (preferred) or by id fallback
+    const idx = rows.value.findIndex(r =>
+      String(r.raw_id || r.rawId) === String(rawId) || String(r.id) === String(data.id)
+    )
+    const preserved = idx >= 0 ? { _pfpError: rows.value[idx]?._pfpError === true } : { _pfpError: false }
+    if (idx >= 0) {
+      rows.value.splice(idx, 1, { ...data, ...preserved })
+    } else {
+      // If not found (e.g., pagination/filter), optionally prepend
+      rows.value = [{ ...data, ...preserved }, ...rows.value]
+    }
   } catch (e) {
-    console.error(e)
-    load()
+    console.error('Failed to refresh row', e)
   }
 }
 
-const newSubjectId = ref('')
-watch(newSubjectId, async (v) => {
-  if ((v === '' || v === undefined) || !props.caseId) return
-  try {
-    const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/social-media`
-    const payload = { subject_id: v === null ? null : v }
-    const resp = await fetch(url, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!resp.ok) console.error('Failed to create social media row')
-  } catch (e) {
-    console.error(e)
-  } finally {
-    await load()
-    newSubjectId.value = ''
+// When leaving edit mode (rawSocialId removed), refresh only that row
+watch(
+  () => route.params.rawSocialId,
+  (val, oldVal) => {
+    if (oldVal && !val) {
+      if (String(oldVal) !== 'new') {
+        refreshRowByRawId(String(oldVal))
+      } else {
+        // After creating a new item we don't know its id (POST returns ok only); reload list
+        load()
+      }
+    }
   }
-})
+)
 </script>
 
 <template>
   <div class="p-2 flex flex-column gap-1">
-    <div v-if="error" class="p-error mb-2">{{ error }}</div>
-
-    <div v-if="loading" class="p-2 text-600">Loading...</div>
-
-    <template v-for="(data, idx) in rows" :key="data.id">
-      <div class="surface-card border-round p-1">
-        <div class="flex flex-column gap-1">
-          <div class="flex flex-wrap align-items-center gap-1">
-            <span class="subject-title text-base font-bold" :style="data.rule_out ? 'text-decoration: line-through;' : ''">
-              {{ data.subject?.first_name || 'Unknown' }}
-              <template v-if="data.subject?.last_name"> {{ data.subject.last_name }}</template>
-            </span>
-          </div>
-
-          <div class="flex flex-wrap gap-1">
-            <!-- Left 8-wide cell: inputs -->
-            <div class="w-12 md:w-8">
-              <div class="form-grid">
-                <!-- Row 1: Platform | URL -->
-                <div class="field w-12 md:w-4">
-                  <template v-if="data.rule_out">
-                    <label class="block text-sm text-600">Platform</label>
-                    <div :style="'text-decoration: line-through;'">{{ data.platform_name || data.platform_other || '—' }}</div>
-                  </template>
-                  <template v-else>
-                    <FloatLabel variant="on">
-                      <RefSelect
-                        code="SM_PLATFORM"
-                        v-model="data.platform_id"
-                        :currentCode="data.platform_code || ''"
-                        :otherValue="data.platform_other || ''"
-                        @update:otherValue="(v) => { data.platform_other = v }"
-                        @otherCommit="(v) => patchRow(data, { platform_other: v || null })"
-                        @change="(v) => patchRow(data, { platform_id: v })"
-                      />
-                      <label>Platform</label>
-                    </FloatLabel>
-                  </template>
-                </div>
-
-                <div class="field w-12 md:w-7">
-                  <template v-if="data.rule_out">
-                    <label class="block text-sm text-600">URL</label>
-                    <div class="flex align-items-center gap-2" :style="'text-decoration: line-through;'">{{ data.url || '—' }}</div>
-                  </template>
-                  <template v-else>
-                    <div class="flex align-items-center gap-2">
-                      <FloatLabel variant="on" class="flex-1">
-                        <InputText v-model="data.url" class="w-full" @change="() => patchRow(data, { url: data.url || null })" />
-                        <label>URL</label>
-                      </FloatLabel>
-                      <a v-if="href(data.url)" :href="href(data.url)" target="_blank" rel="noopener" title="Open">
-                        <span class="material-symbols-outlined">open_in_new</span>
-                      </a>
-                    </div>
-                  </template>
-                </div>
-
-                <!-- Row 2: Status | Investigated + Rule Out (inline) -->
-                <div class="field w-12 md:w-4">
-                  <template v-if="data.rule_out">
-                    <label class="block text-sm text-600">Status</label>
-                    <div :style="'text-decoration: line-through;'">{{ data.status_name || '—' }}</div>
-                  </template>
-                  <template v-else>
-                    <FloatLabel variant="on">
-                      <RefSelect code="SM_STAT" v-model="data.status_id" :currentCode="data.status_code || ''" @change="(v) => patchRow(data, { status_id: v })" />
-                      <label>Status</label>
-                    </FloatLabel>
-                  </template>
-                </div>
-
-                <div class="field w-12 md:w-6">
-                  <div class="flex align-items-end gap-2">
-                    <div class="flex-1">
-                      <template v-if="data.rule_out">
-                        <label class="block text-sm text-600">Investigated</label>
-                        <div :style="'text-decoration: line-through;'">{{ data.investigated_name || '—' }}</div>
-                      </template>
-                      <template v-else>
-                        <FloatLabel variant="on" class="w-full">
-                          <RefSelect code="SM_INV" v-model="data.investigated_id" :currentCode="data.investigated_code || ''" @change="(v) => patchRow(data, { investigated_id: v })" />
-                          <label>Investigated</label>
-                        </FloatLabel>
-                      </template>
-                    </div>
-                    <div class="flex align-items-center gap-2 nowrap">
-                      <label class="text-sm text-600">Rule Out</label>
-                      <ToggleSwitch v-model="data.rule_out" @update:modelValue="(v) => patchRow(data, { rule_out: v })" />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Notes full width -->
-                <div class="field w-11">
-                  <template v-if="data.rule_out">
-                    <label class="block text-sm text-600">Notes</label>
-                    <div :style="'text-decoration: line-through;'">{{ data.notes || '—' }}</div>
-                  </template>
-                  <template v-else>
-                    <FloatLabel variant="on" class="w-full">
-                      <Textarea v-model="data.notes" autoResize rows="2" class="w-full" @change="() => patchRow(data, { notes: data.notes || null })" />
-                      <label>Notes</label>
-                    </FloatLabel>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- Right 4-wide cell: social media aliases -->
-            <div class="w-12 md:w-3">
-              <div class="flex flex-column gap-1 p-1 border-1 surface-border border-round">
-                <div class="text-sm text-600">Aliases</div>
-                <div v-if="data._aliasesLoading" class="text-600 text-sm">Loading aliases...</div>
-                <template v-for="alias in data.aliases" :key="alias.id">
-                  <div class="flex flex-column gap-1 mb-1">
-                    <FloatLabel variant="on">
-                      <RefSelect
-                        code="SM_ALIAS"
-                        v-model="alias.alias_status_id"
-                        :currentCode="alias.alias_status_code || ''"
-                        @change="(v) => patchAlias(data, alias, { alias_status_id: v })"
-                      />
-                      <label>Status</label>
-                    </FloatLabel>
-                    <FloatLabel variant="on">
-                      <InputText v-model="alias.alias" class="w-full" @change="() => patchAlias(data, alias, { alias: alias.alias || null })" />
-                      <label>Alias</label>
-                    </FloatLabel>
-                    <div>
-                      <PersonSelect v-model="alias.alias_owner_id" @change="(v) => patchAlias(data, alias, { alias_owner_id: v })" />
-                    </div>
-                  </div>
-                </template>
-                <div class="flex justify-content-end">
-                  <Button label="Add Alias" size="small" icon="pi pi-plus" text @click="addAlias(data)" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <Divider v-if="idx < rows.length - 1" class="my-1" />
+    <template v-if="isEditing">
+      <SocialMediaEdit :caseId="String(caseId)" />
     </template>
-
-    <div class="mt-2 flex align-items-center gap-2">
-      <span class="text-600">Add for subject:</span>
-      <CaseSubjectSelect v-model="newSubjectId" :caseId="caseId" :primarySubject="primarySubject" />
-    </div>
+    <template v-else>
+      <div class="flex align-items-center justify-content-between mb-2">
+        <div class="text-base font-semibold">Social Media</div>
+        <Button label="Add" icon="pi pi-plus" @click="openAdd" />
+      </div>
+      <div v-if="error" class="p-error mb-2">{{ error }}</div>
+      <DataTable :value="rows" dataKey="id" stripedRows size="small" class="w-full" :loading="loading" :rows="25" paginator :rowsPerPageOptions="[10,25,50,100]">
+        <Column header="Person">
+          <template #body="{ data }">
+            <div class="flex align-items-center gap-2" :style="data.rule_out ? 'text-decoration: line-through;' : ''">
+              <img :src="data._pfpError ? '/images/pfp-generic.png' : (data.subject?.photo_url || '/images/pfp-generic.png')" class="pfp-sm" alt="pfp" @error="data._pfpError = true" />
+              <span>{{ [data.subject?.first_name, data.subject?.last_name].filter(Boolean).join(' ') || 'Unknown' }}</span>
+            </div>
+          </template>
+        </Column>
+        <Column header="Platform">
+          <template #body="{ data }">
+            <span :style="data.rule_out ? 'text-decoration: line-through;' : ''" :title="(String(data.platform_other || '').trim().length > 0) ? data.platform_other : (data.platform_name || '—')">
+              <template v-if="platformIcon(data)">
+                <i class="pi" :class="platformIcon(data)" aria-hidden="true"></i>
+              </template>
+              <template v-else>
+                {{ (String(data.platform_other || '').trim().length > 0) ? data.platform_other : (data.platform_name || '—') }}
+              </template>
+            </span>
+          </template>
+        </Column>
+        <Column header="URL">
+          <template #body="{ data }">
+            <template v-if="linkUrlForRow(data)">
+              <a :href="linkUrlForRow(data)" class="link-btn" target="_blank" rel="noopener" :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ tailAfterLastSlash(data.url) || data.url }}</a>
+            </template>
+            <template v-else>
+              <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ tailAfterLastSlash(data.url) || data.url || '—' }}</span>
+            </template>
+          </template>
+        </Column>
+        <Column header="Status">
+          <template #body="{ data }">
+            <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ data.status_name || '—' }}</span>
+          </template>
+        </Column>
+        <Column header="" style="width:1%">
+          <template #body="{ data }">
+            <Button icon="pi pi-pencil" text rounded @click.stop="openEdit(data)" />
+          </template>
+        </Column>
+      </DataTable>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.form-grid { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; }
-.field { min-width: 12rem; }
-:deep(.p-divider) { margin: 0.25rem 0; }
-@media (max-width: 640px) { .field { min-width: 100%; } }
+.pfp-sm { width: 32px; height: 32px; border-radius: 999px; object-fit: cover; }
 </style>
