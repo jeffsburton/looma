@@ -7,6 +7,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import FloatLabel from 'primevue/floatlabel'
 import Textarea from 'primevue/textarea'
+import Dropdown from 'primevue/dropdown'
 import Messages from '@/components/Messages.vue'
 import api from '@/lib/api'
 import { hasPermission } from '@/lib/permissions'
@@ -40,8 +41,9 @@ const displayedTasks = computed(() => {
   return showCompleted.value ? arr : arr.filter(t => !t.completed)
 })
 
-// Lightweight people cache for display of "Assigned by"
+// Lightweight people cache for display of "Assigned by" and for Dropdown options
 const personMap = ref({})
+const personOptions = ref([])
 const personsLoaded = ref(false)
 
 async function loadPersonsOnce() {
@@ -60,6 +62,7 @@ async function loadPersonsOnce() {
       }
     }
     personMap.value = map
+    personOptions.value = Object.values(map).map(p => ({ label: p.name, value: p.id }))
   } finally {
     personsLoaded.value = true
   }
@@ -114,10 +117,21 @@ async function loadTasks() {
 
 watch(() => [props.caseId], loadTasks, { immediate: true })
 
-// New task creation state
+// Ensure edit buffers exist when rows become expanded (programmatic or user)
+watch(expandedRows, (val) => {
+  if (!val) return
+  for (const [id, isOpen] of Object.entries(val)) {
+    if (!isOpen) continue
+    const task = tasks.value.find(t => String(t.id) === String(id))
+    if (task && !task._isNew) ensureEdit(task)
+  }
+}, { deep: true })
+
+// New task creation state (now used inside expansion)
 const adding = ref(false)
 const newTitle = ref('')
 const newDescription = ref('')
+const newRowId = ref('')
 
 async function createNewTask() {
   const title = (newTitle.value || '').trim()
@@ -125,16 +139,24 @@ async function createNewTask() {
   try {
     const payload = { title, description: newDescription.value || '' }
     await api.post(`/api/v1/cases/${props.caseId}/tasks`, payload)
-    // Reset add state and refresh list
-    adding.value = false
-    newTitle.value = ''
-    newDescription.value = ''
-    // Prepend or reload
+  } finally {
+    // Regardless of success/failure, reset UI; errors will surface via global handler
+    removeNewRow()
     await loadTasks()
-    // Expand newly created by focusing search to its name if needed
-  } catch (e) {
-    // handled globally
   }
+}
+
+function removeNewRow() {
+  if (!newRowId.value) return
+  const idx = tasks.value.findIndex(t => t.id === newRowId.value)
+  if (idx >= 0) tasks.value.splice(idx, 1)
+  const expanded = { ...(expandedRows.value || {}) }
+  delete expanded[newRowId.value]
+  expandedRows.value = expanded
+  adding.value = false
+  newTitle.value = ''
+  newDescription.value = ''
+  newRowId.value = ''
 }
 
 // Editing state per task (local copies)
@@ -155,13 +177,8 @@ function ensureEdit(task) {
   }
 }
 
-function onPanelOpen(idx) {
-  // idx can be index or value depending on Accordion; try index against displayed list first
-  let t = (Array.isArray(displayedTasks.value) && typeof idx === 'number') ? displayedTasks.value[idx] : null
-  if (!t) {
-    // Fallback: try to find by id/value
-    t = tasks.value.find(x => x.id === idx)
-  }
+function onRowExpand(event) {
+  const t = event?.data
   if (t) ensureEdit(t)
 }
 
@@ -175,13 +192,16 @@ function queueSave(task, patch) {
   // Merge patch
   pendingPatches.value[id] = { ...(pendingPatches.value[id] || {}), ...patch }
 
-  // Permission gating per field
+  // Permission gating per field (per requirements)
   const allowed = {}
   for (const [k, v] of Object.entries(pendingPatches.value[id])) {
     if (k === 'completed') {
       if (canComplete.value) allowed[k] = v
-    } else {
+    } else if (k === 'title' || k === 'description' || k === 'assigned_by_id') {
       if (canCreate.value) allowed[k] = v
+    } else {
+      // response, ready_for_review, and any other fields allowed for all
+      allowed[k] = v
     }
   }
   pendingPatches.value[id] = allowed
@@ -207,144 +227,31 @@ function queueSave(task, patch) {
 }
 
 function startAdd() {
+  // Insert a temporary row and expand it
+  if (adding.value) return
+  const id = `_new_${Date.now()}`
+  newRowId.value = id
+  const placeholder = {
+    id,
+    case_id: props.caseId,
+    assigned_by_id: null,
+    title: '',
+    description: '',
+    response: '',
+    ready_for_review: false,
+    completed: false,
+    _isNew: true,
+  }
+  tasks.value = [placeholder, ...tasks.value]
+  expandedRows.value = { ...(expandedRows.value || {}), [id]: true }
   adding.value = true
   newTitle.value = ''
   newDescription.value = ''
 }
 
 function cancelAdd() {
-  adding.value = false
-  newTitle.value = ''
-  newDescription.value = ''
+  removeNewRow()
 }
-
-
-// ========================
-// Search implementation
-// ========================
-
-
-import { useSearchable } from '../../common/SearchComposable'
-async function search(query) {
-  const hits = []
-  const lowerQuery = String(query || '').toLowerCase()
-
-  const all = Array.isArray(tasks.value) ? tasks.value : []
-  for (const t of all) {
-    if (!showCompleted.value && t.completed)
-      continue
-    const title = String(t.title || '')
-    const desc = String(t.description || '')
-    const resp = String(t.response || '')
-    if (title.toLowerCase().includes(lowerQuery))
-      hits.push({ id: `${t.id}`, part: 'title_hit' })
-    if (desc.toLowerCase().includes(lowerQuery))
-      hits.push({ id: `${t.id}`, part: 'description_hit' })
-    if (resp.toLowerCase().includes(lowerQuery))
-      hits.push({ id: `${t.id}`, part: 'response_hit' })
-  }
-
-  // If we have hits, ensure their panels are open and completed visibility is on when needed
-  if (hits.length) {
-    // Expand rows for all hits
-    const map = { ...(expandedRows.value || {}) }
-    for (const h of hits) {
-      const t = all.find(x => String(x.id) === String(h.id))
-      if (t) {
-        map[t.id] = true
-      }
-    }
-    expandedRows.value = map
-  }
-
-  return hits
-}
-
-async function showSearchHit(hit) {
-  clearHighlights()
-  const all = Array.isArray(tasks.value) ? tasks.value : []
-  const target = all.find(t => String(t.id) === String(hit.id))
-
-  if (target) {
-    target[hit.part] = true
-    // Ensure row is expanded
-    expandedRows.value = { ...(expandedRows.value || {}), [target.id]: true }
-    // If completed and hidden, reveal
-    if (target.completed && !showCompleted.value) {
-      showCompleted.value = true
-      await nextTick()
-    }
-  }
-
-  // Scroll to the hit element (field-level), fallback to the panel
-  await nextTick()
-  try {
-    const id = String(hit.id)
-    const part = String(hit.part || '')
-    let el = document.querySelector(`[data-task-id="${id}"][data-part="${part}"]`)
-    if (!el) {
-      el = document.querySelector(`[data-task-id="${id}"]`)
-    }
-    if (el && el.scrollIntoView) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  } catch (_) { /* noop */ }
-}
-
-function clearHighlights() {
-    const all = Array.isArray(tasks.value) ? tasks.value : []
-    for (const t of all) {
-      t.title_hit = t.description_hit = t.response_hit = false
-    }
-}
-
-// Map child component instance uid -> task id
-const childUidToTaskId = ref(new Map())
-
-function makeMessagesRef(taskId) {
-  return (comp) => {
-    const uid = comp?.$?.uid
-    if (uid != null) {
-      childUidToTaskId.value.set(uid, taskId)
-    }
-  }
-}
-
-async function childHadSearchHit(data){
-  const uid = data?.uid
-  if (uid == null) return
-
-  const taskId = childUidToTaskId.value.get(uid)
-  if (taskId == null) return
-
-  // Ensure row is expanded
-  expandedRows.value = { ...(expandedRows.value || {}), [taskId]: true }
-
-  // If the task is completed and currently hidden, reveal completed
-  const t = (Array.isArray(tasks.value) ? tasks.value : []).find(x => String(x.id) === String(taskId))
-  if (t?.completed && !showCompleted.value) {
-    showCompleted.value = true
-    await nextTick()
-  }
-
-  // Scroll into view for better UX
-  await nextTick()
-  try {
-    const el = document.querySelector(`[data-task-id="${taskId}"]`)
-    el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-  } catch (_) { /* noop */ }
-}
-
-// Register this component as searchable
-useSearchable("tasks_" + props.caseId, {
-  search,
-  showSearchHit,
-  clearHighlights,
-  childHadSearchHit
-})
-
-
-
 
 </script>
 
@@ -361,31 +268,9 @@ useSearchable("tasks_" + props.caseId, {
       </div>
     </div>
 
-    <!-- New Task Form (only name and description) -->
-    <div v-if="adding" class="surface-card p-3 border-1 surface-border border-round mb-3">
-      <div class="grid formgrid p-fluid gap-3">
-        <div class="col-12 md:col-6">
-          <FloatLabel variant="on">
-            <InputText id="newTitle" v-model="newTitle" class="w-full" />
-            <label for="newTitle">Task name</label>
-          </FloatLabel>
-        </div>
-        <div class="col-12">
-          <FloatLabel variant="on">
-            <Textarea id="newDesc" v-model="newDescription" class="w-full" autoResize rows="3" />
-            <label for="newDesc">Description</label>
-          </FloatLabel>
-        </div>
-      </div>
-      <div class="flex gap-2 justify-content-end mt-2">
-        <Button label="Cancel" text @click="cancelAdd" />
-        <Button label="Create" icon="pi pi-check" @click="createNewTask" :disabled="!(newTitle && newTitle.trim())" />
-      </div>
-    </div>
-
     <!-- Tasks Table with Row Expansion -->
     <DataTable :value="displayedTasks" dataKey="id" v-model:expandedRows="expandedRows"
-               size="small" stripedRows :loading="loading" class="w-full">
+               size="small" stripedRows :loading="loading" class="w-full" @rowExpand="onRowExpand">
       <Column expander style="width: 3rem" />
       <Column header="" style="width:48px">
         <template #body="{ data }">
@@ -428,9 +313,80 @@ useSearchable("tasks_" + props.caseId, {
       </Column>
 
       <template #expansion="slotProps">
-        <div>
-          <p>Ask questions, provide updates here:</p>
-          <Messages :caseId="props.caseId" filterByFieldName="task_id" :filterByFieldId="slotProps.data.id" :ref="makeMessagesRef(slotProps.data.id)" />
+        <div class="surface-card p-3 border-1 surface-border border-round mb-3">
+          <div v-if="slotProps.data._isNew">
+            <div class="grid formgrid p-fluid gap-3">
+              <div class="col-12 md:col-6">
+                <FloatLabel variant="on">
+                  <InputText id="newTitle" v-model="newTitle" class="w-full" />
+                  <label for="newTitle">Task name</label>
+                </FloatLabel>
+              </div>
+              <div class="col-12">
+                <FloatLabel variant="on">
+                  <Textarea id="newDesc" v-model="newDescription" class="w-full" autoResize rows="3" />
+                  <label for="newDesc">Description</label>
+                </FloatLabel>
+              </div>
+            </div>
+            <div class="flex gap-2 justify-content-end mt-2">
+              <Button label="Cancel" text @click="cancelAdd" />
+              <Button label="Create" icon="pi pi-check" @click="createNewTask" :disabled="!(newTitle && newTitle.trim())" />
+            </div>
+          </div>
+          <div v-else>
+            <div class="grid formgrid p-fluid gap-3">
+              <div class="col-12 md:col-6">
+                <FloatLabel variant="on">
+                  <Dropdown id="assignedBy" class="w-full" :options="personOptions" optionLabel="label" optionValue="value"
+                            v-model="edits[slotProps.data.id].assigned_by_id"
+                            :disabled="!canCreate"
+                            @change="queueSave(slotProps.data, { assigned_by_id: edits[slotProps.data.id].assigned_by_id })" />
+                  <label for="assignedBy">Assigned by</label>
+                </FloatLabel>
+              </div>
+              <div class="col-12 md:col-6">
+                <FloatLabel variant="on">
+                  <InputText id="titleEdit" class="w-full" v-model="edits[slotProps.data.id].title"
+                             :disabled="!canCreate"
+                             @input="queueSave(slotProps.data, { title: edits[slotProps.data.id].title })" />
+                  <label for="titleEdit">Title</label>
+                </FloatLabel>
+              </div>
+              <div class="col-12">
+                <FloatLabel variant="on">
+                  <Textarea id="descEdit" class="w-full" autoResize rows="3"
+                            v-model="edits[slotProps.data.id].description"
+                            :disabled="!canCreate"
+                            @input="queueSave(slotProps.data, { description: edits[slotProps.data.id].description })" />
+                  <label for="descEdit">Description</label>
+                </FloatLabel>
+              </div>
+              <div class="col-12">
+                <FloatLabel variant="on">
+                  <Textarea id="respEdit" class="w-full" autoResize rows="3"
+                            v-model="edits[slotProps.data.id].response"
+                            @input="queueSave(slotProps.data, { response: edits[slotProps.data.id].response })" />
+                  <label for="respEdit">Response</label>
+                </FloatLabel>
+              </div>
+              <div class="col-12 md:col-6 flex align-items-center gap-2">
+                <ToggleSwitch id="rfrEdit" v-model="edits[slotProps.data.id].ready_for_review"
+                              @change="queueSave(slotProps.data, { ready_for_review: edits[slotProps.data.id].ready_for_review })" />
+                <label for="rfrEdit">Ready for review</label>
+              </div>
+              <div class="col-12 md:col-6 flex align-items-center gap-2">
+                <ToggleSwitch id="completedEdit" :disabled="!canComplete"
+                              v-model="edits[slotProps.data.id].completed"
+                              @change="queueSave(slotProps.data, { completed: edits[slotProps.data.id].completed })" />
+                <label for="completedEdit">Completed</label>
+              </div>
+            </div>
+            <div class="mt-3">
+              <p>Ask questions, provide updates here:</p>
+              <Messages :caseId="props.caseId" filterByFieldName="task_id" :filterByFieldId="slotProps.data.id" />
+            </div>
+          </div>
         </div>
       </template>
     </DataTable>
