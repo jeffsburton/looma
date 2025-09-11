@@ -85,7 +85,7 @@ watch(
         </TabPanel>
         <TabPanel value="ops">
           <Suspense>
-            <OpsPlansTab />
+            <OpsPlansTab :caseId="caseId" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
