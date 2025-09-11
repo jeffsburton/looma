@@ -3,10 +3,8 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import ToggleSwitch from 'primevue/toggleswitch'
-import Accordion from 'primevue/accordion';
-import AccordionPanel from 'primevue/accordionpanel';
-import AccordionHeader from 'primevue/accordionheader';
-import AccordionContent from 'primevue/accordioncontent';
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
 import FloatLabel from 'primevue/floatlabel'
 import Textarea from 'primevue/textarea'
 import Messages from '@/components/Messages.vue'
@@ -31,8 +29,8 @@ const showCompleted = ref(false) // default off per requirements
 const loading = ref(false)
 const tasks = ref([])
 
-// Track open panels for programmatic control
-const openPanels = ref([])
+// Expanded rows map for DataTable row expansion
+const expandedRows = ref({})
 
 const route = useRoute()
 
@@ -93,13 +91,11 @@ async function loadTasks() {
             showCompleted.value = true
             await nextTick()
           }
-          // Open the accordion panel for this task
+          // Expand the row for this task in DataTable
           const val = target.id
-          const set = new Set(openPanels.value || [])
-          set.add(val)
-          openPanels.value = Array.from(set)
+          expandedRows.value = { ...(expandedRows.value || {}), [val]: true }
           await nextTick()
-          // Scroll to the panel
+          // Scroll to the row/title cell
           try {
             const el = document.querySelector(`[data-task-id="${val}"]`)
             if (el && el.scrollIntoView) {
@@ -250,15 +246,15 @@ async function search(query) {
 
   // If we have hits, ensure their panels are open and completed visibility is on when needed
   if (hits.length) {
-    // Determine if any hit is on a completed task
-    const set = new Set(openPanels.value || [])
+    // Expand rows for all hits
+    const map = { ...(expandedRows.value || {}) }
     for (const h of hits) {
       const t = all.find(x => String(x.id) === String(h.id))
       if (t) {
-        set.add(t.id)
+        map[t.id] = true
       }
     }
-    openPanels.value = Array.from(set)
+    expandedRows.value = map
   }
 
   return hits
@@ -271,10 +267,8 @@ async function showSearchHit(hit) {
 
   if (target) {
     target[hit.part] = true
-    // Ensure panel is open
-    const set = new Set(openPanels.value || [])
-    set.add(target.id)
-    openPanels.value = Array.from(set)
+    // Ensure row is expanded
+    expandedRows.value = { ...(expandedRows.value || {}), [target.id]: true }
     // If completed and hidden, reveal
     if (target.completed && !showCompleted.value) {
       showCompleted.value = true
@@ -323,10 +317,8 @@ async function childHadSearchHit(data){
   const taskId = childUidToTaskId.value.get(uid)
   if (taskId == null) return
 
-  // Ensure panel is open
-  const set = new Set(openPanels.value || [])
-  set.add(taskId)
-  openPanels.value = Array.from(set)
+  // Ensure row is expanded
+  expandedRows.value = { ...(expandedRows.value || {}), [taskId]: true }
 
   // If the task is completed and currently hidden, reveal completed
   const t = (Array.isArray(tasks.value) ? tasks.value : []).find(x => String(x.id) === String(taskId))
@@ -391,68 +383,57 @@ useSearchable("tasks_" + props.caseId, {
       </div>
     </div>
 
-    <!-- Task list -->
-    <Accordion multiple :lazy="false" v-model:value="openPanels" @tab-open="onPanelOpen">
-      <AccordionPanel v-for="(t, idx) in displayedTasks" :key="t.id" :value="t.id" :data-task-id="t.id">
-        <AccordionHeader >
+    <!-- Tasks Table with Row Expansion -->
+    <DataTable :value="displayedTasks" dataKey="id" v-model:expandedRows="expandedRows"
+               size="small" stripedRows :loading="loading" class="w-full">
+      <Column expander style="width: 3rem" />
+      <Column header="" style="width:48px">
+        <template #body="{ data }">
+          <UnseenMessageCount TableName="task" :CaseId="caseId" :TaskId="data.id">
+            <div class="flex align-items-center">
+              <span class="material-symbols-outlined text-900 font-medium">assignment</span>
+            </div>
+          </UnseenMessageCount>
+        </template>
+      </Column>
+      <Column header="Assigned by">
+        <template #body="{ data }">
           <div class="flex align-items-center gap-2">
-            <UnseenMessageCount TableName="task" :CaseId="caseId" :TaskId="t.id">
-              <div class="flex align-items-center">
-                <span class="material-symbols-outlined text-900 font-medium">assignment</span>
-              </div>
-            </UnseenMessageCount>
-            <span class="text-900 font-medium" :class="t.title_hit ? 'search_highlight' : ''" :data-task-id="t.id" data-part="title">{{ t.title }}</span>
-            <span v-if="t.completed" class="material-symbols-outlined text-green-600" title="Completed">check_circle</span>
-            <span v-else-if="t.ready_for_review" class="material-symbols-outlined text-yellow-200" title="Ready for review">hand_gesture</span>
+            <img :src="getPerson(data.assigned_by_id)?.photo_url || '/images/pfp-generic.png'" alt="pfp" class="avatar-sm" />
+            <span class="text-900 font-medium name-clip">{{ getPerson(data.assigned_by_id)?.name || 'Unknown' }}</span>
           </div>
-        </AccordionHeader>
-        <AccordionContent>
-          <div class="grid formgrid p-fluid gap-3 mt-3">
-            <div class="col-12 md:col-6">
-              <div class="flex align-items-center gap-2">
-                <span class="text-700">Assigned by:</span>
-                <img :src="getPerson(t.assigned_by_id)?.photo_url || '/images/pfp-generic.png'" alt="pfp" class="avatar-sm" />
-                <span class="text-900 font-medium name-clip">{{ getPerson(t.assigned_by_id)?.name || 'Unknown' }}</span>
-              </div>
-            </div>
-            <div class="col-12 md:col-6" v-if="false">
-              <!-- Name field hidden for existing per requirements; kept here toggled off -->
-              <FloatLabel variant="on">
-                <InputText id="titleEdit" :modelValue="(edits[t.id]?.title ?? t.title)" @update:modelValue="val => { ensureEdit(t); edits[t.id].title = val; queueSave(t, { title: val }) }" :disabled="!canCreate" />
-                <label for="titleEdit">Task name</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12" :class="t.description_hit ? 'search_highlight' : ''" :data-task-id="t.id" data-part="description">
-              <FloatLabel variant="on">
-                <Textarea id="descEdit" :modelValue="(edits[t.id]?.description ?? t.description)" @update:modelValue="val => { ensureEdit(t); edits[t.id].description = val; queueSave(t, { description: val }) }" class="w-full" autoResize rows="3" :disabled="!canCreate" />
-                <label for="descEdit">Description</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12" :class="t.response_hit ? 'search_highlight' : ''" :data-task-id="t.id" data-part="response">
-              <FloatLabel variant="on">
-                <Textarea id="responseEdit" :modelValue="(edits[t.id]?.response ?? t.response)" @update:modelValue="val => { ensureEdit(t); edits[t.id].response = val; queueSave(t, { response: val }) }" class="w-full" autoResize rows="3" />
-                <label for="responseEdit">Response</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-6 flex gap-4">
-              <div class="flex align-items-center gap-2 flex-1" v-if="!(edits[t.id]?.completed ?? t.completed)">
-                  <ToggleSwitch id="rfrEdit" :modelValue="(edits[t.id]?.ready_for_review ?? t.ready_for_review)" @update:modelValue="val => { ensureEdit(t); edits[t.id].ready_for_review = val; queueSave(t, { ready_for_review: val }) }" :disabled="!canCreate" />
-                  <label for="rfrEdit">Ready for review</label>
-              </div>
-              <div class="flex align-items-center gap-2 flex-1">
-                  <ToggleSwitch id="completedEdit" :modelValue="(edits[t.id]?.completed ?? t.completed)" @update:modelValue="val => { ensureEdit(t); edits[t.id].completed = val; queueSave(t, { completed: val }) }" :disabled="!canComplete" />
-                  <label for="completedEdit">Completed</label>
-              </div>
-            </div>
-          </div>
-          <!-- Messages: only for existing records -->
-          <div class="mt-3">
-            <p>Ask questions, provide updates here:</p>
-            <Messages :caseId="props.caseId" filterByFieldName="task_id" :filterByFieldId="t.id" :ref="makeMessagesRef(t.id)" />
-          </div>
-        </AccordionContent>
-      </AccordionPanel>
-    </Accordion>
+        </template>
+      </Column>
+      <Column field="title" header="Title">
+        <template #body="{ data }">
+          <span class="text-900" :class="data.title_hit ? 'search_highlight' : ''" :data-task-id="data.id" data-part="title">{{ data.title }}</span>
+        </template>
+      </Column>
+      <Column field="description" header="Description">
+        <template #body="{ data }">
+          <span :class="data.description_hit ? 'search_highlight' : ''" :data-task-id="data.id" data-part="description">{{ data.description }}</span>
+        </template>
+      </Column>
+      <Column header="Ready for review" style="width:160px">
+        <template #body="{ data }">
+          <span v-if="data.ready_for_review" class="material-symbols-outlined text-yellow-200" title="Ready for review">hand_gesture</span>
+          <span v-else>—</span>
+        </template>
+      </Column>
+      <Column header="Completed" style="width:130px">
+        <template #body="{ data }">
+          <span v-if="data.completed" class="material-symbols-outlined text-green-600" title="Completed">check_circle</span>
+          <span v-else>—</span>
+        </template>
+      </Column>
+
+      <template #expansion="slotProps">
+        <div>
+          <p>Ask questions, provide updates here:</p>
+          <Messages :caseId="props.caseId" filterByFieldName="task_id" :filterByFieldId="slotProps.data.id" :ref="makeMessagesRef(slotProps.data.id)" />
+        </div>
+      </template>
+    </DataTable>
   </div>
 </template>
 
