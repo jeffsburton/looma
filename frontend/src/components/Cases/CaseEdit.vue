@@ -327,9 +327,7 @@ const daysMissing = computed(() => {
       <TabPanel value="tasks">
         <div class="surface-card border-round pt-1 px-2 pb-2 flex-1 ">
           <Suspense>
-            <SearchWrapper>
-              <TasksTab :caseId="caseModel.id" />
-            </SearchWrapper>
+            <TasksTab :caseId="caseModel.id" />
             <template #fallback>
               <div class="p-3 text-600">Loading...</div>
             </template>
