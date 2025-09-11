@@ -7,6 +7,7 @@ import { getCookie, setCookie, deleteCookie } from '../lib/cookies'
 import { hasPermission, clearPermissions } from '../lib/permissions'
 import { disconnectMessagesWS } from '../lib/messages_ws'
 import UnseenMessageCount from './common/UnseenMessageCount.vue'
+import GlobalSearchPopover from './common/GlobalSearchPopover.vue'
 // Sidebar for internal pages: vertical stack with Material icons.
 // Handles logout internally by calling the API and clearing client state.
 
@@ -91,6 +92,12 @@ onMounted(() => {
   loadCurrentUserProfilePic()
 })
 
+// Global search popover ref and opener
+const searchPop = ref(null)
+function onSearchClick(event) {
+  try { searchPop.value?.open(event) } catch {}
+}
+
 // Top section items (excluding Account which is pinned to bottom)
 const items = [
   { icon: 'cases', label: 'Cases', routeName: 'cases', requiredPerm: 'CASES' },
@@ -122,12 +129,20 @@ const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPerm
       </span>
     </div>
 
-    <!-- Top toggle -->
-    <div class="toggle-btn p-2 border-round cursor-pointer mb-1 flex align-items-center justify-content-center"
-         :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-         :title="collapsed ? 'Expand' : 'Collapse'"
-         @click="toggleCollapsed">
-      <span class="material-symbols-outlined text-700">{{ collapsed ? 'chevron_right' : 'chevron_left' }}</span>
+    <!-- Top toggle + Search button -->
+    <div class="flex gap-1 mb-1">
+      <div class="toggle-btn p-2 border-round cursor-pointer flex align-items-center justify-content-center"
+           :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+           :title="collapsed ? 'Expand' : 'Collapse'"
+           @click="toggleCollapsed">
+        <span class="material-symbols-outlined text-700">{{ collapsed ? 'chevron_right' : 'chevron_left' }}</span>
+      </div>
+      <div class="toggle-btn p-2 border-round cursor-pointer flex align-items-center justify-content-center"
+           aria-label="Open search"
+           title="Search (/)"
+           @click.stop="onSearchClick($event)">
+        <span class="material-symbols-outlined text-700">search</span>
+      </div>
     </div>
 
     <ul class="list-none m-0 p-0 flex flex-column gap-1">
@@ -184,6 +199,7 @@ const visibleItems = computed(() => items.filter(i => !i.requiredPerm || hasPerm
         <span v-show="!collapsed" class="label text-800 font-medium">Logout</span>
       </div>
     </div>
+    <GlobalSearchPopover ref="searchPop" />
   </nav>
 </template>
 

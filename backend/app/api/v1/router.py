@@ -19,3 +19,5 @@ api_router.include_router(team.router, tags=["teams"])  # exposes /teams
 api_router.include_router(media.router, tags=["media"])  # exposes /media/*
 api_router.include_router(subjects.router, tags=["subjects"])  # exposes /subjects
 api_router.include_router(is_document.router, tags=["documents"])  # exposes /is_document
+from app.api.v1.endpoints import search as _search
+api_router.include_router(_search.router, tags=["search"])  # exposes /search
