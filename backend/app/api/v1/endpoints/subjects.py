@@ -148,8 +148,8 @@ async def list_subjects_for_select(
         Subject.danger,
         Subject.profile_pic.isnot(None).label("has_pic"),
         # any subject_case rows for this subject?
-        func.count(SubjectCase.id).label("case_count"),
-    ).join(SubjectCase, SubjectCase.subject_id == Subject.id, isouter=True)
+        func.count(Case.id).label("case_count"),
+    ).join(Case, Case.subject_id == Subject.id, isouter=True)
 
     if not has_all:
         visibility_filter = _subject_visibility_filter(person_id)

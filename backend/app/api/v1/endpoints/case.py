@@ -74,6 +74,7 @@ def _decode_or_404(model: str, opaque_id: str) -> int:
         raise HTTPException(status_code=404, detail=f"{model.replace('_', ' ').title()} not found")
 
 
+
 async def can_user_access_case(db: AsyncSession, user_id: int, case_id: int) -> bool:
     """
     Returns True if the user can access the given case based on:

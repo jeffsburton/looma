@@ -4,6 +4,7 @@ import Select from 'primevue/select'
 import Button from 'primevue/button'
 import SplitButton from 'primevue/splitbutton'
 import Dialog from 'primevue/dialog'
+import Badge from 'primevue/badge'
 import { hasPermission } from '../lib/permissions'
 import PersonEditor from './contacts/Person.vue'
 import SubjectEditor from './contacts/Subject.vue'
@@ -35,6 +36,7 @@ async function loadOptions() {
         const sResp = await fetch('/api/v1/subjects/select')
         if (!sResp.ok) throw new Error('Failed to load subjects')
         const subs = await sResp.json()
+        console.log(subs);
         options.value = (subs || []).map(s => ({
           id: s.id, // opaque subject id like subj:...
           name: s.name,
@@ -42,6 +44,8 @@ async function loadOptions() {
           is_shepherd: false,
           organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
           team_photo_urls: [],
+          dangerous: s.dangerous,
+          danger: s.danger,
         }))
       } catch (e) {
         options.value = []
@@ -79,6 +83,8 @@ async function loadOptions() {
             is_shepherd: false,
             organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
             team_photo_urls: [],
+            dangerous: s.dangerous,
+            danger: s.danger,
           }))
           options.value = [...options.value, ...mapped]
         }
@@ -148,6 +154,7 @@ async function onCreated(created) {
           <!-- First row: name and, for shepherds, the team avatar group on the right -->
           <div class="flex align-items-center w-full">
             <div class="text-900 name-clip flex-1">{{ option.name }}</div>
+            <div v-if="option.dangerous"  class="flex align-items-center gap-1 ml-2 team-pfps"><Badge :value="option.danger" severity="danger" /></div>
             <div v-if="option.is_shepherd && option.team_photo_urls?.length" class="flex align-items-center gap-1 ml-2 team-pfps">
               <img v-for="(u, idx) in option.team_photo_urls" :key="idx" :src="u" class="team-avatar" alt="team" />
             </div>
@@ -163,6 +170,7 @@ async function onCreated(created) {
         <div class="min-w-0 flex-1">
           <div class="flex align-items-center w-full">
             <div class="text-900 name-clip flex-1">{{ selectedOption.name }}</div>
+            <div v-if="selectedOption.dangerous"  class="flex align-items-center gap-1 ml-2 team-pfps"><Badge :value="selectedOption.danger" severity="danger" /></div>
             <div v-if="selectedOption.is_shepherd && selectedOption.team_photo_urls?.length" class="flex align-items-center gap-1 ml-2 team-pfps">
               <img v-for="(u, idx) in selectedOption.team_photo_urls" :key="idx" :src="u" class="team-avatar" alt="team" />
             </div>

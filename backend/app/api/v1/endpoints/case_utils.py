@@ -5,7 +5,9 @@ from sqlalchemy import select, and_, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.id_codec import decode_id, OpaqueIdError
+from app.db.models.app_user import AppUser
 from app.db.models.app_user_case import AppUserCase
+from app.db.models.case import Case
 from app.db.models.person import Person
 from app.db.models.person_team import PersonTeam
 from app.db.models.team_case import TeamCase
@@ -21,6 +23,24 @@ def _decode_or_404(model: str, opaque_id: str) -> int:
     except OpaqueIdError:
         raise HTTPException(status_code=404, detail=f"{model.replace('_', ' ').title()} not found")
 
+
+async def case_number_or_id(
+     db: AsyncSession,
+     current_user: AppUser,
+     case_id: str) -> int :
+    # Decode and authorize
+    try:
+        case_db_id: int = _decode_or_404("case", case_id)
+    except HTTPException:
+        # Fallback: treat case_id as case_number
+        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
+
+        if cid is None:
+            raise HTTPException(status_code=404, detail="Case not found")
+        case_db_id = int(cid)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case_db_id
 
 async def can_user_access_case(db: AsyncSession, user_id: int, case_id: int) -> bool:
     """

@@ -14,7 +14,7 @@ from app.db.models.ref_value import RefValue
 from app.db.models.case import Case
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 
 router = APIRouter()
 
@@ -27,9 +27,7 @@ async def list_case_subjects(
     current_user: AppUser = Depends(get_current_user),
 ):
     # Decode and authorize
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     RelRV = aliased(RefValue)
     q = (
@@ -111,18 +109,8 @@ async def get_case_subject(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    print(case_id, subject_case_id)
     # Decode and authorize: accept opaque id, raw id, or case_number
-    try:
-        case_db_id = _decode_or_404("case", case_id)
-    except HTTPException:
-        # Fallback: treat case_id as case_number
-        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
-        if cid is None:
-            raise HTTPException(status_code=404, detail="Case not found")
-        case_db_id = int(cid)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     # Decode subject_case id (accept opaque or raw numeric)
     sc_db_id: Optional[int] = None
@@ -134,7 +122,6 @@ async def get_case_subject(
             sc_db_id = int(s)
         else:
             raise HTTPException(status_code=404, detail="Subject link not found")
-    print(sc_db_id)
 
     # Build the same SELECT as list_case_subjects, but filtered by row id and case id
     RelRV = aliased(RefValue)
@@ -164,8 +151,6 @@ async def get_case_subject(
             SubjectCase.id == int(sc_db_id),
         )
     )
-
-    print(str(q))
 
     row = (await db.execute(q)).first()
     if not row:
@@ -237,16 +222,7 @@ async def create_case_subject(
     current_user: AppUser = Depends(get_current_user),
 ):
     # Decode and authorize: accept opaque id, raw id, or case_number
-    try:
-        case_db_id = _decode_or_404("case", case_id)
-    except HTTPException:
-        # Fallback: treat case_id as case_number
-        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
-        if cid is None:
-            raise HTTPException(status_code=404, detail="Case not found")
-        case_db_id = int(cid)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     # Decode subject id
     try:
@@ -312,16 +288,7 @@ async def update_case_subject(
     current_user: AppUser = Depends(get_current_user),
 ):
     # Decode and authorize: accept opaque id, raw id, or case_number
-    try:
-        case_db_id = _decode_or_404("case", case_id)
-    except HTTPException:
-        # Fallback: treat case_id as case_number
-        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
-        if cid is None:
-            raise HTTPException(status_code=404, detail="Case not found")
-        case_db_id = int(cid)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         sc_db_id = decode_id("subject_case", subject_case_id)
