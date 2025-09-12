@@ -14,7 +14,7 @@ from app.db.models.subject import Subject
 from app.db.models.social_media_alias import SocialMediaAlias
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 
 router = APIRouter()
 
@@ -133,9 +133,7 @@ async def get_social_media(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     # Allow either opaque id or raw integer id in the path, similar to tasks
     try:
@@ -236,9 +234,8 @@ async def create_social_media(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     def _dec_ref(oid: _OptionalForSM[str]):
         if oid is None:
@@ -299,9 +296,8 @@ async def update_social_media(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         sm_db_id = int(decode_id("social_media", social_media_id)) if not str(social_media_id).isdigit() else int(social_media_id)
@@ -376,9 +372,8 @@ async def list_social_media_aliases(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         sm_db_id = decode_id("social_media", social_media_id)
@@ -432,9 +427,8 @@ async def create_social_media_alias(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         sm_db_id = decode_id("social_media", social_media_id)
@@ -519,9 +513,8 @@ async def update_social_media_alias(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         sm_db_id = decode_id("social_media", social_media_id)
