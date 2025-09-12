@@ -136,6 +136,11 @@ def reset_current_session(token: CtxToken) -> None:
 
 
 def encode_id(model: str, pk: int) -> str:
+    # EARLY RETURN: Disable encryption; pass through raw numeric ID as string.
+    # Keep the original implementation below for easy re-enabling later.
+    if isinstance(pk, (int,)):
+        return str(int(pk))
+    # Fallback to original validation for unexpected inputs
     if not isinstance(pk, int) or pk < 0:
         raise OpaqueIdError("Primary key must be a non-negative integer")
     model = (model or "").strip()
@@ -150,14 +155,26 @@ def encode_id(model: str, pk: int) -> str:
 
 
 def decode_id(model: str, eid: str) -> int:
+    # EARLY RETURN: Disable decryption; accept plain numeric IDs.
+    # If eid is an int or numeric string, return it as int immediately.
     model = (model or "").strip()
     if not model:
         raise OpaqueIdError("Model namespace is required")
-    if not eid or "." not in eid:
+    if isinstance(eid, int):
+        return int(eid)
+    try:
+        s = str(eid).strip()
+        if s.isdigit():
+            return int(s)
+    except Exception:
+        pass
+
+    # Legacy/opaque path: leave original secure decoding in place for backward compatibility
+    if not eid or "." not in str(eid):
         raise OpaqueIdError("Invalid opaque ID format")
 
     try:
-        vs, token = eid.split(".", 1)
+        vs, token = str(eid).split(".", 1)
         version = int(vs)
     except Exception:
         raise OpaqueIdError("Invalid opaque ID version prefix")

@@ -152,6 +152,25 @@ watch(
       return
     }
 
+    // When on Contacts tab with deep-linked subject/person, preserve edit route
+    const rawSubjectId = route.params.rawSubjectId ? String(route.params.rawSubjectId) : undefined
+    const rawPersonId = route.params.rawPersonId ? String(route.params.rawPersonId) : undefined
+    if (tab === 'contacts') {
+      if (rawSubjectId) {
+        if (route.name !== 'case-contact-subject' || String(route.params.caseNumber || '') !== caseNumber) {
+          router.replace({ name: 'case-contact-subject', params: { caseNumber, rawSubjectId } })
+        }
+        return
+      }
+      if (rawPersonId) {
+        if (route.name !== 'case-contact-person' || String(route.params.caseNumber || '') !== caseNumber) {
+          router.replace({ name: 'case-contact-person', params: { caseNumber, rawPersonId } })
+        }
+        return
+      }
+      // Otherwise allow default behavior (ContactsTab will manage subtab routing)
+    }
+
     // Default behavior for other tabs
     if (
       String(route.params.caseNumber || '') !== caseNumber ||

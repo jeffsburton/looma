@@ -289,7 +289,6 @@ watch(view, (val) => {
               :rowsPerPageOptions="[10,20,50]"
               removableSort
               class="p-datatable-sm"
-              stripedRows
             >
               <Column field="name" header="Name" sortable></Column>
               <Column field="short_name" header="Short Name" sortable></Column>

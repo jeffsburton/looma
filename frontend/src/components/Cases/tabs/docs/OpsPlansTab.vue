@@ -293,7 +293,7 @@ const displayOpType = (row) => {
       </div>
     </div>
 
-    <DataTable :value="plans" dataKey="id" v-model:expandedRows="expandedRows" size="small" stripedRows :loading="loading" class="w-full" @rowExpand="onRowExpand">
+    <DataTable :value="plans" dataKey="id" v-model:expandedRows="expandedRows" size="small"  :loading="loading" class="w-full" @rowExpand="onRowExpand">
       <Column expander style="width:3rem" />
       <Column header="" style="width:48px">
         <template #body="{ data }">

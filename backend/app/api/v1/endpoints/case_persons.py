@@ -75,6 +75,7 @@ async def list_case_persons(
     ) in rows:
         items.append({
             "id": encode_id("person_case", int(pc_id)),
+            "raw_id": int(pc_id),
             "relationship_id": encode_id("ref_value", int(rel_id)) if rel_id is not None else None,
             "relationship_name": rel_name,
             "relationship_code": rel_code,
@@ -86,6 +87,7 @@ async def list_case_persons(
                 "last_name": last,
                 "phone": phone,
                 "email": email,
+                "photo_url": f"/api/v1/media/pfp/person/{encode_id('person', int(pid))}?s=xs" ,
             },
         })
 

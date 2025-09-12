@@ -41,7 +41,6 @@ const emit = defineEmits(['edit'])
       removableSort
       dataKey="id"
       class="p-datatable-sm"
-      stripedRows
     >
       <Column header="" style="width:3.5rem">
         <template #body="{ data }">

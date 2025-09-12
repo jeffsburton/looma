@@ -94,7 +94,7 @@ const expandedRows = ref({});
 
             <!-- Cases list for Messages context -->
             <DataTable :value="rows" dataKey="id" v-model:expandedRows="expandedRows"
-                       size="small" stripedRows :loading="loading" class="w-full">
+                       size="small"  :loading="loading" class="w-full">
               <Column expander style="width: 5rem" />
               <Column header="" style="width:48px">
                 <template #body="{ data }">

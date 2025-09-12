@@ -9,3 +9,5 @@
 * All api endpoint return payloads should be wrapped in pydantic schemas that enforce encryption of database id's.
 
 * All <a> tags should have class link-btn. 
+
+* DataTable components should not have StripedRows & should not be paged. 

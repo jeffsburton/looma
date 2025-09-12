@@ -123,7 +123,7 @@ const displayedRows = computed(() => {
             </div>
 
             <DataTable :value="displayedRows" dataKey="id" v-model:expandedRows="expandedRows"
-                       size="small" stripedRows :loading="loading" class="w-full">
+                       size="small" :loading="loading" class="w-full">
               <Column expander style="width: 3rem" />
 
               <!-- Task icon with unseen count -->

@@ -240,26 +240,29 @@ async def update_subject(
         s2 = str(s).strip()
         return s2 if s2 else None
 
+    # Update only fields explicitly provided in payload
+    fields_set = getattr(payload, "model_fields_set", set())
+
     # Required fields on schema; keep existing if payload not provided (allow partial)
-    if payload.first_name is not None:
+    if "first_name" in fields_set and payload.first_name is not None:
         subj.first_name = (payload.first_name or "").strip()
-    if payload.last_name is not None:
+    if "last_name" in fields_set and payload.last_name is not None:
         subj.last_name = (payload.last_name or "").strip()
     # Optional fields
-    if hasattr(payload, "middle_name"):
+    if "middle_name" in fields_set:
         subj.middle_name = _clean(payload.middle_name)
-    if hasattr(payload, "nicknames"):
+    if "nicknames" in fields_set:
         subj.nicknames = _clean(payload.nicknames)
-    if hasattr(payload, "phone"):
+    if "phone" in fields_set:
         subj.phone = _clean(payload.phone)
-    if hasattr(payload, "email"):
+    if "email" in fields_set:
         subj.email = _clean(payload.email)
-    if hasattr(payload, "dangerous") and payload.dangerous is not None:
+    if "dangerous" in fields_set and payload.dangerous is not None:
         subj.dangerous = bool(payload.dangerous)
         # Reset danger text if not dangerous
         if not subj.dangerous:
             subj.danger = None
-    if hasattr(payload, "danger"):
+    if "danger" in fields_set:
         subj.danger = _clean(payload.danger)
 
     await db.commit()

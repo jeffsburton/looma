@@ -11,6 +11,7 @@ from app.db.models.app_user import AppUser
 from app.db.models.subject import Subject
 from app.db.models.subject_case import SubjectCase
 from app.db.models.ref_value import RefValue
+from app.db.models.case import Case
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
 from .case_utils import _decode_or_404, can_user_access_case
@@ -78,6 +79,7 @@ async def list_case_subjects(
     ) in rows:
         items.append({
             "id": encode_id("subject_case", int(sc_id)),
+            "raw_id": int(sc_id),
             "relationship_id": encode_id("ref_value", int(rel_id)) if rel_id is not None else None,
             "relationship_name": rel_name,
             "relationship_code": rel_code,
@@ -87,6 +89,7 @@ async def list_case_subjects(
             "rule_out": bool(rule_out) if rule_out is not None else False,
             "subject": {
                 "id": encode_id("subject", int(subj_id)),
+                "raw_id": int(subj_id),
                 "first_name": first,
                 "last_name": last,
                 "nicknames": nicks,
@@ -94,10 +97,124 @@ async def list_case_subjects(
                 "email": email,
                 "dangerous": bool(dangerous) if dangerous is not None else False,
                 "danger": danger,
+                "photo_url": f"/api/v1/media/pfp/subject/{encode_id('subject', int(subj_id))}?s=xs" ,
             },
         })
 
     return items
+
+
+@router.get("/{case_id}/subject/{subject_case_id}", summary="Get a single investigatory subject (subject_case row) for a case")
+async def get_case_subject(
+    case_id: str,
+    subject_case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: AppUser = Depends(get_current_user),
+):
+    print(case_id, subject_case_id)
+    # Decode and authorize: accept opaque id, raw id, or case_number
+    try:
+        case_db_id = _decode_or_404("case", case_id)
+    except HTTPException:
+        # Fallback: treat case_id as case_number
+        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
+        if cid is None:
+            raise HTTPException(status_code=404, detail="Case not found")
+        case_db_id = int(cid)
+    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Decode subject_case id (accept opaque or raw numeric)
+    sc_db_id: Optional[int] = None
+    try:
+        sc_db_id = int(decode_id("subject_case", subject_case_id))
+    except Exception:
+        s = str(subject_case_id)
+        if s.isdigit():
+            sc_db_id = int(s)
+        else:
+            raise HTTPException(status_code=404, detail="Subject link not found")
+    print(sc_db_id)
+
+    # Build the same SELECT as list_case_subjects, but filtered by row id and case id
+    RelRV = aliased(RefValue)
+    q = (
+        select(
+            SubjectCase.id.label("sc_id"),
+            SubjectCase.relationship_id,
+            RelRV.name.label("relationship_name"),
+            RelRV.code.label("relationship_code"),
+            SubjectCase.relationship_other,
+            SubjectCase.legal_guardian,
+            SubjectCase.notes,
+            SubjectCase.rule_out,
+            Subject.id.label("subj_id"),
+            Subject.first_name,
+            Subject.last_name,
+            Subject.nicknames,
+            Subject.phone,
+            Subject.email,
+            Subject.dangerous,
+            Subject.danger,
+        )
+        .join(Subject, Subject.id == SubjectCase.subject_id)
+        .join(RelRV, RelRV.id == SubjectCase.relationship_id, isouter=True)
+        .where(
+            SubjectCase.case_id == int(case_db_id),
+            SubjectCase.id == int(sc_db_id),
+        )
+    )
+
+    print(str(q))
+
+    row = (await db.execute(q)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Subject link not found")
+
+    (
+        sc_id,
+        rel_id,
+        rel_name,
+        rel_code,
+        rel_other,
+        legal_guardian,
+        notes,
+        rule_out,
+        subj_id,
+        first,
+        last,
+        nicks,
+        phone,
+        email,
+        dangerous,
+        danger,
+    ) = row
+
+    item = {
+        "id": encode_id("subject_case", int(sc_id)),
+        "raw_id": int(sc_id),
+        "relationship_id": encode_id("ref_value", int(rel_id)) if rel_id is not None else None,
+        "relationship_name": rel_name,
+        "relationship_code": rel_code,
+        "relationship_other": rel_other,
+        "legal_guardian": bool(legal_guardian) if legal_guardian is not None else False,
+        "notes": notes,
+        "rule_out": bool(rule_out) if rule_out is not None else False,
+        "subject": {
+            "id": encode_id("subject", int(subj_id)),
+            "raw_id": int(subj_id),
+            "first_name": first,
+            "last_name": last,
+            "nicknames": nicks,
+            "phone": phone,
+            "email": email,
+            "dangerous": bool(dangerous) if dangerous is not None else False,
+            "danger": danger,
+            "photo_url": f"/api/v1/media/pfp/subject/{encode_id('subject', int(subj_id))}?s=xs",
+        },
+    }
+
+    return item
 
 
 class SubjectCaseCreate(BaseModel):
@@ -119,8 +236,15 @@ async def create_case_subject(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    # Decode and authorize
-    case_db_id = _decode_or_404("case", case_id)
+    # Decode and authorize: accept opaque id, raw id, or case_number
+    try:
+        case_db_id = _decode_or_404("case", case_id)
+    except HTTPException:
+        # Fallback: treat case_id as case_number
+        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
+        if cid is None:
+            raise HTTPException(status_code=404, detail="Case not found")
+        case_db_id = int(cid)
     if not await can_user_access_case(db, current_user.id, int(case_db_id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -171,6 +295,7 @@ async def create_case_subject(
 
 
 class SubjectCasePartial(BaseModel):
+    subject_id: Optional[str] = None
     relationship_id: Optional[str] = None
     relationship_other: Optional[str] = None
     legal_guardian: Optional[bool] = None
@@ -186,8 +311,15 @@ async def update_case_subject(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    # Decode and authorize
-    case_db_id = _decode_or_404("case", case_id)
+    # Decode and authorize: accept opaque id, raw id, or case_number
+    try:
+        case_db_id = _decode_or_404("case", case_id)
+    except HTTPException:
+        # Fallback: treat case_id as case_number
+        cid = (await db.execute(select(Case.id).where(Case.case_number == str(case_id)))).scalar_one_or_none()
+        if cid is None:
+            raise HTTPException(status_code=404, detail="Case not found")
+        case_db_id = int(cid)
     if not await can_user_access_case(db, current_user.id, int(case_db_id)):
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -215,6 +347,30 @@ async def update_case_subject(
 
     # Update only fields explicitly provided in the payload
     fields_set = getattr(payload, "model_fields_set", set())
+
+    # Optionally change linked subject
+    if "subject_id" in fields_set:
+        if payload.subject_id is None or str(payload.subject_id).strip() == "":
+            raise HTTPException(status_code=400, detail="subject_id is required")
+        try:
+            new_subj_id = int(decode_id("subject", str(payload.subject_id))) if not str(payload.subject_id).isdigit() else int(str(payload.subject_id))
+        except Exception:
+            raise HTTPException(status_code=404, detail="Subject not found")
+        # Check target subject exists
+        subj_exists = (await db.execute(select(Subject.id).where(Subject.id == int(new_subj_id)))).scalar_one_or_none() is not None
+        if not subj_exists:
+            raise HTTPException(status_code=404, detail="Subject not found")
+        # Enforce uniqueness per (case_id, subject_id)
+        dup = (await db.execute(
+            select(SubjectCase.id).where(
+                SubjectCase.case_id == int(case_db_id),
+                SubjectCase.subject_id == int(new_subj_id),
+                SubjectCase.id != int(sc_db_id),
+            )
+        )).scalar_one_or_none()
+        if dup is not None:
+            raise HTTPException(status_code=400, detail="Subject already linked to case")
+        row.subject_id = int(new_subj_id)
 
     if "relationship_id" in fields_set:
         row.relationship_id = _dec_ref(payload.relationship_id)

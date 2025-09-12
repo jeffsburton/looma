@@ -24,6 +24,9 @@ const routes = [
     { path: '/cases/:caseNumber/tasks/:rawTaskId', name: 'case-task', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'tasks' }) },
     // Social media deep-link (edit a single social media record)
     { path: '/cases/:caseNumber/social/:rawSocialId', name: 'case-social', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'social' }) },
+    // Contacts deep-links (edit a subject/person contact within Contacts tab)
+    { path: '/cases/:caseNumber/contacts/subjects/:rawSubjectId', name: 'case-contact-subject', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'contacts' }) },
+    { path: '/cases/:caseNumber/contacts/persons/:rawPersonId', name: 'case-contact-person', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'contacts' }) },
     { path: '/cases/:caseNumber/:tab/:subtab?', name: 'case-detail', component: () => import('../views/CaseView.vue'), props: true },
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },

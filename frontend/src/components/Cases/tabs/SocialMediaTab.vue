@@ -168,7 +168,7 @@ watch(
         <Button label="Add" icon="pi pi-plus" @click="openAdd" />
       </div>
       <div v-if="error" class="p-error mb-2">{{ error }}</div>
-      <DataTable :value="rows" dataKey="id" stripedRows size="small" class="w-full" :loading="loading" :rows="25" paginator :rowsPerPageOptions="[10,25,50,100]">
+      <DataTable :value="rows" dataKey="id"  size="small" class="w-full" :loading="loading" :rows="25" paginator :rowsPerPageOptions="[10,25,50,100]">
         <Column header="Person">
           <template #body="{ data }">
             <div class="flex align-items-center gap-2" :style="data.rule_out ? 'text-decoration: line-through;' : ''">

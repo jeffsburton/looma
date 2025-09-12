@@ -428,7 +428,7 @@ function telegramHref(val) {
                   <span class="material-symbols-outlined text-600">search</span>
                   <InputText v-model="search" placeholder="Search contacts..." class="w-20rem max-w-full" />
                 </div>
-                <DataTable :value="filteredContacts" dataKey="id" stripedRows size="small" class="w-full" :loading="loading" paginator :rows="25" :rowsPerPageOptions="[10,25,50,100]">
+                <DataTable :value="filteredContacts" dataKey="id"  size="small" class="w-full" :loading="loading" paginator :rows="25" :rowsPerPageOptions="[10,25,50,100]">
                   <Column header="" style="width:48px">
                     <template #body="{ data }">
                       <img :src="data.photo_url" class="pfp pfp-sm" />

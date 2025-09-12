@@ -270,7 +270,7 @@ function cancelAdd() {
 
     <!-- Tasks Table with Row Expansion -->
     <DataTable :value="displayedTasks" dataKey="id" v-model:expandedRows="expandedRows"
-               size="small" stripedRows :loading="loading" class="w-full" @rowExpand="onRowExpand">
+               size="small"  :loading="loading" class="w-full" @rowExpand="onRowExpand">
       <Column expander style="width: 3rem" />
       <Column header="" style="width:48px">
         <template #body="{ data }">
