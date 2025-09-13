@@ -14,7 +14,6 @@ import Column from 'primevue/column'
 import { getLocaleDateFormat } from '../../../lib/util.js'
 import api from '../../../lib/api'
 
-import CaseSubjectSelect from '../CaseSubjectSelect.vue'
 import RefSelect from '../../RefSelect.vue'
 import DatePicker from "primevue/datepicker";
 

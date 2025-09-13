@@ -12,7 +12,7 @@ import SelectButton from 'primevue/selectbutton'
 import api from '@/lib/api'
 import { useToast } from 'primevue/usetoast'
 import FileUpload from '@/components/common/FileUpload.vue'
-import CaseSubjectSelect from '@/components/cases/CaseSubjectSelect.vue'
+import PersonSelect from '@/components/PersonSelect.vue'
 import SubjectPanel from '@/components/contacts/Subject.vue'
 
 // Helpers to avoid double-encoding and to prefer numeric case id when present (e.g., "2.xyz==" -> "2")
@@ -370,12 +370,11 @@ onBeforeUnmount(() => {
         </ul>
         <div class="mt-2">
           <FloatLabel variant="on">
-            <CaseSubjectSelect
+            <PersonSelect
               v-model="newSubjectId"
-              :caseId="String(props.caseId || '')"
-              :filter="true"
-              :includeUnknown="false"
-              class="w-full"
+              :caseNumber="String(props.caseId || '')"
+              :filter="false"
+              :addButton="false"
               @change="onSelectNewSubject"
             />
             <label>Add Subject</label>
