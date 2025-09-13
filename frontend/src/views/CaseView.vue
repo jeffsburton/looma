@@ -12,6 +12,7 @@ const tab = computed(() => {
   if (route.name === 'case-task') return 'tasks'
   if (route.name === 'case-social') return 'social'
   if (route.name === 'case-contact-subject' || route.name === 'case-contact-person') return 'contacts'
+  if (route.name === 'case-doc-file') return 'docs'
   return String(route.params.tab || 'core')
 })
 const subtab = computed(() => String(route.params.subtab || 'intake'))

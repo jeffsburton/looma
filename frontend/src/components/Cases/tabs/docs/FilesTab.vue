@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -32,6 +33,9 @@ const props = defineProps({
   caseId: { type: [String], required: true }
 })
 
+const route = useRoute()
+const router = useRouter()
+
 const items = ref([])
 const loading = ref(false)
 
@@ -47,6 +51,53 @@ const selectedTypes = ref(typeOptions.map(o => o.value)) // multiple selection (
 const showDialog = ref(false)
 const editing = ref(null)
 const saving = ref(false)
+
+// Inline save helper
+async function patchFile(payload) {
+  if (!props.caseId || !editing.value?.id) return
+  try {
+    const { data } = await api.patch(`/api/v1/cases/${casePathId(props.caseId)}/files/${encodeURIComponent(editing.value.id)}`, payload)
+    // Update local editing and list item
+    if (data) {
+      editing.value = { ...editing.value, ...data }
+      const idx = items.value.findIndex(x => x.id === editing.value.id)
+      if (idx > -1) items.value[idx] = { ...items.value[idx], ...data }
+    }
+  } catch (e) {
+    console.error(e)
+    try { toast.add({ severity: 'error', summary: 'Save failed', detail: e?.message || 'Error', life: 3000 }) } catch (_) {}
+  }
+}
+
+async function onBlurSource() {
+  await patchFile({ source: editing.value?.source ?? null })
+}
+async function onBlurWhere() {
+  await patchFile({ where: editing.value?.where ?? null })
+}
+async function onBlurNotes() {
+  await patchFile({ notes: editing.value?.notes ?? null })
+}
+
+// Route-driven edit mode: /cases/{case}/docs/files/{fileId}
+const fileRouteId = computed(() => {
+  try {
+    const fp = String(route.fullPath || '')
+    const m = fp.match(/\/docs\/files\/([^\/?#]+)/)
+    return m ? decodeURIComponent(m[1]) : ''
+  } catch { return '' }
+})
+const isEditMode = computed(() => !!fileRouteId.value)
+
+const currentCaseNumber = computed(() => String(route.params.caseNumber || ''))
+
+function goBack() {
+  try {
+    router.replace({ path: `/cases/${encodeURIComponent(currentCaseNumber.value)}/docs` })
+  } catch {
+    // no-op
+  }
+}
 
 // File subjects management (copied from ImagesTab, adapted for files)
 const fileSubjects = ref([])
@@ -178,10 +229,15 @@ function downloadItem(item) {
 }
 
 function openEdit(item) {
-  editing.value = { ...item }
-  showDialog.value = true
-  // Load file-subject links for this file
-  loadFileSubjects()
+  if (!item?.id) return
+  // Route to edit URL instead of modal dialog
+  try {
+    const url = `/cases/${encodeURIComponent(currentCaseNumber.value)}/docs/files/${encodeURIComponent(String(item.id))}`
+    console.log(url);
+    router.replace({ path:  url})
+  } catch {
+    // fallback
+  }
 }
 
 async function saveEdit() {
@@ -197,9 +253,9 @@ async function saveEdit() {
     // Merge back into list
     const idx = items.value.findIndex(x => x.id === editing.value.id)
     if (idx > -1) items.value[idx] = data
-    showDialog.value = false
-    editing.value = null
     toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
+    // Navigate back to list view
+    goBack()
   } catch (e) {
     console.error(e)
     toast.add({ severity: 'error', summary: 'Save failed', detail: e?.message || 'Error', life: 4000 })
@@ -211,6 +267,40 @@ async function saveEdit() {
 onMounted(loadFiles)
 
 watch(() => props.caseId, () => { loadFiles() })
+
+async function syncEditFromRoute() {
+  const editMode = isEditMode.value
+  const id = fileRouteId.value
+  if (editMode && id) {
+    // Try to find in current list first
+    let found = (items.value || []).find(x => String(x.id) === String(id))
+    if (!found) {
+      await loadFiles()
+      found = (items.value || []).find(x => String(x.id) === String(id))
+    }
+    if (found) {
+      editing.value = { ...found }
+      await loadFileSubjects()
+    } else {
+      editing.value = { id: id, source: '', where: '', notes: '' }
+    }
+    showDialog.value = false
+  } else {
+    editing.value = null
+    newSubjectId.value = ''
+    fileSubjects.value = []
+    showDialog.value = false
+  }
+}
+
+// When route changes to edit mode, initialize editing model
+watch([isEditMode, fileRouteId, items], async () => {
+  await syncEditFromRoute()
+})
+
+onMounted(async () => {
+  await syncEditFromRoute()
+})
 
 
 const hasItems = computed(() => (items.value || []).length > 0)
@@ -279,127 +369,159 @@ onBeforeUnmount(() => {
   <div class="p-3">
     <Toast />
 
-    <FileUpload :caseId="caseId" @uploaded="loadFiles" />
+    <!-- List mode: uploader + filters + table -->
+    <template v-if="!isEditMode">
+      <FileUpload :caseId="caseId" @uploaded="loadFiles" />
 
-    <!-- Toolbar: Search + Type Filters -->
-    <div class="flex flex-wrap items-center gap-3 mb-3">
-      <div class="flex-1 min-w-[220px]">
-        <FloatLabel variant="on" class="w-full">
-          <InputText id="file-search" v-model="searchQuery" class="w-full" placeholder="Search" />
-          <label for="file-search">Search</label>
-        </FloatLabel>
-      </div>
-      <div class="min-w-[220px]">
-        <FloatLabel variant="on" class="w-full">
-          <SelectButton id="type-filter" v-model="selectedTypes" :options="typeOptions" optionLabel="label" optionValue="value" :multiple="true">
-            <template #option="slotProps">
-              <i :class="slotProps.option.icon" class="mr-2"></i>
-            </template>
-          </SelectButton>
-        </FloatLabel>
-      </div>
-    </div>
-
-    <DataTable :value="filteredItems" dataKey="id" :loading="loading" v-if="hasItems">
-      <Column header="Type" style="width: 60px">
-        <template #body="{ data }">
-          <template v-if="(data.is_image || data.is_video) && data.thumb">
-            <img
-              :src="data.thumb"
-              alt="thumb"
-              style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;"
-              role="button"
-              @click="openLightbox(data)"
-            />
-          </template>
-          <template v-else>
-            <i class="pi text-2xl" :class="extensionIcon(data.file_name)"></i>
-          </template>
-        </template>
-      </Column>
-      <Column field="file_name" header="Name" />
-      <Column header="Source">
-        <template #body="{ data }">{{ data.source || '—' }}</template>
-      </Column>
-      <Column header="Where">
-        <template #body="{ data }">{{ data.where || '—' }}</template>
-      </Column>
-      <Column header="Notes">
-        <template #body="{ data }">{{ data.notes || '—' }}</template>
-      </Column>
-      <Column header="Actions" style="width: 140px">
-        <template #body="{ data }">
-          <div class="flex gap-2">
-            <Button icon="pi pi-download" size="small" @click="downloadItem(data)" v-tooltip.top="'Download'" />
-            <Button icon="pi pi-pencil" size="small" @click="openEdit(data)" severity="secondary" v-tooltip.top="'Edit'" />
-          </div>
-        </template>
-      </Column>
-    </DataTable>
-    <div v-else class="text-600">No files uploaded yet.</div>
-
-    <Dialog v-model:visible="showDialog" modal header="Edit File" :style="{ width: '600px' }">
-      <div class="mt-2 gap-2">
-        <FloatLabel variant="on" class="mb-2">
-          <InputText id="source" v-model="editing.source" class="w-full" />
-          <label for="source">Source</label>
-        </FloatLabel>
-        <FloatLabel variant="on" class="mb-2">
-          <InputText id="where" v-model="editing.where" class="w-full" />
-          <label for="where">Where</label>
-        </FloatLabel>
-        <FloatLabel variant="on">
-          <Textarea id="notes" v-model="editing.notes" class="w-full" rows="4" />
-          <label for="notes">Notes</label>
-        </FloatLabel>
-      </div>
-
-      <!-- Subjects list and add (copied from ImagesTab, adapted) -->
-      <div class="field mt-3">
-        <div class="label mb-2">Subjects in File</div>
-        <div v-if="subjectsLoading" class="text-600 text-sm mb-2">Loading…</div>
-        <ul v-else class="subject-list">
-          <li v-for="s in fileSubjects" :key="s.id" class="subject-row">
-            <div class="subject-info clickable" @click.stop="openSubject(s.subject_id)">
-              <img :src="s.photo_url" :alt="s.name" class="subject-avatar" />
-              <span class="subject-name">{{ s.name }}</span>
-            </div>
-            <Button icon="pi pi-trash" text size="small" @click="deleteFileSubject(s.id)" />
-          </li>
-          <li v-if="fileSubjects.length === 0" class="text-600 text-sm">No subjects linked.</li>
-        </ul>
-        <div class="mt-2">
-          <FloatLabel variant="on">
-            <PersonSelect
-              v-model="newSubjectId"
-              :caseNumber="String(props.caseId || '')"
-              :filter="false"
-              :addButton="false"
-              @change="onSelectNewSubject"
-            />
-            <label>Add Subject</label>
+      <!-- Toolbar: Search + Type Filters -->
+      <div class="flex flex-wrap items-center gap-3 mb-3">
+        <div class="flex-1 min-w-[220px]">
+          <FloatLabel variant="on" class="w-full">
+            <InputText id="file-search" v-model="searchQuery" class="w-full" placeholder="Search" />
+            <label for="file-search">Search</label>
+          </FloatLabel>
+        </div>
+        <div class="min-w-[220px]">
+          <FloatLabel variant="on" class="w-full">
+            <SelectButton id="type-filter" v-model="selectedTypes" :options="typeOptions" optionLabel="label" optionValue="value" :multiple="true">
+              <template #option="slotProps">
+                <i :class="slotProps.option.icon" class="mr-2"></i>
+              </template>
+            </SelectButton>
           </FloatLabel>
         </div>
       </div>
 
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <Button label="Cancel" severity="secondary" @click="showDialog=false" />
-          <Button label="Save" :loading="saving" @click="saveEdit" />
-        </div>
-      </template>
-    </Dialog>
+      <DataTable :value="filteredItems" dataKey="id" :loading="loading" v-if="hasItems">
+        <Column header="Type" style="width: 60px">
+          <template #body="{ data }">
+            <template v-if="(data.is_image || data.is_video) && data.thumb">
+              <img
+                :src="data.thumb"
+                alt="thumb"
+                style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;"
+                role="button"
+                @click="openLightbox(data)"
+              />
+            </template>
+            <template v-else>
+              <i class="pi text-2xl" :class="extensionIcon(data.file_name)"></i>
+            </template>
+          </template>
+        </Column>
+        <Column field="file_name" header="Name" />
+        <Column header="Source">
+          <template #body="{ data }">{{ data.source || '—' }}</template>
+        </Column>
+        <Column header="Where">
+          <template #body="{ data }">{{ data.where || '—' }}</template>
+        </Column>
+        <Column header="Notes">
+          <template #body="{ data }">{{ data.notes || '—' }}</template>
+        </Column>
+        <Column header="Actions" style="width: 140px">
+          <template #body="{ data }">
+            <div class="flex gap-2">
+              <Button icon="pi pi-download" size="small" @click="downloadItem(data)" v-tooltip.top="'Download'" />
+              <Button icon="pi pi-pencil" size="small" @click="openEdit(data)" severity="secondary" v-tooltip.top="'Edit'" />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
+      <div v-else class="text-600">No files uploaded yet.</div>
 
-    <!-- Subject Dialog -->
-    <Dialog v-model:visible="subjectDialogVisible" modal header="Subject" :style="{ width: '640px' }">
-      <div v-if="subjectLoading" class="p-3 text-600">Loading…</div>
-      <SubjectPanel v-else-if="subjectModel" v-model="subjectModel" :isNew="false" :canModify="true" @updated="() => {}" @avatarChanged="() => {}" />
-      <template #footer>
-        <Button label="Close" text @click="subjectDialogVisible=false" />
-      </template>
-    </Dialog>
+    </template>
 
-    <!-- Lightbox Overlay (images/videos) -->
+    <!-- Edit mode: like ActivityEdit, show only the form with a back arrow -->
+    <template v-else>
+      <div class="flex align-items-center gap-2 mb-3">
+        <button class="icon-button" @click="goBack" title="Back">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <div class="text-lg font-semibold">Edit File</div>
+      </div>
+
+      <div class="surface-card border-round p-3">
+        <div v-if="!editing" class="text-600">Loading…</div>
+        <template v-else>
+          <!-- File preview and actions -->
+          <div class="flex align-items-center gap-3 mb-3">
+            <template v-if="(editing.is_image || editing.is_video) && editing.thumb">
+              <img
+                :src="editing.thumb"
+                alt="thumb"
+                style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;"
+                role="button"
+                @click="openLightbox(editing)"
+              />
+            </template>
+            <template v-else>
+              <i class="pi text-4xl" :class="extensionIcon(editing.file_name)"></i>
+            </template>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm text-600">File</div>
+              <div class="font-medium truncate">{{ editing.file_name }}</div>
+            </div>
+            <Button icon="pi pi-download" @click="downloadItem(editing)" v-tooltip.top="'Download'" />
+          </div>
+
+          <div class="mt-2 gap-2">
+            <FloatLabel variant="on" class="mb-2">
+              <InputText id="source" v-model="editing.source" class="w-full" @blur="onBlurSource" />
+              <label for="source">Source</label>
+            </FloatLabel>
+            <FloatLabel variant="on" class="mb-2">
+              <InputText id="where" v-model="editing.where" class="w-full" @blur="onBlurWhere" />
+              <label for="where">Where</label>
+            </FloatLabel>
+            <FloatLabel variant="on">
+              <Textarea id="notes" v-model="editing.notes" class="w-full" rows="4" @blur="onBlurNotes" />
+              <label for="notes">Notes</label>
+            </FloatLabel>
+          </div>
+
+          <!-- Subjects list and add (copied from ImagesTab, adapted) -->
+          <div class="field mt-3">
+            <div class="label mb-2">Subjects in File</div>
+            <div v-if="subjectsLoading" class="text-600 text-sm mb-2">Loading…</div>
+            <ul v-else class="subject-list">
+              <li v-for="s in fileSubjects" :key="s.id" class="subject-row">
+                <div class="subject-info clickable" @click.stop="openSubject(s.subject_id)">
+                  <img :src="s.photo_url" :alt="s.name" class="subject-avatar" />
+                  <span class="subject-name">{{ s.name }}</span>
+                </div>
+                <Button icon="pi pi-trash" text size="small" @click="deleteFileSubject(s.id)" />
+              </li>
+              <li v-if="fileSubjects.length === 0" class="text-600 text-sm">No subjects linked.</li>
+            </ul>
+            <div class="mt-2">
+              <FloatLabel variant="on">
+                <PersonSelect
+                  v-model="newSubjectId"
+                  :caseNumber="String(props.caseId || '')"
+                  :filter="false"
+                  :addButton="false"
+                  @change="onSelectNewSubject"
+                />
+                <label>Add Subject</label>
+              </FloatLabel>
+            </div>
+          </div>
+
+        </template>
+      </div>
+
+      <!-- Subject Dialog -->
+      <Dialog v-model:visible="subjectDialogVisible" modal header="Subject" :style="{ width: '640px' }">
+        <div v-if="subjectLoading" class="p-3 text-600">Loading…</div>
+        <SubjectPanel v-else-if="subjectModel" v-model="subjectModel" :isNew="false" :canModify="true" @updated="() => {}" @avatarChanged="() => {}" />
+        <template #footer>
+          <Button label="Close" text @click="subjectDialogVisible=false" />
+        </template>
+      </Dialog>
+    </template>
+
+    <!-- Lightbox Overlay (images/videos) placed globally for both list and edit modes -->
     <div v-if="showLightbox" class="lightbox" @click.self="closeLightbox">
       <button class="lightbox-close" type="button" @click="closeLightbox" aria-label="Close">
         <i class="pi pi-times"></i>
@@ -429,4 +551,6 @@ onBeforeUnmount(() => {
 .subject-info { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1 1 auto; }
 .subject-avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; }
 .subject-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-button { background: transparent; border: none; padding: .25rem; cursor: pointer; border-radius: 4px; }
+.icon-button:hover { background: rgba(0,0,0,0.04); }
 </style>

@@ -11,7 +11,7 @@ from app.db.models.person import Person
 from app.db.models.task import Task
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 from app.schemas.task import TaskRead, TaskCreate, TaskPartial
 
 router = APIRouter()

@@ -27,6 +27,8 @@ const routes = [
     // Contacts deep-links (edit a subject/person contact within Contacts tab)
     { path: '/cases/:caseNumber/contacts/subjects/:rawSubjectId', name: 'case-contact-subject', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'contacts' }) },
     { path: '/cases/:caseNumber/contacts/persons/:rawPersonId', name: 'case-contact-person', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'contacts' }) },
+    // Docs deep-link (edit a single file within Docs tab)
+    { path: '/cases/:caseNumber/docs/files/:rawFileId', name: 'case-doc-file', component: () => import('../views/CaseView.vue'), props: (route) => ({ caseNumber: route.params.caseNumber, tab: 'docs' }) },
     { path: '/cases/:caseNumber/:tab/:subtab?', name: 'case-detail', component: () => import('../views/CaseView.vue'), props: true },
     { path: '/messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('../views/ContactsView.vue') },
