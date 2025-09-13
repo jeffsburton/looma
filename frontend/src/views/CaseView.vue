@@ -13,9 +13,15 @@ const tab = computed(() => {
   if (route.name === 'case-social') return 'social'
   if (route.name === 'case-contact-subject' || route.name === 'case-contact-person') return 'contacts'
   if (route.name === 'case-doc-file') return 'docs'
+  if (route.name === 'case-doc-ops') return 'docs'
   return String(route.params.tab || 'core')
 })
-const subtab = computed(() => String(route.params.subtab || 'intake'))
+const subtab = computed(() => {
+  // When deep-linked into Docs, force correct subtab
+  if (route.name === 'case-doc-ops') return 'ops'
+  if (route.name === 'case-doc-file') return 'files'
+  return String(route.params.subtab || 'intake')
+})
 
 function goBackToList() {
   router.replace({ name: 'cases' })

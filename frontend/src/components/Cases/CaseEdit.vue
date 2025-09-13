@@ -171,16 +171,23 @@ watch(
       // Otherwise allow default behavior (ContactsTab will manage subtab routing)
     }
 
-    // Docs deep-link: when editing a single file, preserve /docs/files/:rawFileId
+    // Docs deep-link: when editing a single ops plan or file, preserve dedicated routes
+    const rawOpsPlanId = route.params.rawOpsPlanId ? String(route.params.rawOpsPlanId) : undefined
     const rawFileId = route.params.rawFileId ? String(route.params.rawFileId) : undefined
     if (tab === 'docs') {
+      if (rawOpsPlanId) {
+        if (route.name !== 'case-doc-ops' || String(route.params.caseNumber || '') !== caseNumber) {
+          router.replace({ name: 'case-doc-ops', params: { caseNumber, rawOpsPlanId } })
+        }
+        return
+      }
       if (rawFileId) {
         if (route.name !== 'case-doc-file' || String(route.params.caseNumber || '') !== caseNumber) {
           router.replace({ name: 'case-doc-file', params: { caseNumber, rawFileId } })
         }
         return
       }
-      // Fall through to default case-detail routing when not deep-linked to a specific file
+      // Fall through to default case-detail routing when not deep-linked to a specific docs record
     }
 
     // Default behavior for other tabs

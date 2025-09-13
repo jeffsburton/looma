@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
@@ -11,6 +12,8 @@ import Calendar from 'primevue/calendar'
 import UnseenMessageCount from '@/components/common/UnseenMessageCount.vue'
 import Messages from '@/components/Messages.vue'
 import api from '@/lib/api'
+
+const OpsPlansEdit = defineAsyncComponent(() => import('./OpsPlansEdit.vue'))
 
 // Props
 const props = defineProps({
@@ -31,7 +34,11 @@ function casePathId(id) {
 // Data
 const loading = ref(false)
 const plans = ref([])
-const expandedRows = ref({})
+
+// Routing for edit mode
+const route = useRoute()
+const router = useRouter()
+const caseNumber = computed(() => String(route.params.caseNumber || ''))
 
 // People cache for created_by and role selects
 const personMap = ref({})
@@ -126,7 +133,17 @@ onMounted(async () => {
   await loadPlans()
 })
 
-watch(() => props.caseId, () => { loadPlans() })
+watch(() => props.caseId, () => { loadPlans() }, { immediate: false })
+
+// When leaving edit mode, reload list
+watch(
+  () => route.params.rawOpsPlanId,
+  (val, oldVal) => {
+    if (oldVal && !val) {
+      loadPlans()
+    }
+  }
+)
 
 // Editing (existing rows): local copy per expanded row with debounced auto-save
 const edits = ref({}) // id -> model copy
@@ -242,271 +259,63 @@ const displayOpType = (row) => {
   const opt = (opTypeOptions.value || []).find(o => o.value === id)
   return opt?.label || '—'
 }
+
+function openEdit(row) {
+  const id = row?.id
+  if (!id) return
+  const url = `/cases/${encodeURIComponent(String(caseNumber.value))}/docs/ops/${encodeURIComponent(String(id))}`
+  console.log('openEdit', url)
+  router.push({ path: url })
+}
 </script>
 
 <template>
   <div class="p-2">
-    <!-- Toolbar -->
-    <div class="flex align-items-center gap-2 mb-3">
-      <div class="ml-auto">
-        <Button label="Add" icon="pi pi-plus" @click="startAdd" />
-      </div>
-    </div>
-
-    <!-- New Plan form (Save/Cancel only visible for new records) -->
-    <div v-if="adding" class="surface-card p-3 border-1 surface-border border-round mb-3">
-      <div class="grid formgrid p-fluid gap-3">
-        <div class="col-12 md:col-3">
-          <FloatLabel variant="on" class="w-full">
-            <Calendar id="new_date" v-model="newPlan.date" class="w-full" dateFormat="yy-mm-dd" />
-            <label for="new_date">Date</label>
-          </FloatLabel>
-        </div>
-        <div class="col-12 md:col-3">
-          <FloatLabel variant="on" class="w-full">
-            <Select id="new_op_type_id" v-model="newPlan.op_type_id" :options="opTypeOptions" optionLabel="label" optionValue="value" class="w-full" />
-            <label for="new_op_type_id">Operation Type</label>
-          </FloatLabel>
-        </div>
-        <div class="col-12 md:col-3">
-          <FloatLabel variant="on" class="w-full">
-            <Select id="new_responsible_agency_id" v-model="newPlan.responsible_agency_id" :options="organizationOptions" optionLabel="label" optionValue="value" class="w-full" />
-            <label for="new_responsible_agency_id">Responsible Agency</label>
-          </FloatLabel>
-        </div>
-        <div class="col-12 md:col-3">
-          <FloatLabel variant="on" class="w-full">
-            <InputText id="new_city" v-model="newPlan.city" class="w-full" />
-            <label for="new_city">City</label>
-          </FloatLabel>
-        </div>
-        <div class="col-12">
-          <FloatLabel variant="on" class="w-full">
-            <Textarea id="new_address" v-model="newPlan.address" class="w-full" autoResize rows="2" />
-            <label for="new_address">Address</label>
-          </FloatLabel>
+    <template v-if="route.params.rawOpsPlanId">
+      <OpsPlansEdit :caseId="String(caseId)" />
+    </template>
+    <template v-else>
+      <!-- Toolbar -->
+      <div class="flex align-items-center gap-2 mb-3">
+        <div class="ml-auto">
+          <Button label="Add" icon="pi pi-plus" @click="() => router.push({ path: `/cases/${encodeURIComponent(String(caseNumber))}/docs/ops/new` })" />
         </div>
       </div>
-      <div class="flex gap-2 justify-content-end mt-2">
-        <Button label="Cancel" text @click="cancelAdd" />
-        <Button label="Save" icon="pi pi-check" @click="createPlan" />
-      </div>
-    </div>
 
-    <DataTable :value="plans" dataKey="id" v-model:expandedRows="expandedRows" size="small"  :loading="loading" class="w-full" @rowExpand="onRowExpand">
-      <Column expander style="width:3rem" />
-      <Column header="" style="width:48px">
-        <template #body="{ data }">
-          <UnseenMessageCount TableName="ops_plan" :CaseId="caseId" :OpsPlanId="data.id">
-            <div class="flex align-items-center">
-              <span class="material-symbols-outlined text-900">map_pin_review</span>
+      <DataTable :value="plans" dataKey="id" size="small" :loading="loading" class="w-full">
+        <Column header="" style="width:48px">
+          <template #body="{ data }">
+            <UnseenMessageCount TableName="ops_plan" :CaseId="caseId" :OpsPlanId="data.id">
+              <div class="flex align-items-center">
+                <span class="material-symbols-outlined text-900">map_pin_review</span>
+              </div>
+            </UnseenMessageCount>
+          </template>
+        </Column>
+        <Column header="Created by">
+          <template #body="{ data }">
+            <div class="flex align-items-center gap-2">
+              <img :src="getPerson(data.created_by)?.photo_url || '/images/pfp-generic.png'" alt="pfp" class="avatar-sm" />
+              <span class="text-900 font-medium name-clip">{{ getPerson(data.created_by)?.name || 'Unknown' }}</span>
             </div>
-          </UnseenMessageCount>
-        </template>
-      </Column>
-      <Column header="Created by">
-        <template #body="{ data }">
-          <div class="flex align-items-center gap-2">
-            <img :src="getPerson(data.created_by)?.photo_url || '/images/pfp-generic.png'" alt="pfp" class="avatar-sm" />
-            <span class="text-900 font-medium name-clip">{{ getPerson(data.created_by)?.name || 'Unknown' }}</span>
-          </div>
-        </template>
-      </Column>
-      <Column header="Date">
-        <template #body="{ data }">{{ data.date || '—' }}</template>
-      </Column>
-      <Column header="Op Type">
-        <template #body="{ data }">{{ displayOpType(data) }}</template>
-      </Column>
-      <Column header="Address">
-        <template #body="{ data }">{{ data.address || '—' }}</template>
-      </Column>
-
-      <template #expansion="{ data }">
-        <div class="surface-card p-3 border-1 surface-border border-round mb-2">
-          <div class="grid formgrid p-fluid gap-3">
-            <!-- Date & Team -->
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Calendar id="date" v-model="edits[data.id].date" class="w-full" dateFormat="yy-mm-dd" @update:modelValue="v => queueSave(data, { date: v })" />
-                <label for="date">Date</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="team_id" v-model="edits[data.id].team_id" class="w-full" @update:modelValue="v => queueSave(data, { team_id: v })" />
-                <label for="team_id">Team (id)</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Select id="op_type_id" v-model="edits[data.id].op_type_id" :options="opTypeOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { op_type_id: v })"/>
-                <label for="op_type_id">Operation Type</label>
-              </FloatLabel>
-            </div>
-
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="op_type_other" v-model="edits[data.id].op_type_other" class="w-full" @update:modelValue="v => queueSave(data, { op_type_other: v })" />
-                <label for="op_type_other">Op Type (other)</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Select id="responsible_agency_id" v-model="edits[data.id].responsible_agency_id" :options="organizationOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { responsible_agency_id: v })" />
-                <label for="responsible_agency_id">Responsible Agency</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Select id="subject_legal_id" v-model="edits[data.id].subject_legal_id" :options="subjLegalOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { subject_legal_id: v })"/>
-                <label for="subject_legal_id">Subject Legal</label>
-              </FloatLabel>
-            </div>
-
-            <!-- Locations -->
-            <div class="col-12 md:col-6">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="address" v-model="edits[data.id].address" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { address: v })" />
-                <label for="address">Address</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-6">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="city" v-model="edits[data.id].city" class="w-full" @update:modelValue="v => queueSave(data, { city: v })" />
-                <label for="city">City</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-6">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="vehicles" v-model="edits[data.id].vehicles" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { vehicles: v })" />
-                <label for="vehicles">Vehicles</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-6">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="residence_owner" v-model="edits[data.id].residence_owner" class="w-full" @update:modelValue="v => queueSave(data, { residence_owner: v })" />
-                <label for="residence_owner">Residence Owner</label>
-              </FloatLabel>
-            </div>
-
-            <!-- Threats -->
-            <div class="col-12 md:col-2" v-for="(field, idx) in [
-              ['threat_dogs_id','Dogs'],
-              ['threat_cameras_id','Cameras'],
-              ['threat_weapons_id','Weapons'],
-              ['threat_drugs_id','Drugs'],
-              ['threat_gangs_id','Gangs'],
-              ['threat_assault_id','Assault'],
-            ]" :key="idx">
-              <FloatLabel variant="on" class="w-full">
-                <Select :id="field[0]" v-model="edits[data.id][field[0]]" :options="ynuOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { [field[0]]: v })"/>
-                <label :for="field[0]">Threat: {{ field[1] }}</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="threat_other" v-model="edits[data.id].threat_other" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { threat_other: v })" />
-                <label for="threat_other">Threat (other)</label>
-              </FloatLabel>
-            </div>
-
-            <!-- Forecast -->
-            <div class="col-12 md:col-12">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="forecast" v-model="edits[data.id].forecast" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { forecast: v })" />
-                <label for="forecast">Forecast</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-3" v-for="(field, idx) in [
-              ['temperature','Temperature'], ['humidity','Humidity'], ['precipitation','Precipitation'], ['uv_index','UV Index']
-            ]" :key="'wx-' + idx">
-              <FloatLabel variant="on" class="w-full">
-                <InputText :id="field[0]" v-model="edits[data.id][field[0]]" class="w-full" @update:modelValue="v => queueSave(data, { [field[0]]: v })" />
-                <label :for="field[0]">{{ field[1] }}</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="winds" v-model="edits[data.id].winds" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { winds: v })" />
-                <label for="winds">Winds</label>
-              </FloatLabel>
-            </div>
-
-            <!-- Briefing / Locations / Comms -->
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="briefing_time" v-model="edits[data.id].briefing_time" class="w-full" @update:modelValue="v => queueSave(data, { briefing_time: v })" />
-                <label for="briefing_time">Briefing Time (HH:MM:SS)</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="rendevouz_location" v-model="edits[data.id].rendevouz_location" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { rendevouz_location: v })" />
-                <label for="rendevouz_location">Rendezvous Location</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Textarea id="primary_location" v-model="edits[data.id].primary_location" class="w-full" autoResize rows="2" @update:modelValue="v => queueSave(data, { primary_location: v })" />
-                <label for="primary_location">Primary Location</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Select id="comms_channel_id" v-model="edits[data.id].comms_channel_id" :options="commsOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { comms_channel_id: v })"/>
-                <label for="comms_channel_id">Comms Channel</label>
-              </FloatLabel>
-            </div>
-
-            <!-- Emergency -->
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="police_phone" v-model="edits[data.id].police_phone" class="w-full" @update:modelValue="v => queueSave(data, { police_phone: v })" />
-                <label for="police_phone">Police Phone</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <InputText id="ems_phone" v-model="edits[data.id].ems_phone" class="w-full" @update:modelValue="v => queueSave(data, { ems_phone: v })" />
-                <label for="ems_phone">EMS Phone</label>
-              </FloatLabel>
-            </div>
-            <div class="col-12 md:col-4">
-              <FloatLabel variant="on" class="w-full">
-                <Select id="hospital_er_id" v-model="edits[data.id].hospital_er_id" :options="hospitalOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { hospital_er_id: v })"/>
-                <label for="hospital_er_id">Hospital ER</label>
-              </FloatLabel>
-            </div>
-
-            <!-- Responsible roles -->
-            <div class="col-12 md:col-4" v-for="(field, idx) in [
-              ['resp_contact_at_door_id','Contact at Door'],
-              ['resp_overwatch_id','Overwatch'],
-              ['resp_navigation_id','Navigation'],
-              ['resp_communications_id','Communications'],
-              ['resp_safety_id','Safety'],
-              ['resp_medical_id','Medical'],
-            ]" :key="'resp-' + idx">
-              <FloatLabel variant="on" class="w-full">
-                <Select :id="field[0]" v-model="edits[data.id][field[0]]" :options="personOptions" optionLabel="label" optionValue="value" class="w-full" @update:modelValue="v => queueSave(data, { [field[0]]: v })"/>
-                <label :for="field[0]">Responsible: {{ field[1] }}</label>
-              </FloatLabel>
-            </div>
-          </div>
-
-          <div class="flex justify-content-end mt-2 text-600 text-sm">
-            <span v-if="saving[data.id]">Saving…</span>
-          </div>
-
-          <!-- Messages for this Ops Plan -->
-          <div class="mt-3">
-            <p class="text-600 mb-2">Ask questions or add updates related to this ops plan:</p>
-            <Messages :caseId="caseId" filterByFieldName="ops_plan_id" :filterByFieldId="data.id" />
-          </div>
-        </div>
-      </template>
-    </DataTable>
+          </template>
+        </Column>
+        <Column header="Date">
+          <template #body="{ data }">{{ data.date || '—' }}</template>
+        </Column>
+        <Column header="Op Type">
+          <template #body="{ data }">{{ displayOpType(data) }}</template>
+        </Column>
+        <Column header="Address">
+          <template #body="{ data }">{{ data.address || '—' }}</template>
+        </Column>
+        <Column header="" style="width:1%">
+          <template #body="{ data }">
+            <Button icon="pi pi-pencil" text rounded @click.stop="openEdit(data)" />
+          </template>
+        </Column>
+      </DataTable>
+    </template>
   </div>
 </template>
 
