@@ -13,7 +13,7 @@ from app.db.models.subject import Subject
 from app.db.models.ref_value import RefValue
 from app.db.models.timeline import Timeline
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
 router = APIRouter()
@@ -25,9 +25,8 @@ async def list_timeline(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    # Decode and authorize
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     # Join Subject for who display and RefValue for type
     type_ref = aliased(RefValue)
@@ -117,9 +116,8 @@ async def update_timeline(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         tl_db_id = decode_id("timeline", timeline_id)
@@ -198,9 +196,8 @@ async def create_timeline(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     row = Timeline(
         case_id=int(case_db_id),

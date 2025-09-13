@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, nextTick, defineAsyncComponent } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Divider from 'primevue/divider'
 import Button from 'primevue/button'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -8,7 +9,10 @@ import Textarea from 'primevue/textarea'
 import FloatLabel from 'primevue/floatlabel'
 import SelectButton from 'primevue/selectbutton'
 import Popover from 'primevue/popover'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
 import { getLocaleDateFormat } from '../../../lib/util.js'
+import api from '../../../lib/api'
 
 import CaseSubjectSelect from '../CaseSubjectSelect.vue'
 import RefSelect from '../../RefSelect.vue'
@@ -19,6 +23,12 @@ import 'vue-cal/style'
 import { addDatePrototypes } from 'vue-cal'
 
 addDatePrototypes()
+
+const route = useRoute()
+const router = useRouter()
+
+// Async edit component
+const TimelineEdit = defineAsyncComponent(() => import('./TimelineEdit.vue'))
 
 const props = defineProps({
   caseId: { type: String, default: '' },
@@ -136,9 +146,8 @@ async function load() {
   error.value = ''
   try {
     const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/timeline`
-    const resp = await fetch(url, { credentials: 'include', headers: { 'Accept': 'application/json' } })
-    if (!resp.ok) throw new Error('Failed to load timeline')
-    rows.value = await resp.json()
+    const { data } = await api.get(url)
+    rows.value = data || []
     // Reset calendar initial date on reload
     showDateInitialized.value = false
   } catch (e) {
@@ -151,6 +160,27 @@ async function load() {
 }
 
 watch(() => props.caseId, () => { load() }, { immediate: true })
+
+// Case number from route for building edit links
+const caseNumber = computed(() => String(route.params.caseNumber || ''))
+
+// When leaving edit mode (subtab removed), reload list
+watch(
+  () => route.params.subtab,
+  (val, oldVal) => {
+    if (oldVal && !val) {
+      load()
+    }
+  }
+)
+
+function openEdit(row) {
+  const id = row?.id
+  if (!id) return
+  const url = `/cases/${encodeURIComponent(String(caseNumber.value))}/timeline/${encodeURIComponent(String(id))}`
+  console.log(url)
+  router.push({ path: url })
+}
 
 function fmtDate(val) {
   if (val == null || val === '') return null
@@ -187,13 +217,7 @@ async function patchRow(row, patch) {
     if (Object.prototype.hasOwnProperty.call(payload, 'time')) {
       payload.time = fmtTime(payload.time)
     }
-    const resp = await fetch(url, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!resp.ok) throw new Error('Failed to save change')
+    await api.patch(url, payload)
   } catch (e) {
     console.error(e)
     load()
@@ -205,8 +229,7 @@ async function addRow() {
   try {
     const url = `/api/v1/cases/${encodeURIComponent(String(props.caseId))}/timeline`
     const payload = {}
-    const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    if (!resp.ok) console.error('Failed to create timeline row')
+    await api.post(url, payload)
   } catch (e) {
     console.error(e)
   } finally {
@@ -319,148 +342,49 @@ function onSortAffectingChange(row) {
       </Popover>
     </div>
 
-    <!-- List (existing) view -->
-    <div v-else class="cards">
-      <template v-for="(data, idx) in sortedRows" :key="data.id">
-        <div class="card surface-card border-round p-1" :class="{ 'row-highlight': highlighted[data.id] }" :ref="el => setRowRef(data.id, el)">
-          <div class="flex flex-column gap-1">
-
-            <div class="form-grid">
-              <!-- Date -->
-              <div class="field" style="min-width: 10px;max-width: 120px">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Date</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.date || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on">
-                    <DatePicker v-model="data.date" :date-format="getLocaleDateFormat()" class="" @update:modelValue="(v) => { onSortAffectingChange(data); patchRow(data, { date: v || null }) }"  />
-                    <label>Date</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Time -->
-              <div class="field" style="min-width: 10px;max-width: 120px">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Time</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.time || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on">
-                    <DatePicker v-model="data.time" class="w-full" @update:modelValue="(v) => { onSortAffectingChange(data); patchRow(data, { time: v || null }) }" timeOnly hourFormat="24" showTime />
-                    <label>Time</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Who -->
-              <div class="field" style="min-width: 10px;max-width: 250px">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Who</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.who_name || data.who_display || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on">
-                    <CaseSubjectSelect style="max-width: 250px" v-model="data.who_id" :caseId="caseId" :primarySubject="primarySubject" @change="(v) => patchRow(data, { who_id: v })" />
-                    <label>Who</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Where -->
-              <div class="field">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Where</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.where || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on" class="w-full">
-                    <Textarea v-model="data.where" class="w-full" @change="() => patchRow(data, { where: data.where || null })" />
-                    <label>Where</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Type -->
-              <div class="field" style="min-width: 100px;max-width: 120px">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Type</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.type_name || data.type_other || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on">
-                    <RefSelect
-                      code="TL_TYPE"
-                      v-model="data.type_id"
-                      :currentCode="data.type_code || ''"
-                      :otherValue="data.type_other || ''"
-                      @update:otherValue="(v) => { data.type_other = v }"
-                      @otherCommit="(v) => patchRow(data, { type_other: v || null })"
-                      @change="(v) => patchRow(data, { type_id: v })"
-                    />
-                    <label>Type</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Details -->
-              <div class="field">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Details</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.details || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on" class="w-full">
-                    <Textarea v-model="data.details" class="w-full" @change="() => patchRow(data, { details: data.details || null })" />
-                    <label>Details</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Comments -->
-              <div class="field">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Comments</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.comments || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on" class="w-full">
-                    <Textarea v-model="data.comments"  class="w-full" @change="() => patchRow(data, { comments: data.comments || null })" />
-                    <label>Comments</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <!-- Questions -->
-              <div class="field">
-                <template v-if="data.rule_out">
-                  <label class="block text-sm text-600">Questions</label>
-                  <div :style="'text-decoration: line-through;'">{{ data.questions || '—' }}</div>
-                </template>
-                <template v-else>
-                  <FloatLabel variant="on" class="w-full">
-                    <Textarea v-model="data.questions" class="w-full" @change="() => patchRow(data, { questions: data.questions || null })" />
-                    <label>Questions</label>
-                  </FloatLabel>
-                </template>
-              </div>
-
-              <div class="field">
-                <div class="flex align-items-center gap-2 nowrap">
-                  <label class="text-sm text-600">Rule Out</label>
-                  <ToggleSwitch v-model="data.rule_out" @update:modelValue="(v) => patchRow(data, { rule_out: v })" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <Divider  class="my-1 divider" />
+    <!-- List (DataTable) view -->
+    <div v-else class="w-full">
+      <template v-if="route.params.subtab">
+        <TimelineEdit :caseId="String(caseId)" />
       </template>
-
-      <div class="mt-2 flex ">
-        <Button label="Add" size="small" icon="pi pi-plus" @click="addRow" />
-      </div>
+      <template v-else>
+        <div v-if="error" class="p-error mb-2">{{ error }}</div>
+        <DataTable :value="sortedRows" dataKey="id" size="small" class="w-full" :loading="loading">
+          <Column header="Date">
+            <template #body="{ data }">
+              <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ data.date || '—' }}</span>
+            </template>
+          </Column>
+          <Column header="Time">
+            <template #body="{ data }">
+              <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ data.time || '—' }}</span>
+            </template>
+          </Column>
+          <Column header="Who">
+            <template #body="{ data }">
+              <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ data.who_name || '—' }}</span>
+            </template>
+          </Column>
+          <Column header="Type">
+            <template #body="{ data }">
+              <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ data.type_name || data.type_other || '—' }}</span>
+            </template>
+          </Column>
+          <Column header="Details">
+            <template #body="{ data }">
+              <span :style="data.rule_out ? 'text-decoration: line-through;' : ''">{{ data.details || '—' }}</span>
+            </template>
+          </Column>
+          <Column header="" style="width:1%">
+            <template #body="{ data }">
+              <Button icon="pi pi-pencil" text rounded @click.stop="openEdit(data)" />
+            </template>
+          </Column>
+        </DataTable>
+        <div class="flex justify-content-start mt-2">
+          <Button label="Add" icon="pi pi-plus" @click="addRow" />
+        </div>
+      </template>
     </div>
   </div>
 </template>

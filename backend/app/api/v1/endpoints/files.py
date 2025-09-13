@@ -19,7 +19,7 @@ from app.services.auth import user_has_permission
 from app.services.s3 import get_download_link, create_file
 from app.services.image_classifier.image_classifier import predict_photo_probability
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 
 router = APIRouter()
 
@@ -31,10 +31,8 @@ async def list_files(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await user_has_permission(db, current_user.id, "CASES.ALL_CASES"):
-        if not await can_user_access_case(db, current_user.id, pk):
-            raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     P = PersonModel
     R = Rfi
@@ -106,10 +104,8 @@ async def upload_file(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await user_has_permission(db, current_user.id, "CASES.ALL_CASES"):
-        if not await can_user_access_case(db, current_user.id, pk):
-            raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Decode optional rfi_id if provided
     rid: Optional[int] = None
@@ -226,10 +222,8 @@ async def list_file_subjects(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    # Access control
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve file id and ensure it belongs to the case
     try:
@@ -281,9 +275,8 @@ async def add_file_subject(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     try:
         fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)
@@ -321,9 +314,8 @@ async def delete_file_subject(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     try:
         fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)
@@ -353,9 +345,8 @@ async def update_file(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     try:
         fid = decode_id("file", file_id) if not str(file_id).isdigit() else int(file_id)

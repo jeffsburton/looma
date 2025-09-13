@@ -24,7 +24,7 @@ from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 from app.db.models.file import File as OtherFile
 from app.services.s3 import get_download_link
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 from app.schemas.message import MessageRead
 
 router = APIRouter()
@@ -95,9 +95,8 @@ async def list_case_messages(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve current user's person id
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
@@ -217,9 +216,8 @@ async def create_case_message(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
     if pid is None:
@@ -429,9 +427,8 @@ async def set_message_reaction(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
     if pid is None:
@@ -479,9 +476,8 @@ async def get_message_reactions(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
     if pid is None:
@@ -526,9 +522,8 @@ async def get_case_message(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve current user's person id
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
@@ -649,9 +644,7 @@ async def update_message(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve current user's person id
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
@@ -694,9 +687,7 @@ async def delete_message(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve current user's person id
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
@@ -762,9 +753,7 @@ async def list_new_case_messages(
     by the current user (i.e., there exists a message_not_seen record for the
     message and this person). The payload shape matches list_case_messages.
     """
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve current user's person id
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()
@@ -892,9 +881,7 @@ async def mark_messages_seen_up_to(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    pk = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, pk):
-        raise HTTPException(status_code=404, detail="Case not found")
+    pk = await case_number_or_id(db, current_user, case_id)
 
     # Resolve current user's person id
     pid = (await db.execute(select(Person.id).where(Person.app_user_id == current_user.id))).scalar_one_or_none()

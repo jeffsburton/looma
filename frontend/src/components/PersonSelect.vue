@@ -5,6 +5,7 @@ import Button from 'primevue/button'
 import SplitButton from 'primevue/splitbutton'
 import Dialog from 'primevue/dialog'
 import Badge from 'primevue/badge'
+import api from '../lib/api'
 import { hasPermission } from '../lib/permissions'
 import PersonEditor from './contacts/Person.vue'
 import SubjectEditor from './contacts/Subject.vue'
@@ -16,6 +17,8 @@ const props = defineProps({
   subjects: { type: Boolean, default: false }, // subject records
   disabled: { type: Boolean, default: false },
   filter: { type: Boolean, default: true },
+  caseNumber: { type: [String, Number], default: null },
+  addButton: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
@@ -30,13 +33,35 @@ const loading = ref(false)
 async function loadOptions() {
   loading.value = true
   try {
+    // If a caseNumber is provided, list only subjects linked to that case via subject_case
+    const caseNum = props.caseNumber
+    if (caseNum !== null && String(caseNum).trim() !== '') {
+      try {
+        const url = `/api/v1/cases/${encodeURIComponent(String(caseNum))}/subjects`
+        const { data } = await api.get(url)
+        const arr = Array.isArray(data) ? data : []
+        options.value = arr.map(r => ({
+          id: r?.subject?.id,
+          name: `${r?.subject?.first_name || ''} ${r?.subject?.last_name || ''}`.trim() || 'Subject',
+          photo_url: r?.subject?.photo_url,
+          is_shepherd: false,
+          organization_name: r?.relationship_name || '',
+          team_photo_urls: [],
+          dangerous: r?.subject?.dangerous,
+          danger: r?.subject?.danger,
+        }))
+      } catch (e) {
+        console.error(e)
+        options.value = []
+      }
+      return
+    }
+
     // If only subjects should be listed, skip loading persons entirely
     if (props.subjects && !props.shepherds && !props.agency) {
       try {
-        const sResp = await fetch('/api/v1/subjects/select')
-        if (!sResp.ok) throw new Error('Failed to load subjects')
-        const subs = await sResp.json()
-        console.log(subs);
+        const { data } = await api.get('/api/v1/subjects/select')
+        const subs = Array.isArray(data) ? data : []
         options.value = (subs || []).map(s => ({
           id: s.id, // opaque subject id like subj:...
           name: s.name,
@@ -62,10 +87,9 @@ async function loadOptions() {
     // Fetch people according to shepherds/agency mapping (agency -> non_shepherds on server)
     if (props.shepherds || props.agency) {
       const qs = new URLSearchParams({ shepherds: String(!!props.shepherds), non_shepherds: String(!!props.agency) })
-      const resp = await fetch(`/api/v1/persons/select?${qs.toString()}`)
-      if (!resp.ok) throw new Error('Failed to load people')
-      const people = await resp.json()
-      options.value = Array.isArray(people) ? people : []
+      const { data } = await api.get(`/api/v1/persons/select?${qs.toString()}`)
+      const people = Array.isArray(data) ? data : []
+      options.value = people
     } else {
       options.value = []
     }
@@ -73,21 +97,19 @@ async function loadOptions() {
     // Optionally include subjects in addition to people
     if (props.subjects) {
       try {
-        const sResp = await fetch('/api/v1/subjects/select')
-        if (sResp.ok) {
-          const subs = await sResp.json()
-          const mapped = (subs || []).map(s => ({
-            id: s.id, // opaque subject id like subj:...
-            name: s.name,
-            photo_url: s.photo_url,
-            is_shepherd: false,
-            organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
-            team_photo_urls: [],
-            dangerous: s.dangerous,
-            danger: s.danger,
-          }))
-          options.value = [...options.value, ...mapped]
-        }
+        const { data } = await api.get('/api/v1/subjects/select')
+        const subs = Array.isArray(data) ? data : []
+        const mapped = (subs || []).map(s => ({
+          id: s.id, // opaque subject id like subj:...
+          name: s.name,
+          photo_url: s.photo_url,
+          is_shepherd: false,
+          organization_name: s.has_subject_case ? 'Missing Person' : 'Related to Investigation',
+          team_photo_urls: [],
+          dangerous: s.dangerous,
+          danger: s.danger,
+        }))
+        options.value = [...options.value, ...mapped]
       } catch {}
     }
   } finally {
@@ -95,7 +117,7 @@ async function loadOptions() {
   }
 }
 
-watch(() => [props.shepherds, props.agency, props.subjects], loadOptions, { immediate: true })
+watch(() => [props.shepherds, props.agency, props.subjects, props.caseNumber], loadOptions, { immediate: true })
 
 const selectedOption = computed(() => options.value.find(o => o.id === selectedId.value))
 
@@ -144,7 +166,7 @@ async function onCreated(created) {
     :filter="filter"
     :loading="loading"
     class="w-full"
-    :disabled="disabled || (!subjects && !shepherds && !agency)"
+    :disabled="disabled || ((!subjects && !shepherds && !agency) && !(caseNumber !== null && String(caseNumber).trim() !== ''))"
     @update:modelValue="(v) => emit('change', v)"
   >
     <template #option="{ option }">
@@ -180,7 +202,7 @@ async function onCreated(created) {
       </div>
     </template>
 
-    <template v-if="filter && canModify" #footer>
+    <template v-if="filter && canModify && addButton" #footer>
       <div class="p-2 border-top-1 surface-border flex justify-content-end">
         <Button v-if="subjects && !shepherds && !agency" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddSubject" />
         <Button v-else-if="shepherds && !agency && !subjects" label="Add" icon="pi pi-plus" size="small" text @click.stop.prevent="openAddShepherd" />

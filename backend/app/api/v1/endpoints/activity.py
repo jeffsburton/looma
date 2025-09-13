@@ -14,7 +14,7 @@ from app.db.models.person import Person
 from app.db.models.person_case import PersonCase
 from app.db.models.intel_activity import IntelActivity
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 from app.core.id_codec import decode_id, OpaqueIdError, encode_id
 
 router = APIRouter()
@@ -26,9 +26,8 @@ async def list_activity(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     source_ref = aliased(RefValue)
     reported_to_ref = aliased(RefValue)
@@ -129,9 +128,8 @@ async def update_activity(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         ia_db_id = decode_id("intel_activity", activity_id)
@@ -198,9 +196,8 @@ async def create_activity(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     # Pick an arbitrary person linked to the case to satisfy entered_by_id
     pc = (

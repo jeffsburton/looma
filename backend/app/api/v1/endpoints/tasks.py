@@ -25,9 +25,7 @@ async def list_tasks(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     conditions = [Task.case_id == int(case_db_id)]
 
@@ -64,9 +62,7 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     title = (payload.title or "").strip()
     if not title:
@@ -109,9 +105,7 @@ async def get_task(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         task_db_id = int(decode_id("task", task_id)) if not str(task_id).isdigit() else int(task_id)
@@ -135,9 +129,7 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         task_db_id = int(decode_id("task", task_id)) if not str(task_id).isdigit() else int(task_id)

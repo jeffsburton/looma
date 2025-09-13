@@ -10,7 +10,7 @@ from app.db.models.app_user import AppUser
 from app.db.models.ops_plan import OpsPlan
 from app.core.id_codec import decode_id, OpaqueIdError
 
-from .case_utils import _decode_or_404, can_user_access_case
+from .case_utils import _decode_or_404, can_user_access_case, case_number_or_id
 from app.schemas.ops_plan import OpsPlanRead, OpsPlanUpsert
 
 router = APIRouter()
@@ -23,9 +23,8 @@ async def create_ops_plan(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     # Resolve created_by from current user's person
     from sqlalchemy import select
@@ -108,9 +107,7 @@ async def list_ops_plans(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     rows = (
         await db.execute(
@@ -128,9 +125,7 @@ async def get_ops_plan(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         plan_db_id = int(decode_id("ops_plan", ops_plan_id)) if not str(ops_plan_id).isdigit() else int(ops_plan_id)
@@ -154,9 +149,7 @@ async def update_ops_plan(
     db: AsyncSession = Depends(get_db),
     current_user: AppUser = Depends(get_current_user),
 ):
-    case_db_id = _decode_or_404("case", case_id)
-    if not await can_user_access_case(db, current_user.id, int(case_db_id)):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case_db_id = await case_number_or_id(db, current_user, case_id)
 
     try:
         plan_db_id = int(decode_id("ops_plan", ops_plan_id)) if not str(ops_plan_id).isdigit() else int(ops_plan_id)
